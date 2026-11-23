@@ -200,9 +200,24 @@ describe('Harrow Ridge dressing', () => {
     }
   });
 
+  it('the industrial wing is furnished, each zone with its own pieces', () => {
+    for (const zone of ['cold', 'gen', 'motor']) {
+      expect(count(zone, true), zone).toBeGreaterThanOrEqual(12);
+      expect(count(zone, false), zone).toBeGreaterThanOrEqual(8);
+    }
+    const has = (zone: string, type: string) => harrowRidge.props.filter((p) => p.type === type && map.zoneAt(p.x, p.z) === zone).length;
+    expect(has('cold', 'rack')).toBeGreaterThanOrEqual(4);
+    expect(has('cold', 'ice_block') + has('cold', 'ice_stack')).toBeGreaterThanOrEqual(3);
+    expect(has('gen', 'generator')).toBe(2);
+    expect(has('gen', 'fuel_tank')).toBeGreaterThanOrEqual(1);
+    expect(has('motor', 'truck_cab') && has('motor', 'truck_bed') && has('motor', 'workbench')).toBeTruthy();
+    expect(harrowRidge.rooms.some((r) => r.zone === 'cold' && r.mist)).toBe(true);
+    expect(harrowRidge.zones.find((z) => z.id === 'cold')?.fog).toBeDefined();
+  });
+
   it('every prop has a definition and every zone keeps a light that works without the mains', () => {
     for (const p of harrowRidge.props) expect(propDef(p.type), p.type).toBeDefined();
-    for (const zone of ['mess', 'bunk', 'lab']) {
+    for (const zone of ['mess', 'bunk', 'lab', 'cold', 'gen', 'motor']) {
       expect(harrowRidge.lights.some((l) => !l.needsPower && map.zoneAt(l.x, l.z) === zone), zone).toBe(true);
       expect(harrowRidge.lights.some((l) => l.needsPower && map.zoneAt(l.x, l.z) === zone), zone).toBe(true);
     }

@@ -58,6 +58,10 @@ when its acceptance checks pass.
   `shared/src/map/dressing/<wing>.ts`. Solid props are whole 0.5 m cells in the collision grid:
   leave gaps of nothing or at least 1.5 m, then run `npm run map`. Lamps are drawn from
   `LightDef.fixture`. Door shutters and debris live in `render/doors.ts`.
+- Ambient motion: a builder draws a turning part through `k.mover(x, y, z, axis, motion)` (spin or
+  swing; `powered` spins wait for the mains) and marks a roof leak with `k.drip(...)`;
+  `render/ambient.ts` animates them and the floor mist of rooms with `mist: true`. Keep movers
+  few: each is a draw call. `ZoneDef.fog` sets a zone's air (`render/atmosphere.ts`).
 - Server: `lobby.ts` (rooms, seats, reconnect; transport-agnostic via `Peer`) and `game/Game.ts`
   (the match; `step(dt)` is pure so tests drive it without timers). Client: `net/net.ts` is the
   connection/lobby state machine, `main.ts` wires everything.

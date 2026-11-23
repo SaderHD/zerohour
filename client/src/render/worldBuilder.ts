@@ -2,13 +2,14 @@ import * as THREE from 'three';
 import { CELL_SIZE, Cell, FLOOR_STYLES, WALL_STYLES, propDef, type CompiledMap, type FloorStyle, type WallStyle } from '@zh/shared';
 import { PROP_BUILDERS, Kit, fixture } from '../models/props';
 import type { PropOut } from '../models/props/kit';
+import { Ambient } from './ambient';
 import { Baker, Bucket, type RGB, type Vert } from './bake';
 import { Doors } from './doors';
 import { glowMaterial, linear, propMaterial, setLightLevels, signMaterial, surfaceMaterial } from './materials';
 import { signTexture } from './signs';
 
 // Turns the compiled map into meshes: one per surface style for the cells, three for all the
-// props (lit, glowing, lettered) and a small group per door. Lighting is baked (see bake.ts);
+// props (lit, glowing, lettered), a small group per door and one per moving part (ambient.ts). Lighting is baked (see bake.ts);
 // the scene's only realtime light for the world is a white ambient that passes it through.
 
 const S = CELL_SIZE;
@@ -28,6 +29,8 @@ export interface World {
   /** Baked light level at a point, for tinting dynamic models so they sit in the scene. */
   lightAt(x: number, y: number, z: number): [number, number, number];
   triangles: number;
+  /** Parts that move by themselves (fans, flywheels, swinging lamps). */
+  movers: number;
 }
 
 const hash = (n: number): number => {
@@ -145,7 +148,7 @@ export function buildWorld(map: CompiledMap): World {
   }
 
   // Props and lamp fixtures, merged into three meshes for the whole map.
-  const out: PropOut = { baker, prop: new Bucket(), glow: new Bucket(), sign: new Bucket() };
+  const out: PropOut = { baker, prop: new Bucket(), glow: new Bucket(), sign: new Bucket(), movers: [], drips: [] };
   const cellOf = (x: number, z: number): number => map.idx(Math.floor(x / S), Math.floor(z / S));
   for (const p of map.def.props) {
     const def = propDef(p.type);
@@ -164,6 +167,11 @@ export function buildWorld(map: CompiledMap): World {
   addMesh('glow', out.glow, glowMaterial);
   addMesh('signs', out.sign, signMaterial(signTexture()));
 
+  // Whatever moves by itself: fans, flywheels, swinging lamps, drips, mist.
+  const ambient = new Ambient(map, baker, out.movers!, out.drips!);
+  group.add(ambient.group);
+  triangles += ambient.triangles;
+
   const doors = new Doors(map, baker);
   group.add(doors.group);
   triangles += doors.triangles;
@@ -175,6 +183,7 @@ export function buildWorld(map: CompiledMap): World {
   return {
     group,
     triangles,
+    movers: ambient.movers,
     lightAt: (x, y, z) => baker.lightAt(x, y, z),
     setDoors: (open) => {
       const want = new Set(open);
@@ -195,6 +204,7 @@ export function buildWorld(map: CompiledMap): World {
       const burst = Math.sin(time * 0.9) + Math.sin(time * 0.37 + 1) > 0.6;
       const tube = level * (burst && hash(Math.floor(time * 16) + 0.5) < 0.45 ? 0.12 : 0.92 + 0.08 * Math.sin(time * 50));
       setLightLevels(level, fire, tube);
+      ambient.update(dt, time, power);
     },
   };
 }

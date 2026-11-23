@@ -105,7 +105,8 @@ zerohour/
 - **FX:** muzzle flash quad + 1-frame light, tracer lines, blood = small box particles, bullet
   impact puffs, power-up spin+glow+bob, lightning = jittered line segments.
 - **Static world** is merged into a few meshes per zone (see map compile). Zombies/props that
-  repeat use shared geometries.
+  repeat use shared geometries. The few world parts that move (fans, flywheels, a swinging lamp)
+  are one small mesh each (`render/ambient.ts`), as are all drips together and the floor mist.
 
 ---
 
@@ -623,7 +624,24 @@ with no errors in client or server logs.
   bunk models run to 130-160 triangles against the 100 guideline; yard floodlights stand on plain
   masts and the east wing still has bare bulbs (sessions 8-9); no door or power sounds (12);
   mounts for wall buys, tonics and the Cache (9-10).
-- [ ] 8 Map II: industrial wing
+- [x] 8 Map II: industrial wing — done. 27 more prop types (65 in all), 246 placed; Cold Storage
+  (racking aisles, lake ice under a meat rail, the refrigeration plant, icicles, the shored-up
+  tunnel), Generator Hall (two generator sets, fuel tanks, switchgear, an unreachable catwalk and
+  its ladder, extractor fans) and Motor Pool (a truck on stands, roller door, fitters' bench and
+  tool board, tyre stacks, a brazier) are dressed; the tour has power-off and power-on views of
+  each. Moving parts are `Mover`s: a prop builder calls `k.mover(...)` and that part becomes its
+  own small mesh turned by `render/ambient.ts` (7 so far: 2 generator shafts, 3 extractor fans, the
+  chiller fan, the swinging work lamp); generator shafts only run with the power on, fans windmill
+  until then. The same file animates roof drips (one mesh for all) and the mist on the cold-store
+  floor (two additive layers, lit by the bake). `ZoneDef.fog` thickens and tints the distance fog
+  while the viewer stands in a zone (`render/atmosphere.ts`). Worst viewpoint in the wing is about
+  40 draw calls. Changes to the plan: a truck is two props (tall cab, low bed) because a footprint
+  is one rectangle with one height; cells inside a tall prop borrow the lights of the prop cells
+  round them so big machines are not black in the middle. Deferred: the swinging lamp's pool of
+  light is baked and does not swing with it; the frost fog switches by the viewer's zone, so the
+  cold store seen from the lab doorway is clear until you step in; the generator, truck and rack
+  models are well over the 100-triangle guideline (not counted); the power switch on the switchgear is
+  session 10; machine and drip sounds are session 12.
 - [ ] 9 Map III: exterior, Comms, Vault, whole-map pass
 - [ ] 10 Economy: wall buys, power, tonics, Forge
 - [ ] 11 Cache, power-ups, wonder weapons, Howlers

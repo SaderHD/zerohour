@@ -14,6 +14,7 @@ import { LocalWeapons } from './game/weapons';
 import { Input } from './input/input';
 import { ServerClock } from './net/interp';
 import { Net } from './net/net';
+import { Atmosphere } from './render/atmosphere';
 import { PALETTE } from './render/materials';
 import { RetroRenderer } from './render/renderer';
 import { buildSky } from './render/sky';
@@ -40,7 +41,8 @@ debugState.mapErrors = validation.errors;
 const renderer = new RetroRenderer(canvas);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(PALETTE.skyTop);
-scene.fog = new THREE.Fog(PALETTE.fog, 6, 42);
+const atmosphere = new Atmosphere(map);
+scene.fog = atmosphere.fog;
 // World surfaces carry baked lighting in vertex colours; this ambient passes it through 1:1
 // (Lambert divides by pi). Realtime lights added later (muzzle flashes...) stack on top.
 scene.add(new THREE.AmbientLight(0xffffff, Math.PI));
@@ -49,6 +51,7 @@ scene.add(sky);
 const world = buildWorld(map);
 scene.add(world.group);
 debugState.worldTriangles = world.triangles;
+debugState.movers = world.movers;
 
 const camera = new THREE.PerspectiveCamera(72, 16 / 9, 0.08, 400);
 const input = new Input();
@@ -449,6 +452,7 @@ renderer.gl.setAnimationLoop((now) => {
   entities.update(dt, clock.renderTime);
   fx.update(dt);
   world.update(dt, now / 1000);
+  atmosphere.update(dt, camera.position.x, camera.position.z);
   sky.position.set(camera.position.x, 0, camera.position.z);
   // A scoped rifle swaps the viewmodel for a scope overlay once the sights are up.
   const scoped = playing() && weapons.def?.cls === 'sniper' && weapons.aim > 0.85;

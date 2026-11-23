@@ -77,6 +77,19 @@ export class Baker {
         this.cellLights[i] = list;
       }
     }
+    // Sight stops at the first cell of a tall prop, which would leave the middle of a big one (a
+    // generator, a truck cab) unlit; let those cells borrow from the prop cells around them.
+    const tall = (cx: number, cz: number): boolean => map.inBounds(cx, cz) && map.block[map.idx(cx, cz)] === 2;
+    const spread = new Map<number, number[]>();
+    for (let cz = 0; cz < rows; cz++) {
+      for (let cx = 0; cx < cols; cx++) {
+        if (!tall(cx, cz)) continue;
+        const all = new Set<number>();
+        for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) if (tall(cx + dx, cz + dz)) for (const li of this.cellLights[map.idx(cx + dx, cz + dz)] ?? []) all.add(li);
+        spread.set(map.idx(cx, cz), [...all]);
+      }
+    }
+    for (const [i, list] of spread) this.cellLights[i] = list;
   }
 
   private ambientOf(i: number): RGB {

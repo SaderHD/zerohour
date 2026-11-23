@@ -16,6 +16,8 @@ export interface ZoneDef {
   letter: string;
   /** Ambient light colour (hex) the zone's surfaces receive before light pools. */
   ambient: number;
+  /** The air in here: fog colour and range (metres) while the viewer stands in the zone. */
+  fog?: { color: number; near: number; far: number };
 }
 
 /** A rectangle of open floor. Rooms of the same zone may abut to form L-shapes. */
@@ -33,6 +35,8 @@ export interface Room {
   outdoor?: boolean;
   /** Hex colour multiplied into the room's surfaces. */
   tint?: number;
+  /** Cold enough that mist lies on the floor. */
+  mist?: boolean;
 }
 
 /**
@@ -101,8 +105,11 @@ export interface LightDef {
   /** Glows weakly until the power is on. */
   needsPower?: boolean;
   flicker?: boolean;
-  /** The lamp drawn at the light: default 'shade'. 'none' when a prop is the source (a stove, a tank). */
-  fixture?: 'shade' | 'tube' | 'cage' | 'flood' | 'none';
+  /**
+   * The lamp drawn at the light: default 'shade'. 'swing' is a caged lamp swaying on its chain,
+   * 'none' when a prop is the source (a stove, a tank).
+   */
+  fixture?: 'shade' | 'tube' | 'cage' | 'flood' | 'swing' | 'none';
 }
 
 export interface MapDef {

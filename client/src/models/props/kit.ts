@@ -1,5 +1,5 @@
 import { Rng, type PropInst } from '@zh/shared';
-import type { Baker, Bucket, GlowMode, RGB, Vert } from '../../render/bake';
+import { Bucket, type Baker, type GlowMode, type RGB, type Vert } from '../../render/bake';
 import { linear } from '../../render/materials';
 import type { UVRect } from '../../render/signs';
 
@@ -9,11 +9,30 @@ import type { UVRect } from '../../render/signs';
 
 const GRAIN_METRES = 2;
 
+/** How a moving part moves: round and round, or to and fro. Angles in radians, about `axis`. */
+export type Motion =
+  /** `rate` rad/s. `powered` parts only run with the mains on, turning over at `idle` x rate until then. */
+  | { kind: 'spin'; rate: number; powered?: boolean; idle?: number }
+  | { kind: 'swing'; amp: number; period: number };
+
+/** A part of a prop that moves: its own little mesh, turning about a pivot (see render/ambient.ts). */
+export interface Mover {
+  pivot: [number, number, number];
+  axis: [number, number, number];
+  motion: Motion;
+  prop: Bucket;
+  glow: Bucket;
+}
+
 export interface PropOut {
   baker: Baker;
   prop: Bucket;
   glow: Bucket;
   sign: Bucket;
+  /** Collected while building; absent where nothing may move (doors). */
+  movers?: Mover[];
+  /** Where water drips from: [x, y, z] of each nozzle. */
+  drips?: [number, number, number][];
 }
 
 type V3 = [number, number, number];
@@ -65,6 +84,22 @@ export class Kit {
   /** A kit for a part that is moved and turned within this one. */
   sub(x: number, y: number, z: number, yaw = 0, pitch = 0, roll = 0): Kit {
     return new Kit(this.out, mul(this.R, rotation(yaw, pitch, roll)), this.world([x, y, z]), this.cell, this.rng, this.inst, this.ceil);
+  }
+
+  /**
+   * A kit for a part that turns about `axis` through (x, y, z). It draws in this kit's space, in
+   * the part's rest position, and ends up as a mesh of its own.
+   */
+  mover(x: number, y: number, z: number, axis: V3, motion: Motion): Kit {
+    if (!this.out.movers) return this;
+    const m: Mover = { pivot: this.world([x, y, z]), axis: this.dir(axis), motion, prop: new Bucket(), glow: new Bucket() };
+    this.out.movers.push(m);
+    return new Kit({ ...this.out, prop: m.prop, glow: m.glow }, this.R, this.t, this.cell, this.rng, this.inst, this.ceil);
+  }
+
+  /** Water drips from this point. */
+  drip(x: number, y: number, z: number): void {
+    this.out.drips?.push(this.world([x, y, z]));
   }
 
   private world(p: V3): V3 {

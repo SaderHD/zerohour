@@ -1,9 +1,12 @@
 import type { PropType } from '@zh/shared';
 import * as bunk from './bunk';
+import * as cold from './cold';
 import * as common from './common';
+import * as gen from './gen';
 import type { Kit } from './kit';
 import * as lab from './lab';
 import * as mess from './mess';
+import * as motor from './motor';
 
 /** How to draw every prop in shared/src/data/props.ts. Add new props to both tables. */
 export const PROP_BUILDERS: Record<PropType, (k: Kit) => void> = {
@@ -29,6 +32,17 @@ export const PROP_BUILDERS: Record<PropType, (k: Kit) => void> = {
   pipe_drop: common.pipeDrop,
   sign: common.sign,
   vent: common.vent,
+  spool: gen.spool,
+  tyres: motor.tyres,
+  tyre: motor.tyre,
+  tool_chest: motor.toolChest,
+  brazier: motor.brazier,
+  stripes: gen.stripes,
+  icicles: cold.icicles,
+  drip: cold.drip,
+  timber_frame: cold.timberFrame,
+  wall_fan: gen.wallFan,
+  ladder: gen.ladder,
   range: mess.range,
   counter: mess.counter,
   notice_board: mess.noticeBoard,
@@ -45,6 +59,22 @@ export const PROP_BUILDERS: Record<PropType, (k: Kit) => void> = {
   computer: lab.computer,
   chalkboard: lab.chalkboard,
   shelf_toppled: lab.shelfToppled,
+  rack: cold.rack,
+  ice_block: cold.iceBlock,
+  ice_stack: cold.iceStack,
+  hook_rail: cold.hookRail,
+  chiller: cold.chiller,
+  generator: gen.generator,
+  fuel_tank: gen.fuelTank,
+  switchgear: gen.switchgear,
+  catwalk: gen.catwalk,
+  truck_cab: motor.truckCab,
+  truck_bed: motor.truckBed,
+  workbench: motor.workbench,
+  tool_board: motor.toolBoard,
+  roller_door: motor.rollerDoor,
+  creeper: motor.creeper,
+  oil_stain: motor.oilStain,
 };
 
 export { Kit } from './kit';

@@ -160,6 +160,31 @@ export function propMaterial(): THREE.MeshLambertMaterial {
 /** Things that glow by themselves: lamp faces, screens, embers. */
 export const glowMaterial = lit(new THREE.MeshBasicMaterial({ vertexColors: true, fog: true }));
 
+let mistMat: THREE.MeshBasicMaterial | null = null;
+/** Mist lying on a cold floor: wisps added over the scene, lit by the baked lights, drifting (see ambient.ts). */
+export function mistMaterial(): THREE.MeshBasicMaterial {
+  mistMat ??= lit(new THREE.MeshBasicMaterial({
+    map: makeTexture(4111, (px, r) => {
+      const blobs = Array.from({ length: 7 }, () => [r.range(0, SIZE), r.range(0, SIZE), r.range(5, 11)] as const);
+      each((x, y) => {
+        let v = 0;
+        for (const [bx, by, br] of blobs) {
+          const dx = Math.min(Math.abs(x - bx), SIZE - Math.abs(x - bx));
+          const dy = Math.min(Math.abs(y - by), SIZE - Math.abs(y - by));
+          v += Math.max(0, 1 - Math.hypot(dx, dy) / br);
+        }
+        px(x, y, Math.min(1, v) * 200 + r.range(0, 30));
+      });
+    }),
+    vertexColors: true,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  }));
+  return mistMat;
+}
+
 /** Lettering and drawings from the sign atlas (render/signs.ts), lit like everything else. */
 export const signMaterial = (map: THREE.Texture): THREE.MeshLambertMaterial =>
   lit(new THREE.MeshLambertMaterial({ map, vertexColors: true, alphaTest: 0.5 }));

@@ -1,4 +1,5 @@
-import { LIGHT, glow, lamp } from './dressing/helpers';
+import { eastLights, eastProps } from './dressing/east';
+import { LIGHT, lamp } from './dressing/helpers';
 import { westLights, westProps } from './dressing/west';
 import type { MapDef, Opening } from './types';
 
@@ -31,8 +32,8 @@ export const harrowRidge: MapDef = {
     { id: 'mess', name: 'Mess Hall', letter: 'm', ambient: 0x2a241e },
     { id: 'bunk', name: 'Bunkhouse', letter: 'b', ambient: 0x221c18 },
     { id: 'lab', name: 'Laboratory', letter: 'l', ambient: 0x1a2622 },
-    { id: 'cold', name: 'Cold Storage', letter: 'c', ambient: 0x161e2a },
-    { id: 'gen', name: 'Generator Hall', letter: 'g', ambient: 0x221a12 },
+    { id: 'cold', name: 'Cold Storage', letter: 'c', ambient: 0x161e2a, fog: { color: 0x1c2834, near: 1, far: 22 } },
+    { id: 'gen', name: 'Generator Hall', letter: 'g', ambient: 0x221a12, fog: { color: 0x120e0a, near: 5, far: 36 } },
     { id: 'motor', name: 'Motor Pool', letter: 'p', ambient: 0x24201a },
     { id: 'yard', name: 'Courtyard', letter: 'y', ambient: 0x1c2638 },
     { id: 'comms', name: 'Comms Bunker', letter: 'k', ambient: 0x141e18 },
@@ -43,7 +44,7 @@ export const harrowRidge: MapDef = {
     { id: 'bunk', zone: 'bunk', x: 6, z: 23, w: 16, d: 8, ceil: 2.8, floor: 'plank', wall: 'panel', tint: 0xc8a888 },
     { id: 'washroom', zone: 'bunk', x: 8, z: 18.5, w: 6, d: 4, ceil: 2.6, floor: 'tile', wall: 'plaster', tint: 0xb8d0c8 },
     { id: 'lab', zone: 'lab', x: 6, z: 6, w: 16, d: 12, ceil: 3.4, floor: 'tile', wall: 'plaster', tint: 0xc0d8d0 },
-    { id: 'cold', zone: 'cold', x: 22.5, z: 8, w: 20, d: 7, ceil: 3, floor: 'metal', wall: 'metal', tint: 0xa8c0d8 },
+    { id: 'cold', zone: 'cold', x: 22.5, z: 8, w: 20, d: 7, ceil: 3, floor: 'metal', wall: 'metal', tint: 0xa8c0d8, mist: true },
     { id: 'tunnel', zone: 'cold', x: 42.5, z: 11, w: 11.5, d: 4, ceil: 2.6, floor: 'concrete', wall: 'rock', tint: 0xa0a8b8 },
     { id: 'tunnel_leg', zone: 'cold', x: 50, z: 15, w: 4, d: 8, ceil: 2.6, floor: 'concrete', wall: 'rock', tint: 0xa0a8b8 },
     { id: 'gen', zone: 'gen', x: 48, z: 23.5, w: 14, d: 12, ceil: 5, floor: 'metal', wall: 'block', tint: 0xc8b090 },
@@ -83,7 +84,7 @@ export const harrowRidge: MapDef = {
     win('w_comms_w', 'comms', 'w', 23.5, 57),
     win('w_comms_s', 'comms', 's', 29, 63),
   ],
-  props: [...westProps],
+  props: [...westProps, ...eastProps],
   interactables: [],
   playerSpawns: [
     { x: 28, z: 26, yaw: 0 },
@@ -93,11 +94,8 @@ export const harrowRidge: MapDef = {
   ],
   lights: [
     ...westLights,
-    // The rest of the station is dressed in sessions 8 and 9; until then, bare bulbs.
-    lamp(27, 11.5, 2.8, LIGHT.ice, 8), lamp(37, 11.5, 2.8, LIGHT.ice, 8),
-    glow(47, 13, 2.4, LIGHT.red, 6, { fixture: 'cage', intensity: 0.9 }), glow(52, 19, 2.4, LIGHT.red, 6, { fixture: 'cage', intensity: 0.9 }),
-    lamp(52, 29, 4.6, LIGHT.amber, 10), lamp(58, 31, 4.6, LIGHT.amber, 10),
-    lamp(51, 40, 4.2, LIGHT.sodium, 10), lamp(58, 44, 4.2, LIGHT.sodium, 10),
+    ...eastLights,
+    // The yard, the comms bunker and the vault are dressed in session 9; until then, bare lamps.
     lamp(24, 36, 5, LIGHT.flood, 13, { fixture: 'flood', intensity: 0.9 }), lamp(42, 50, 5, LIGHT.flood, 13, { fixture: 'flood', intensity: 0.9 }),
     lamp(33, 43, 5, LIGHT.flood, 12, { fixture: 'flood', intensity: 0.7 }),
     lamp(27, 57, 2.6, LIGHT.crt, 7), lamp(33, 60, 2.6, LIGHT.crt, 7),

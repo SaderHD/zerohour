@@ -29,6 +29,16 @@ export function fixture(k: Kit, l: LightDef, rgb: RGB, mode: GlowMode): void {
       k.cube(0, y, 0, 0.5, 0.3, 0.3, C.iron, { bottom: true });
       k.cube(0, y - 0.16, 0, 0.42, 0.03, 0.24, glow, { glow: mode, bottom: true });
       return;
+    case 'swing': {
+      // A caged work lamp on a chain, never quite still.
+      const length = Math.max(0.5, k.ceil - y);
+      const s = k.mover(0, k.ceil, 0, [k.rng.range(0.6, 1), 0, k.rng.range(-0.5, 0.5)], { kind: 'swing', amp: 0.11, period: 2 * Math.sqrt(length) });
+      s.box(-0.012, y + 0.2, -0.012, 0.012, k.ceil, 0.012, C.iron, { noTop: true });
+      s.cyl(0, 0, y + 0.08, y + 0.2, 0.22, 0.06, C.iron, 6);
+      s.cyl(0, 0, y - 0.14, y + 0.08, 0.07, 0.09, glow, 6, { glow: mode, bottom: true });
+      for (const a of [0, 90]) s.sub(0, 0, 0, a).box(-0.11, y - 0.18, -0.008, 0.11, y - 0.16, 0.008, C.iron, { bottom: true });
+      return;
+    }
     default:
       // A bulb under a tin shade, hung on its flex.
       k.box(-0.012, y + 0.2, -0.012, 0.012, k.ceil, 0.012, C.iron, { noTop: true });

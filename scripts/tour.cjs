@@ -20,10 +20,19 @@ const VIEWS = [
   ['lab', 20, 16, 0.9, -0.03],
   ['lab-tanks', 12, 11.5, -0.74, 0],
   ['lab-computers', 17.5, 15.8, -1.21, 0],
-  ['cold', 41, 13.5, 1.45, 0],
+  ['cold', 36.8, 10.2, 1.8, -0.05],
+  ['cold-aisle', 27.6, 14.3, 0.1, 0],
+  ['cold-ice', 36.6, 11.2, -0.95, 0],
   ['tunnel', 44, 13, -1.57, 0],
-  ['gen', 60, 34, 0.75, 0.12],
-  ['motor', 61, 46.5, 0.9, 0.1],
+  ['tunnel-leg', 52, 15.6, 3.14, -0.03],
+  ['gen', 61, 34.8, 0.8, 0.14],
+  ['gen-sets', 55.5, 34.6, 0, 0.12],
+  ['gen-tanks', 56.2, 25.2, 1.95, 0.02],
+  ['gen-switch', 57.6, 33.6, -1.4, 0],
+  ['motor', 47.2, 38.6, -2.1, 0.03],
+  ['motor-truck', 55.2, 39.2, -2.4, 0],
+  ['motor-bench', 52, 40, 0.95, 0.02],
+  ['motor-stores', 55.5, 46.6, 1.35, 0],
   ['yard', 44, 51, 0.9, 0.12],
   ['yard-north', 33, 50, 0, 0.15],
   ['comms', 34.5, 61.5, 0.85, 0],
@@ -35,6 +44,14 @@ const VIEWS = [
   ['washroom-on', 11, 22.2, 0, 0],
   ['lab-on', 20, 16, 0.9, -0.03],
   ['lab-tanks-on', 12, 11.5, -0.74, 0],
+  ['cold-on', 36.8, 10.2, 1.8, -0.05],
+  ['cold-ice-on', 36.6, 11.2, -0.95, 0],
+  ['gen-on', 61, 34.8, 0.8, 0.14],
+  ['gen-sets-on', 55.5, 34.6, 0, 0.12],
+  ['gen-switch-on', 57.6, 33.6, -1.4, 0],
+  ['motor-on', 47.2, 38.6, -2.1, 0.03],
+  ['motor-truck-on', 55.2, 39.2, -2.4, 0],
+  ['motor-bench-on', 52, 40, 0.95, 0.02],
 ];
 
 (async () => {
@@ -62,7 +79,7 @@ const VIEWS = [
         await page.waitForTimeout(2200); // the lights stutter up
       }
       await page.evaluate(([x, z, yaw, pitch]) => { window.__zh.teleport(x, z, yaw); window.__zh.look(yaw, pitch); }, [x, z, yaw, pitch]);
-      await page.waitForTimeout(250); // server round-trip for the teleport, then a few frames
+      await page.waitForTimeout(900); // server round-trip for the teleport, a few frames, the air settling
       await page.screenshot({ path: path.join(root, `test-results/tour-${name}.png`) });
     }
     console.log('[tour]', JSON.stringify(await page.evaluate(() => window.__zh.state())));
