@@ -2,7 +2,11 @@ import { PLAYER_MAX_HP, STAMINA_SECONDS } from '@zh/shared';
 
 const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
-/** HUD: zone name, stamina bar, crosshair, hit marker, ammo, hurt vignette, interaction prompt, debug readout. */
+/**
+ * HUD: zone name, stamina bar, crosshair, hit marker, ammo, hurt vignette, interaction prompt and
+ * its progress bar, round numeral and banner, downed / spectating overlay, debug readout.
+ * (#perks and #effects are empty trays until sessions 10 and 11 fill them.)
+ */
 export class Hud {
   private readonly zone = el('zone');
   private readonly stamina = el('stamina');
@@ -26,6 +30,56 @@ export class Hud {
   private lastPrompt = '';
   private lastHurt = -1;
   private flash = 0;
+  private readonly round = el('round');
+  private readonly bannerEl = el('banner');
+  private readonly progress = el('progress');
+  private readonly downed = el('downed');
+  private lastRound = -1;
+  private lastProgress = -1;
+  private lastDowned = '';
+
+  /** The round numeral; it flashes when the round changes. */
+  setRound(n: number, flash = true): void {
+    if (n === this.lastRound) return;
+    this.lastRound = n;
+    this.round.textContent = n > 0 ? String(n) : '';
+    this.round.classList.remove('flash');
+    if (!flash) return;
+    void this.round.offsetWidth; // restart the CSS animation
+    this.round.classList.add('flash');
+  }
+
+  /** A line across the top of the view that fades by itself. */
+  banner(title: string, sub = ''): void {
+    el('banner-title').textContent = title;
+    el('banner-sub').textContent = sub;
+    this.bannerEl.classList.remove('show');
+    void this.bannerEl.offsetWidth;
+    this.bannerEl.classList.add('show');
+  }
+
+  /** Bar under the prompt for a held interaction (0 hides it). */
+  setProgress(frac: number): void {
+    const f = Math.round(frac * 50) / 50;
+    if (f === this.lastProgress) return;
+    this.lastProgress = f;
+    this.progress.style.display = f > 0 ? 'block' : 'none';
+    (this.progress.firstElementChild as HTMLElement).style.width = `${f * 100}%`;
+  }
+
+  /** Overlay while downed (title, a bar of `frac`, a line under it); an empty title hides it. */
+  setDowned(title: string, frac: number, sub: string, reviving: boolean): void {
+    const key = `${title}|${Math.round(frac * 100)}|${sub}|${reviving}`;
+    if (key === this.lastDowned) return;
+    this.lastDowned = key;
+    this.downed.style.display = title ? 'block' : 'none';
+    this.downed.classList.toggle('reviving', reviving);
+    el('downed-title').textContent = title;
+    el('downed-sub').textContent = sub;
+    const bar = el('downed-bar');
+    bar.style.display = frac >= 0 ? 'block' : 'none';
+    (bar.firstElementChild as HTMLElement).style.width = `${Math.max(0, Math.min(1, frac)) * 100}%`;
+  }
 
   /** Red closes in from the edges as health drops; a fresh hit flashes it. */
   setHealth(hp: number, dt: number): void {

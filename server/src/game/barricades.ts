@@ -1,5 +1,7 @@
 import { BARRICADE_PLANKS, INTERACT_RANGE, PLANK_REBUILD_SECONDS, mapWindows, type BarricadeState, type ClientMsg, type WindowInfo } from '@zh/shared';
+import { scorePlank } from './economy';
 import type { Game, PlayerState } from './Game';
+import { standing } from './players';
 
 export interface Barricade {
   win: WindowInfo;
@@ -24,7 +26,7 @@ const inReach = (p: PlayerState, b: Barricade): boolean => Math.hypot(p.x - b.wi
 /** F held or released at a window: start or stop rebuilding it. */
 export function onInteract(g: Game, p: PlayerState, m: Extract<ClientMsg, { t: 'interact' }>): void {
   const b = typeof m.id === 'string' ? g.barricades.get(m.id) : undefined;
-  if (!b || m.hold !== true || !inReach(p, b)) {
+  if (!b || m.hold !== true || !standing(p) || !inReach(p, b)) {
     p.rebuild = null;
     return;
   }
@@ -47,5 +49,6 @@ export function updateBarricades(g: Game, dt: number): void {
     if ((p.rebuild.t += dt) < PLANK_REBUILD_SECONDS) continue;
     p.rebuild.t = 0;
     setPlanks(g, b, b.planks + 1, p.pub.id);
+    scorePlank(g, p);
   }
 }

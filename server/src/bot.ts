@@ -3,7 +3,7 @@
 // Usage: npm run bot -- <ROOM> [count=1] [url=ws://localhost:8080/ws]
 import { WebSocket } from 'ws';
 import {
-  CLIENT_MOVE_SEND_HZ, PROTOCOL_VERSION, Rng, START_WEAPON, compileMap, decodeServer, encode, fireInterval, harrowRidge,
+  CLIENT_MOVE_SEND_HZ, MoveState, PROTOCOL_VERSION, Rng, START_WEAPON, compileMap, decodeServer, encode, fireInterval, harrowRidge,
   weaponDef, type ClientMsg, type EntityId, type ServerMsg,
 } from '@zh/shared';
 import { BotBrain, type BotTarget } from './botBrain';
@@ -37,6 +37,8 @@ export class Bot {
   private reserve = gun.reserve;
   private cooldown = 0;
   private reloading = 0;
+  /** Downed or dead bots lie still. */
+  private standing = true;
   private timer: NodeJS.Timeout | null = null;
 
   constructor(url: string, readonly name: string, private readonly room: string, seed: number, private readonly opts: BotOpts = {}) {
@@ -93,7 +95,9 @@ export class Bot {
         this.brain.place(msg.x, msg.z);
         this.corrections++;
         break;
-      case 'snap':
+      case 'snap': {
+        const me = msg.players.find((p) => p[0] === this.id);
+        this.standing = !me || (me[5] !== MoveState.Downed && me[5] !== MoveState.Dead);
         for (const [id, x, z] of msg.zombies) {
           const zb = this.zombies.get(id);
           if (zb) {
@@ -104,11 +108,13 @@ export class Bot {
         // Trust the server's count once it has seen our last shot and no reload is under way.
         if (msg.ammo[0] === this.fireSeq && this.reloading <= 0) [, , this.mag, this.reserve] = msg.ammo;
         break;
+      }
       case 'ev':
         for (const ev of msg.events) {
           if (ev.e === 'doorOpened') this.open.add(ev.id);
           else if (ev.e === 'zombieSpawn' && ev.kind !== 'dummy') this.zombies.set(ev.id, { id: ev.id, x: ev.x, z: ev.z });
           else if (ev.e === 'zombieDied') this.zombies.delete(ev.id);
+          else if (ev.e === 'playerSpawned' && ev.id === this.id) this.brain.place(ev.x, ev.z);
         }
         break;
       case 'error':
@@ -121,6 +127,7 @@ export class Bot {
 
   private step(dt: number): void {
     const b = this.brain;
+    if (!this.standing) return;
     b.step(dt, this.zombies.values(), this.open);
     this.send({ t: 'move', seq: ++this.seq, x: b.x, z: b.z, yaw: b.yaw, pitch: 0, state: b.state });
     this.cooldown -= dt;

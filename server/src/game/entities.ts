@@ -1,6 +1,7 @@
 import {
   DUMMY_HP, DUMMY_RESET_SECONDS, ZombieState, type EntityId, type HitZone, type PlayerId, type ZombieKind, type ZombieSnap,
 } from '@zh/shared';
+import { scoreHit } from './economy';
 import type { Game } from './Game';
 
 /** What a walking zombie is up to (see zombies.ts). Dummies have none. */
@@ -55,9 +56,10 @@ export function damageZombie(g: Game, z: Zombie, dmg: number, by: PlayerId, zone
   if (dmg <= 0 || z.hp <= 0) return false;
   z.hp -= dmg;
   g.emit({ e: 'zombieHit', id: z.id, by, zone, dmg });
-  if (z.hp > 0) return false;
-  killZombie(g, z, by, zone, cause);
-  return true;
+  const killed = z.hp <= 0;
+  if (killed) killZombie(g, z, by, zone, cause);
+  scoreHit(g, z, by, zone, cause, killed);
+  return killed;
 }
 
 export function killZombie(g: Game, z: Zombie, by: PlayerId | undefined, zone: HitZone | undefined, cause: string): void {

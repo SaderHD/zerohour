@@ -27,7 +27,7 @@ export interface DebugState {
   openDoors: string[];
   mapErrors: string[];
   /** Other players as currently drawn (interpolated). */
-  remotes: { id: number; name: string; x: number; z: number; visible: boolean; connected: boolean; weapon: string | null; shots: number }[];
+  remotes: { id: number; name: string; x: number; z: number; visible: boolean; connected: boolean; weapon: string | null; shots: number; state: number }[];
   corrections: number;
   /** Held weapon and predicted ammo. */
   weapon: string | null;
@@ -42,10 +42,19 @@ export interface DebugState {
   shots: number;
   /** Enemies as drawn; hp is a 0..1 fraction, state a ZombieState. */
   entities: { id: number; kind: string; x: number; z: number; hp: number; state: number }[];
-  /** Our health, and how many times we have been hit or killed. */
+  /** Our health, and how many times we have been hit. */
   hp: number;
   hurts: number;
-  deaths: number;
+  /** Round loop as the server reports it. */
+  round: number;
+  roundPhase: string;
+  zombiesLeft: number;
+  /** Our points, whether we are up, and the whole scoreboard. */
+  points: number;
+  life: 'alive' | 'downed' | 'dead';
+  roster: { id: number; name: string; points: number; kills: number; headshots: number; downs: number; revives: number; state: string }[];
+  /** Everyone went down: the results screen is up. */
+  over: boolean;
   barricades: { id: string; planks: number }[];
   prompt: string;
   /** Server-confirmed hits by anyone, newest last (capped). */
@@ -68,6 +77,10 @@ export interface ZhDebug {
   /** Queue zombies at the windows; `opts.x/z` drops them at a spot instead (debug servers only). */
   spawnZombies(count: number, opts?: { hp?: number; speed?: number; interval?: number; x?: number; z?: number }): void;
   killZombies(): void;
+  /** Jump to a round (it starts a second later). */
+  setRound(round: number): void;
+  /** Stop the round loop and clear the map (`false`), or resume it. */
+  rounds(on: boolean): void;
   god(on: boolean): void;
   /** Stand a target dummy at (x, z), or 3 m in front of the player. */
   dummy(x?: number, z?: number): void;
@@ -96,7 +109,7 @@ export const debugState: DebugState = {
   drawCalls: 0, triangles: 0, worldTriangles: 0, resolution: [0, 0], openDoors: [], mapErrors: [],
   remotes: [], corrections: 0,
   weapon: null, weapons: [], slot: 0, mag: 0, reserve: 0, grenades: 0, reloading: false, aim: 0, shots: 0,
-  entities: [], hp: 100, hurts: 0, deaths: 0, barricades: [], prompt: '', hits: [], kills: 0, explosions: 0, fx: { particles: 0, tracers: 0, projectiles: 0 },
+  entities: [], hp: 100, hurts: 0, round: 0, roundPhase: 'intermission', zombiesLeft: 0, points: 0, life: 'alive', roster: [], over: false, barricades: [], prompt: '', hits: [], kills: 0, explosions: 0, fx: { particles: 0, tracers: 0, projectiles: 0 },
 };
 
 export function installDebug(api: Omit<ZhDebug, 'state'>): void {

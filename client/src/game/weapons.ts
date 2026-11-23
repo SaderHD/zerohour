@@ -98,13 +98,15 @@ export class LocalWeapons {
     return lerp(def.spreadHip * (1 + 0.5 * moving), def.spreadAim, this.aim) + this.bloom;
   }
 
-  update(dt: number, input: Input, active: boolean): void {
+  /** `downed`: on the floor with a pistol — no swapping, knife or grenades. */
+  update(dt: number, input: Input, active: boolean, downed = false): void {
     const { player, vm, send } = this.ctx;
     const cur = this.current;
     const def = this.def;
     if (!cur || !def) return;
     const held = (code: string) => active && input.down(code);
     const hit = (code: string) => active && input.pressed(code);
+    const able = (code: string) => !downed && hit(code);
 
     this.cooldown = Math.max(this.cooldown - dt, -dt);
     this.swapT -= dt;
@@ -124,8 +126,8 @@ export class LocalWeapons {
 
     // Swap: Q / wheel cycle, number keys pick.
     let want = this.slot;
-    if (hit('KeyQ') || (active && input.wheel !== 0)) want = (this.slot + 1) % this.slots.length;
-    for (let n = 0; n < this.slots.length; n++) if (hit(`Digit${n + 1}`)) want = n;
+    if (able('KeyQ') || (active && !downed && input.wheel !== 0)) want = (this.slot + 1) % this.slots.length;
+    for (let n = 0; n < this.slots.length; n++) if (able(`Digit${n + 1}`)) want = n;
     if (want !== this.slot && this.slots[want]) {
       this.slot = want;
       this.swapT = SWAP_SECONDS;
@@ -144,8 +146,8 @@ export class LocalWeapons {
     else this.queued -= dt;
     const trigger = def.auto ? held('Mouse0') : this.queued > 0;
 
-    if (hit('KeyV') && this.meleeT <= 0) this.knife();
-    if (hit('KeyG') && this.throwT <= 0 && this.grenades > 0) {
+    if (able('KeyV') && this.meleeT <= 0) this.knife();
+    if (able('KeyG') && this.throwT <= 0 && this.grenades > 0) {
       this.throwT = GRENADE_COOLDOWN;
       this.grenades--;
       vm.throwGrenade();

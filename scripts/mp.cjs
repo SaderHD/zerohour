@@ -60,6 +60,7 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
     await a.waitForFunction(() => !document.getElementById('start').disabled);
     await a.click('#start');
     for (const p of [a, b]) await p.waitForFunction(() => window.__zh.state().phase === 'playing');
+    await a.evaluate(() => window.__zh.rounds(false)); // this test is about players; scripts/rounds.cjs covers the round loop
 
     // 3. Everyone sees the three others.
     for (const p of [a, b]) await p.waitForFunction(() => window.__zh.state().remotes.filter((r) => r.visible).length === 3);

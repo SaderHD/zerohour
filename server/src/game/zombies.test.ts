@@ -62,16 +62,9 @@ describe('zombie life cycle', () => {
     expect(p.hp).toBe(PLAYER_MAX_HP);
     expect(t.snaps.at(-1)!.players[0]![6]).toBe(PLAYER_MAX_HP);
 
-    // Three hits in a row: dead on the third (45 + 45 + 45), then put back at a spawn point.
+    t.send(1, { t: 'debug', cmd: 'god', on: true });
     t.teleport(1, 33, 30);
     spawnZombie(t.game, null, 33, 28.5, 150, ZOMBIE_SPEED_RUN);
-    t.wait(4.5);
-    expect(t.of('playerDied')).toHaveLength(1);
-    expect(p.pub.downs).toBe(1);
-    expect(p.hp).toBeGreaterThan(0);
-    expect(t.corrections.at(-1)).toMatchObject({ id: 1, x: p.x, z: p.z });
-
-    t.send(1, { t: 'debug', cmd: 'god', on: true });
     const hurts = t.of('playerHurt').length;
     t.wait(6);
     expect(t.of('playerHurt')).toHaveLength(hurts);

@@ -18,6 +18,7 @@
     "typecheck": "tsc -p shared && tsc -p server && tsc -p client",
     "lint": "eslint .",
     "smoke": "node scripts/smoke.cjs",
+    "rounds": "node scripts/rounds.cjs",
     "map": "tsx scripts/map.ts",
     "tour": "node scripts/tour.cjs",
     "bot": "tsx server/src/bot.ts",

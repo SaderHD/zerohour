@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  CLIENT_MOVE_SEND_HZ, MoveState, PLAYER_EYE_HEIGHT, PLAYER_MAX_HP, aimDir, compileMap, harrowRidge, rayWorld, validateMap, weaponDef,
+  BLEEDOUT_SECONDS, CLIENT_MOVE_SEND_HZ, MoveState, PLAYER_EYE_HEIGHT, PLAYER_MAX_HP, aimDir, compileMap, harrowRidge, rayWorld, validateMap, weaponDef,
 } from '@zh/shared';
 import { debugState, installDebug } from './debug';
 import { Barricades } from './game/barricades';
@@ -20,6 +20,7 @@ import { buildSky } from './render/sky';
 import { buildWorld } from './render/worldBuilder';
 import { Hud } from './ui/hud';
 import { Menu } from './ui/menu';
+import { Scoreboard } from './ui/scoreboard';
 
 // URL flags: ?name=X  ?room=CODE (join it; with autostart, create it if missing)
 //            ?autostart=1 (skip menu and lobby)  ?debug=1 (stats overlay)
@@ -59,8 +60,40 @@ const entities = new Entities(scene, world);
 const fx = new Fx(scene);
 const vm = new Viewmodel();
 const barricades = new Barricades(scene, map, world, fx);
-const interact = new Interact(barricades, (m) => net.socket.send(m));
+const interact = new Interact(barricades, remotes, (m) => net.socket.send(m));
+const scores = new Scoreboard();
 let hp = PLAYER_MAX_HP;
+
+// Round and life state, as the server reports it.
+type Life = 'alive' | 'downed' | 'dead';
+let life: Life = 'alive';
+let round = 0;
+let roundPhase = 'intermission';
+let zombiesLeft = 0;
+let over = false;
+/** Seconds of bleed-out left (a local estimate) and who is reviving us (0 = nobody). */
+let bleed = 0;
+let revivedBy = 0;
+
+function setLife(next: Life): void {
+  if (next === life) return;
+  if (next === 'downed') bleed = BLEEDOUT_SECONDS;
+  life = next;
+  revivedBy = 0;
+  document.body.dataset.life = next;
+}
+const lifeOf = (state: MoveState): Life => (state === MoveState.Downed ? 'downed' : state === MoveState.Dead ? 'dead' : 'alive');
+
+function setOver(on: boolean): void {
+  over = on;
+  if (on) {
+    document.body.dataset.over = '1';
+    scores.results(round);
+    if (document.pointerLockElement) document.exitPointerLock();
+  } else delete document.body.dataset.over;
+}
+document.getElementById('again')!.onclick = () => net.again();
+document.getElementById('results-leave')!.onclick = () => net.leave();
 
 /** Doors the server has opened. Also used for local collision. */
 const openDoors = new Set<string>();
@@ -88,10 +121,12 @@ resize();
 const net = new Net();
 const menu = new Menu(net, params.get('name'));
 const playing = () => net.phase === 'playing';
+/** In a game that is still going. */
+const live = () => playing() && !over;
 let moveSeq = 0;
 let triedCreate = false;
 
-input.attach(canvas, playing);
+input.attach(canvas, live);
 input.onLockChange = (locked) => hud.setLocked(locked);
 
 net.onPhase = (phase) => {
@@ -99,12 +134,13 @@ net.onPhase = (phase) => {
   debugState.phase = phase;
   if (phase === 'connecting' || phase === 'lost') debugState.connected = false;
   if (phase !== 'playing' && document.pointerLockElement) document.exitPointerLock();
+  if (phase !== 'playing') setOver(false);
   const text = { connecting: 'connecting…', menu: '', lobby: '', playing: '', lost: 'disconnected' }[phase];
   statusEl.textContent = text;
   statusEl.dataset.state = phase === 'lost' ? 'error' : phase === 'connecting' ? 'connecting' : 'ok';
 };
 net.onWelcome = (resumed) => {
-  remotes.selfId = net.id;
+  remotes.selfId = scores.selfId = net.id;
   debugState.connected = true;
   debugState.playerId = net.id;
   if (resumed) return;
@@ -139,13 +175,25 @@ s.on('sync', (m) => {
   remotes.reset(m.players);
   entities.reset(m.zombies);
   barricades.reset(m.barricades);
+  scores.reset(m.players);
   const me = m.players.find((p) => p.id === net.id);
   if (me) weapons.onPlayer(me);
+  round = scores.round = m.round;
+  roundPhase = m.roundPhase;
+  zombiesLeft = m.zombiesLeft;
+  hud.setRound(round, false);
+  setLife('alive'); // the next snapshot says otherwise if we are down or sitting out
+  setOver(m.over);
 });
 s.on('snap', (m) => {
   clock.observe(m.time);
   remotes.onSnapshot(m.time, m.players);
-  hp = m.players.find((p) => p[0] === net.id)?.[6] ?? hp;
+  for (const p of m.players) {
+    scores.setLife(p[0], p[5]);
+    if (p[0] !== net.id) continue;
+    hp = p[6];
+    setLife(lifeOf(p[5]));
+  }
   entities.onSnapshot(m.time, m.zombies);
   fx.setProjectiles(m.projectiles);
   weapons.onAmmo(m.ammo);
@@ -158,8 +206,46 @@ s.on('ev', (m) => {
   for (const ev of m.events) {
     switch (ev.e) {
       case 'player':
+        scores.upsert(ev.player);
         if (ev.player.id === net.id) weapons.onPlayer(ev.player);
         else remotes.upsert(ev.player);
+        break;
+      case 'points':
+        scores.points(ev.id, ev.total, ev.delta);
+        break;
+      case 'roundStart':
+        round = scores.round = ev.round;
+        roundPhase = 'active';
+        zombiesLeft = ev.total;
+        hud.setRound(round);
+        hud.banner(`Round ${round}`);
+        break;
+      case 'roundEnd':
+        roundPhase = 'intermission';
+        break;
+      case 'zombiesLeft':
+        zombiesLeft = ev.n;
+        break;
+      case 'playerDowned':
+        if (ev.id === net.id) setLife('downed');
+        else hud.banner('', `${scores.players.get(ev.id)?.name ?? 'A survivor'} is down`);
+        break;
+      case 'reviving':
+        if (ev.id === net.id) revivedBy = ev.by;
+        else remotes.setReviving(ev.id, ev.by !== 0);
+        break;
+      case 'playerRevived':
+        if (ev.id === net.id) setLife('alive');
+        break;
+      case 'playerSpawned':
+        if (ev.id !== net.id) break;
+        player.teleport(ev.x, ev.z);
+        setLife('alive');
+        break;
+      case 'gameOver':
+        round = scores.round = ev.round;
+        for (const p of ev.players) scores.upsert(p);
+        setOver(true);
         break;
       case 'zombieSpawn':
         entities.spawn(ev.id, ev.kind, ev.seed, ev.x, ev.z);
@@ -193,7 +279,7 @@ s.on('ev', (m) => {
         debugState.hurts++;
         break;
       case 'playerDied':
-        if (ev.id === net.id) debugState.deaths++;
+        if (ev.id === net.id) setLife('dead');
         break;
       case 'fired':
         if (ev.id !== net.id) remoteShot(ev.id, ev.weapon, ev.yaw, ev.pitch);
@@ -206,6 +292,7 @@ s.on('ev', (m) => {
         debugState.explosions++;
         break;
       case 'playerLeft':
+        scores.remove(ev.id);
         remotes.remove(ev.id);
         break;
       case 'doorOpened':
@@ -258,6 +345,8 @@ installDebug({
   give: (what) => s.send(typeof what === 'number' ? { t: 'debug', cmd: 'give', points: what } : { t: 'debug', cmd: 'give', weapon: what }),
   spawnZombies: (count, opts = {}) => s.send({ t: 'debug', cmd: 'spawnZombies', count, ...opts }),
   killZombies: () => s.send({ t: 'debug', cmd: 'killZombies' }),
+  setRound: (n) => s.send({ t: 'debug', cmd: 'setRound', round: n }),
+  rounds: (on) => s.send({ t: 'debug', cmd: 'rounds', on }),
   god: (on) => s.send({ t: 'debug', cmd: 'god', on }),
   dummy: (x, z) => {
     const [dx, , dz] = aimDir(player.yaw, 0);
@@ -283,6 +372,9 @@ installDebug({
   dropConnection: () => s.drop(),
 });
 
+const SPECTATE_BACK = 2.4;
+const SPECTATE_HEIGHT = 2;
+
 // --- Main loop
 let last = performance.now();
 let fpsFrames = 0;
@@ -293,18 +385,30 @@ renderer.gl.setAnimationLoop((now) => {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
 
+  const watching = playing() && life === 'dead' && !player.freeCam ? remotes.spectate() : null;
   if (playing()) {
-    weapons.update(dt, input, !player.freeCam);
-    interact.update(dt, input, player.x, player.z, !player.freeCam);
+    const acting = live() && !player.freeCam;
+    weapons.update(dt, input, acting && life !== 'dead', life === 'downed');
+    interact.update(dt, input, player.x, player.z, acting && life === 'alive');
+    player.frozen = over || life !== 'alive';
+    player.lying = life === 'downed';
     player.update(dt, input, map, openDoors, player.freeCam ? [] : entities.blockers());
     player.applyTo(camera);
+    if (watching) {
+      // Out of the game: ride behind a teammate until the next round.
+      const [bx, , bz] = aimDir(watching.yaw + Math.PI, 0);
+      const back = Math.min(SPECTATE_BACK, rayWorld(map, openDoors, watching.x, SPECTATE_HEIGHT, watching.z, bx, 0, bz, SPECTATE_BACK + 0.3) - 0.3);
+      camera.position.set(watching.x + bx * back, SPECTATE_HEIGHT, watching.z + bz * back);
+      camera.rotation.set(watching.pitch * 0.5 - 0.12, watching.yaw, 0, 'YXZ');
+    }
     camera.updateMatrixWorld();
+    if (life === 'downed' && !revivedBy) bleed = Math.max(0, bleed - dt);
     vm.update(dt, {
       aim: weapons.aim, speed: player.speed, sprinting: player.sprinting, lookX: player.lookX, lookY: player.lookY,
       light: world.lightAt(player.x, 1.4, player.z),
     });
     sendTimer += dt;
-    if (sendTimer >= 1 / CLIENT_MOVE_SEND_HZ && !player.freeCam) {
+    if (sendTimer >= 1 / CLIENT_MOVE_SEND_HZ && !player.freeCam && life !== 'dead' && !over) {
       sendTimer = 0;
       const state = player.sprinting ? MoveState.Sprint : player.speed > 0.3 ? MoveState.Walk : MoveState.Idle;
       s.send({ t: 'move', seq: ++moveSeq, x: player.x, z: player.z, yaw: player.yaw, pitch: player.pitch, state });
@@ -316,14 +420,13 @@ renderer.gl.setAnimationLoop((now) => {
     camera.position.set(33, 2.4, 43);
     camera.rotation.set(0.12, attract * 0.06, 0, 'YXZ');
   }
-  input.endFrame();
   remotes.update(dt, clock.renderTime, camera, window.innerWidth, window.innerHeight);
   entities.update(dt, clock.renderTime);
   fx.update(dt);
   sky.position.set(camera.position.x, 0, camera.position.z);
   // A scoped rifle swaps the viewmodel for a scope overlay once the sights are up.
   const scoped = playing() && weapons.def?.cls === 'sniper' && weapons.aim > 0.85;
-  renderer.render(scene, camera, playing() && !player.freeCam && !scoped ? vm : null);
+  renderer.render(scene, camera, live() && !player.freeCam && !scoped && life !== 'dead' ? vm : null);
   hud.setScope(scoped);
 
   const cur = weapons.current;
@@ -334,8 +437,17 @@ renderer.gl.setAnimationLoop((now) => {
   const zoneId = map.zoneAt(player.x, player.z);
   hud.setZone(map.zones.find((z) => z.id === zoneId)?.name ?? '');
   hud.setStamina(player.stamina);
-  hud.setHealth(playing() ? hp : PLAYER_MAX_HP, dt);
-  hud.setPrompt(playing() ? interact.prompt : '');
+  hud.setHealth(live() && life !== 'dead' ? hp : PLAYER_MAX_HP, dt);
+  hud.setPrompt(live() ? interact.prompt : '');
+  hud.setProgress(live() ? interact.progress : 0);
+  if (!live() || life === 'alive') hud.setDowned('', -1, '', false);
+  else if (life === 'downed') {
+    const by = scores.players.get(revivedBy)?.name;
+    const alone = scores.players.size < 2;
+    hud.setDowned('YOU ARE DOWN', bleed / BLEEDOUT_SECONDS, by ? `${by} is reviving you` : alone ? '' : 'Hold on \u2014 a teammate can revive you', !!by);
+  } else hud.setDowned('SPECTATING', -1, `${watching ? `${watching.name} \u00b7 ` : ''}you are back in when the next round starts`, false);
+  scores.update(live() && input.down('Tab'));
+  input.endFrame();
 
   fpsFrames++;
   fpsTime += dt;
@@ -358,6 +470,7 @@ renderer.gl.setAnimationLoop((now) => {
     weapon: cur?.id ?? null, weapons: weapons.slots.map((w) => w.id), slot: weapons.slot, mag: cur?.mag ?? 0,
     reserve: cur?.reserve ?? 0, grenades: weapons.grenades, reloading: weapons.reloading, aim: weapons.aim,
     shots: weapons.shots, entities: entities.list(), fx: fx.counts, hp, barricades: barricades.list(), prompt: interact.prompt,
+    round, roundPhase, zombiesLeft, life, over, points: scores.players.get(net.id)?.points ?? 0, roster: scores.list(),
   });
 });
 

@@ -1,6 +1,6 @@
 // Every tunable number in the game lives here or in shared/src/data. See docs/PLAN.md section 4.
 
-export const PROTOCOL_VERSION = 4;
+export const PROTOCOL_VERSION = 5;
 
 // --- Networking ---
 export const TICK_RATE = 30; // server sim Hz
@@ -36,6 +36,7 @@ export const PLAYER_REGEN_DELAY = 4;
 export const PLAYER_REGEN_RATE = 60; // hp per second once regen starts
 export const BLEEDOUT_SECONDS = 45;
 export const REVIVE_SECONDS = 3;
+export const REVIVE_RANGE_SLACK = 0.6; // server tolerance on INTERACT_RANGE for a revive
 export const MAX_PERKS = 4;
 export const SOLO_SELF_REVIVES = 3;
 export const WEAPON_SLOTS = 2;
@@ -76,6 +77,9 @@ export const POINTS_SPECIAL_KILL = 50; // grenade / wonder weapon
 export const POINTS_PLANK = 10;
 export const POINTS_REVIVE = 100;
 export const DOWN_POINTS_PENALTY = 0.05;
+export const POINTS_ROUNDING = 10; // the down penalty is rounded to this
+export const PLANK_POINTS_BASE = 50; // per-round cap on plank points: base + per-round x round
+export const PLANK_POINTS_PER_ROUND = 50;
 
 // --- Zombies ---
 export const ZOMBIE_RADIUS = 0.35;
@@ -94,12 +98,12 @@ export const PLANK_TEAR_SECONDS = 1.5;
 export const PLANK_REBUILD_SECONDS = 1.0;
 export const FLOWFIELD_INTERVAL_MS = 250;
 export const ZOMBIE_RETARGET_SECONDS = 1;
-export const ZOMBIE_BASE_HP = 150; // round 1; the round table scales it (session 6)
+export const ZOMBIE_BASE_HP = 150; // round 1; data/rounds.ts scales it
 export const ZOMBIE_ATTACK_COOLDOWN = 0.7; // recovery after a swing before moving again
 export const ZOMBIE_SEPARATION = 0.75; // zombies closer than this push apart
 export const ZOMBIE_QUEUE_GAP = 0.8; // spacing while queueing outside a window
 export const ZOMBIE_VAULT_SECONDS = 1.1;
-export const ZOMBIE_SPAWN_INTERVAL = 2;
+export const ZOMBIE_SPAWN_INTERVAL = 2; // round 1; data/rounds.ts shrinks it
 export const ZOMBIE_TURN_RATE = 7; // rad/s
 export const ZOMBIE_DIRECT_CHASE_RANGE = 3; // within this and in sight, run straight at the target
 export const WINDOW_STANDOFF = 0.7; // from a window's centre to where a zombie tears / lands
@@ -109,6 +113,12 @@ export const CRAWLER_MIN_BLAST_FRAC = 0.3; // a blast this share of max HP that 
 
 // --- Rounds ---
 export const INTERMISSION_SECONDS = 10;
+export const FIRST_ROUND_DELAY = 5; // from the start of a game to round 1
+export const SPAWN_INTERVAL_MIN = 0.25; // ZOMBIE_SPAWN_INTERVAL shrinks towards this
+export const SPAWN_INTERVAL_DECAY = 0.88; // per round
+export const STRAGGLER_COUNT = 3; // this few left, with none to come, for STRAGGLER_SECONDS: they run
+export const STRAGGLER_SECONDS = 20;
+export const ROUND_GRENADE_REFILL = 1;
 
 // --- Economy ---
 export const CACHE_COST = 950;

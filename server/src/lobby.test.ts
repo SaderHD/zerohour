@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MoveState, RECONNECT_GRACE_MS, TICK_DT, type ClientMsg, type ErrorCode, type ServerMsg } from '@zh/shared';
 import { Lobby, type Session } from './lobby';
+import { damagePlayer } from './game/players';
 import type { Peer } from './peer';
 
 class FakePeer implements Peer {
@@ -239,5 +240,32 @@ describe('reconnect', () => {
     g.advance(RECONNECT_GRACE_MS + 1);
     g.lobby.sweep();
     expect(g.lobby.rooms.size).toBe(0);
+  });
+});
+
+describe('game over', () => {
+  it('moves the room to the results, then back to the lobby when anyone asks', () => {
+    const { host, others, room, game, step } = startedRoom(2);
+    for (const p of game.players.values()) p.hp = 1;
+    step(1);
+    expect(room.phase).toBe('playing');
+    host.send({ t: 'again' }); // not over yet: ignored
+    expect(room.game).toBe(game);
+    for (const p of game.players.values()) damagePlayer(game, p, 50, 0, 0);
+    step(1);
+    expect(game.over).toBe(true);
+    expect(room.phase).toBe('gameover');
+    expect(host.peer.last('room')!.phase).toBe('gameover');
+    const ev = host.peer.sent.filter((m) => m.t === 'ev').flatMap((m) => m.events);
+    expect(ev.some((e) => e.e === 'gameOver')).toBe(true);
+    others[0]!.send({ t: 'again' });
+    expect(room.phase).toBe('lobby');
+    expect(room.game).toBeNull();
+    expect(host.peer.last('room')).toMatchObject({ phase: 'lobby' });
+    expect(host.peer.last('room')!.players.every((p) => !p.ready)).toBe(true);
+    others[0]!.send({ t: 'ready', ready: true });
+    host.send({ t: 'start' });
+    expect(room.phase).toBe('playing');
+    expect(room.game).not.toBe(game);
   });
 });

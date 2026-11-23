@@ -143,6 +143,9 @@ export class Lobby {
         this.startGame(room);
         return;
       }
+      case 'again':
+        if (s.room?.phase === 'gameover') this.backToLobby(s.room);
+        return;
       case 'chat': {
         const text = sanitizeText(msg.text, MAX_CHAT_LENGTH);
         if (s.room && text) s.room.broadcast({ t: 'chat', from: s.id, name: s.name, text });
@@ -186,8 +189,9 @@ export class Lobby {
     room.members.set(s.id, s);
     if (!room.hostId) room.hostId = s.id;
     room.emptySince = null;
+    if (room.phase === 'gameover') return this.backToLobby(room);
     room.sendState();
-    // Late join: drop straight into the running game.
+    // Late join: into the running game, to spawn when the next round starts.
     if (room.game) {
       room.game.addPlayer(s.id, s.name);
       s.peer?.send(room.game.syncFor(s.id));
@@ -218,6 +222,15 @@ export class Lobby {
     this.rooms.delete(room.code);
   }
 
+  /** After a game over: drop the finished game and gather in the lobby again. */
+  private backToLobby(room: Room): void {
+    room.game?.stop();
+    room.game = null;
+    room.phase = 'lobby';
+    for (const m of room.members.values()) m.ready = false;
+    room.sendState();
+  }
+
   private startGame(room: Room): void {
     room.phase = 'playing';
     const game = new Game(
@@ -225,7 +238,14 @@ export class Lobby {
         send: (id, msg) => room.members.get(id)?.peer?.send(msg),
         broadcast: (msg) => room.broadcast(msg),
       },
-      { debug: this.opts.debug, seed: randomBytes(4).readUInt32LE(0) },
+      {
+        debug: this.opts.debug, seed: randomBytes(4).readUInt32LE(0),
+        onOver: () => {
+          game.stop();
+          room.phase = 'gameover';
+          room.sendState();
+        },
+      },
     );
     room.game = game;
     for (const m of room.members.values()) {

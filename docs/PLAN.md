@@ -275,7 +275,9 @@ aurora for the outdoor zone.
 aim.** This is co-op with friends, so we optimise for feel and simplicity over cheat-proofing.
 
 - **Rooms:** client opens `ws://host/ws`, sends `create` or `join {code}` (4-letter code) with a
-  name. Lobby shows players + ready state; host starts. Late join allowed — spawns next round.
+  name. Lobby shows players + ready state; host starts. Late join allowed — spawns next round
+  (at once during an intermission). After a game over the room shows the results until any
+  player sends `again`, which returns everyone to the lobby.
   Disconnect: slot held 60 s for reconnect (token in `sessionStorage`), then dropped. Solo play
   is just a room of one — there is no separate offline code path.
 - **Server sim:** fixed 30 Hz tick in `Game.ts`; systems run in a fixed order. Snapshots broadcast
@@ -378,7 +380,7 @@ wall buys, tonics, Cache, Forge, power switch, barricade rebuild and revive.
 
 ### 6.6 Testing & debug hooks (required — this is how agents verify work)
 - `window.__zh` in dev: `state()`, `teleport(x,z)`, `give(weapon|perk|points)`, `setRound(n)`,
-  `spawnZombies(n, opts)`, `killZombies()`, `god(bool)`, `freeCam()`, `openAllDoors()`, `powerOn()`, `dummy(x,z)` (target
+  `rounds(bool)` (stop/resume the round loop), `spawnZombies(n, opts)`, `killZombies()`, `god(bool)`, `freeCam()`, `openAllDoors()`, `powerOn()`, `dummy(x,z)` (target
   dummy), `lookAt(x,y,z)`, `press(code)` (mouse buttons are `Mouse0`/`Mouse2`). Matching server-side
   `debug` messages, enabled only when `ZH_DEBUG=1`.
 - URL flags: `?name=X`, `?room=CODE` (join; with `autostart` the room is created if missing —
@@ -580,7 +582,21 @@ with no errors in client or server logs.
   0 HP is put straight back at a spawn point; the spawner is fed by the debug hook (rounds will
   feed the same queue); no points for kills or planks. Zombies do not swipe through windows, and
   a barricade cannot be rebuilt while a zombie is at it (as section 4.4 says).
-- [ ] 6 Round loop, points, downs
+- [x] 6 Round loop, points, downs — done. `npm run rounds` plays it in two browsers (round 1,
+  scoring, late join, down, revive, scoreboard, game over, back to lobby). Choices the plan left
+  open: zombie counts are straight lines through the section 4.3 reference values (the last slope
+  continues past round 20); round 1 starts 5 s after the game does; stragglers (3 or fewer left,
+  none queued) turn into runners after 20 s, crawlers excepted; a downed player holds only the
+  starting pistol and gets their loadout back on revive; the down penalty is rounded to 10; a
+  killing hit pays the kill only, and each shotgun pellet that lands pays as a hit; the game is over
+  the moment no connected player is on their feet (so a solo down ends it until Second Wind exists,
+  session 10); after a game over any player can send the room back to the lobby (`again`).
+  Additions: protocol v5 (`again`, `reviving` event, `sync.over`, debug `rounds`), `__zh.setRound`
+  and `__zh.rounds(on)`. Deferred: Howler rounds (session 11); the perk tray and power-up timer
+  row are empty containers; spectating is a plain chase camera behind the first standing teammate
+  (session 13); bots lie still when downed and never revive; no brief protection after a revive.
+  `client/src/main.ts` is ~480 lines, over the 400 guideline — split it when session 10 adds the
+  interactables.
 - [ ] 7 Map I: prop kit, doors, west wing
 - [ ] 8 Map II: industrial wing
 - [ ] 9 Map III: exterior, Comms, Vault, whole-map pass

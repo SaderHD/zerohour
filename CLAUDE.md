@@ -31,6 +31,8 @@ when its acceptance checks pass.
 - `npm run soak -- [seconds] [--shut]` — in-process server + 4 WebSocket bots + 32 zombies; fails if
   a zombie stops making progress for 10 s or the tick goes over budget. (`npm test` runs the same
   soak on a fake clock.)
+- `npm run rounds` — after a build: two browser players through the round loop (round 1, points,
+  late join, down, revive, scoreboard, game over, back to lobby). Writes `test-results/rounds-*.png`.
 - `npm run horde` — after a build: browser walk-through of the zombie features (tear, vault,
   attack, damage, rebuild, hit zones, crawler, full horde). Writes `test-results/horde-*.png`.
 - URL flags for quick testing: `?autostart=1` (straight into a solo game), `?room=ABCD&autostart=1`
@@ -62,6 +64,13 @@ when its acceptance checks pass.
   active zones), `barricades.ts` (planks, rebuild), `nav.ts` (a `FlowField` per player),
   `players.ts` (damage, regen). Window geometry for both sides comes from `mapWindows()`.
   Sim tests use `game/testkit.ts`.
+- Rounds and players (server): `game/rounds.ts` fills the spawn queue each round from the tables in
+  `shared/src/data/rounds.ts`; `economy.ts` is the only place points change (`award`);
+  `players.ts` owns down / revive / bleed-out / respawn and the game-over check; `debug.ts` the
+  debug commands. `makeGame()` in the testkit starts with the round loop stopped
+  (`makeGame(seed, { rounds: true })` to run it).
+- Client HUD: `ui/hud.ts` (numeral, banner, downed overlay), `ui/scoreboard.ts` (points list,
+  Tab table, results). Scripts that are not about rounds call `__zh.rounds(false)` first.
 - Zombies (client): `models/zombie.ts` poses a box rig in code; `models/zombieHorde.ts` draws all
   of them with one instanced mesh per body part — never give a zombie its own meshes.
   `game/entities.ts` owns the actors and their hit boxes, `game/barricades.ts` the planks,
@@ -70,6 +79,6 @@ when its acceptance checks pass.
   depth clear. Gun models come from `models/weapons/` (`Kit` boxes, muzzle at -z, origin at the
   grip); add new guns to the table in `models/weapons/index.ts`.
 - Try things in a debug game from the console: `__zh.give('pike')`, `__zh.dummy()`,
-  `__zh.spawnZombies(8, { interval: 0.3 })`, `__zh.god(true)`, `__zh.killZombies()`.
+  `__zh.spawnZombies(8, { interval: 0.3 })`, `__zh.god(true)`, `__zh.killZombies()`, `__zh.setRound(10)`, `__zh.rounds(false)`.
 - Tests and visual checks go through `window.__zh` (`client/src/debug.ts`); extend it as features
   land.

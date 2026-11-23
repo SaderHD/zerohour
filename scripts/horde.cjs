@@ -51,7 +51,7 @@ const S = { Approach: 0, Tear: 1, Vault: 2, Chase: 3, Attack: 4, Crawl: 5, Crawl
     };
 
     // 1. Zombies arrive at the mess hall's windows and tear the planks off.
-    await page.evaluate(() => { window.__zh.god(true); window.__zh.spawnZombies(6, { interval: 0.4, speed: 2.2 }); });
+    await page.evaluate(() => { window.__zh.rounds(false); window.__zh.god(true); window.__zh.spawnZombies(6, { interval: 0.4, speed: 2.2 }); });
     await until('a zombie tearing planks', async () => (await zombies()).some((z) => z.state === S.Tear));
     const first = await until('planks torn', async () => (await state()).barricades.find((b) => b.planks <= 3));
     await watch(first.id);
@@ -70,12 +70,15 @@ const S = { Approach: 0, Tear: 1, Vault: 2, Chase: 3, Attack: 4, Crawl: 5, Crawl
     assert(safe.barricades.some((b) => b.planks === 0), 'no barricade was fully torn down');
 
     // 3. Mortal now: they hurt us, the screen reddens, and we cannot walk through them.
+    //    (One zombie only: three hits in a row would put a solo player down and end the game.)
+    await page.evaluate(() => { const s = window.__zh.state(); window.__zh.killZombies(); window.__zh.spawnZombies(1, { x: s.x, z: s.z + 2.5, speed: 2.2 }); window.__zh.lookAt(s.x, 1.3, s.z + 2.5); });
+    await until('the lone zombie', async () => (await zombies()).length === 1);
     await page.evaluate(() => window.__zh.god(false));
     await until('getting hurt', async () => (await state()).hurts > 0, 10000);
     await sleep(120);
     await shot('hurt');
     const hurt = await state();
-    assert(hurt.hp < 100 || hurt.deaths > 0, `expected damage, hp ${hurt.hp}`);
+    assert(hurt.hp < 100, `expected damage, hp ${hurt.hp}`);
     await page.evaluate(() => { window.__zh.god(true); window.__zh.killZombies(); });
     await until('zombies cleared', async () => (await zombies()).length === 0);
     await until('health back to full', async () => (await state()).hp === 100, 12000);

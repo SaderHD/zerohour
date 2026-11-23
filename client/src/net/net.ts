@@ -119,6 +119,11 @@ export class Net {
     this.socket.send({ t: 'ready', ready });
   }
 
+  /** After a game over: take the room back to the lobby. */
+  again(): void {
+    this.socket.send({ t: 'again' });
+  }
+
   startGame(): void {
     this.socket.send({ t: 'start' });
   }

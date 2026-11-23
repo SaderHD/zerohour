@@ -36,7 +36,11 @@ async function waitForServer() {
     await page.goto(url);
     await page.waitForFunction(() => window.__zh?.state().phase === 'playing' && window.__zh.state().pingMs !== null, null, { timeout: 10000 });
     await page.waitForFunction(() => window.__zh.state().frames > 5, null, { timeout: 10000 });
+    // Round loop: round 1 starts by itself and the HUD shows it. (God mode from here: the zombies are real.)
+    await page.waitForFunction(() => window.__zh.state().round === 1 && document.getElementById('round').textContent === '1', null, { timeout: 15000 });
+    await page.evaluate(() => window.__zh.god(true));
     const state = await page.evaluate(() => window.__zh.state());
+    if (state.zombiesLeft !== 6 || state.points !== 500) throw new Error(`round 1 should have 6 zombies and 500 points, got ${state.zombiesLeft} / ${state.points}`);
     if (errors.length) throw new Error(`page errors:\n${errors.join('\n')}`);
     // World: map valid, standing in the spawn zone, cheap to draw.
     if (state.mapErrors.length) throw new Error(`map errors: ${state.mapErrors.join('; ')}`);

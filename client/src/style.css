@@ -234,7 +234,8 @@ body[data-phase='playing'] #hud {
   display: block;
 }
 body[data-phase='menu'] #menu,
-body[data-phase='lobby'] #lobby {
+body[data-phase='lobby'] #lobby,
+body[data-phase='playing'][data-over] #results {
   display: flex;
 }
 .screen {
@@ -343,4 +344,256 @@ body[data-phase='lobby'] #lobby {
 }
 #lobby-players .mark.ok {
   color: #7fd08a;
+}
+
+/* --- round, points, downs (session 6) --- */
+#round {
+  position: absolute;
+  left: 18px;
+  bottom: 30px;
+  font-size: 64px;
+  line-height: 1;
+  font-weight: bold;
+  color: var(--blood);
+  text-shadow: 2px 2px 0 #000, 0 0 12px rgba(179, 36, 28, 0.5);
+}
+#round.flash {
+  animation: roundflash 2.4s ease-out;
+}
+@keyframes roundflash {
+  0%,
+  30%,
+  60% {
+    color: #fff;
+    transform: scale(1.25);
+  }
+  15%,
+  45%,
+  100% {
+    color: var(--blood);
+    transform: scale(1);
+  }
+}
+#perks {
+  position: absolute;
+  left: 110px;
+  bottom: 34px;
+  display: flex;
+  gap: 6px;
+  min-height: 28px;
+}
+#effects {
+  position: absolute;
+  left: 50%;
+  bottom: 44px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+}
+#banner {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 18%;
+  text-align: center;
+  opacity: 0;
+  text-shadow: 2px 2px 0 #000;
+}
+#banner.show {
+  animation: banner 3.2s ease-out;
+}
+#banner-title {
+  font-size: 40px;
+  letter-spacing: 0.3em;
+  color: var(--blood);
+}
+#banner-sub {
+  color: var(--ink);
+  letter-spacing: 0.14em;
+}
+@keyframes banner {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  12%,
+  70% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+#points {
+  position: absolute;
+  right: 18px;
+  bottom: 104px;
+  text-align: right;
+  text-shadow: 0 1px 0 #000, 0 0 6px #000;
+}
+#points .row {
+  display: block;
+  color: var(--c);
+  font-size: 13px;
+  white-space: nowrap;
+}
+#points .row .who {
+  color: var(--dim);
+  margin-right: 8px;
+}
+#points .row.self {
+  font-size: 22px;
+}
+#points .row.downed .n,
+#points .row.dead .n,
+#points .row.lost .n {
+  opacity: 0.45;
+}
+#points .row .mark {
+  color: var(--blood);
+  margin-right: 6px;
+}
+#points-pop {
+  position: absolute;
+  right: 110px;
+  bottom: 108px;
+}
+#points-pop span {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  white-space: nowrap;
+  color: #f0c860;
+  text-shadow: 0 1px 0 #000;
+  animation: pointpop 0.9s ease-out forwards;
+}
+#points-pop span.neg {
+  color: var(--blood);
+}
+@keyframes pointpop {
+  from {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+  to {
+    opacity: 0;
+    transform: translate(var(--dx), var(--dy));
+  }
+}
+#progress {
+  position: absolute;
+  left: 50%;
+  top: calc(62% + 34px);
+  width: 180px;
+  height: 6px;
+  margin-left: -90px;
+  background: rgba(0, 0, 0, 0.55);
+  outline: 1px solid rgba(216, 210, 192, 0.35);
+  display: none;
+}
+#progress i,
+#downed-bar i {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+}
+#downed {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 30%;
+  text-align: center;
+  display: none;
+  text-shadow: 2px 2px 0 #000;
+}
+#downed-title {
+  font-size: 30px;
+  letter-spacing: 0.25em;
+  color: var(--blood);
+}
+#downed-bar {
+  width: 220px;
+  height: 7px;
+  margin: 10px auto;
+  background: rgba(0, 0, 0, 0.55);
+  outline: 1px solid rgba(216, 210, 192, 0.35);
+}
+#downed-bar i {
+  background: var(--blood);
+}
+#downed.reviving #downed-bar i {
+  background: #7fd08a;
+}
+body[data-life='dead'] #crosshair,
+body[data-life='dead'] #ammo,
+body[data-life='dead'] #stamina,
+body[data-over] #hud > :not(#round) {
+  visibility: hidden;
+}
+#tags .tag.downed {
+  color: #f0c860;
+  font-size: 14px;
+}
+#tags .tag.downed.urgent {
+  color: var(--blood);
+}
+#tags .tag.downed.reviving {
+  color: #7fd08a;
+}
+#scoreboard {
+  position: absolute;
+  left: 50%;
+  top: 22%;
+  transform: translateX(-50%);
+  min-width: 440px;
+  padding: 14px 18px;
+  background: rgba(7, 8, 10, 0.85);
+  outline: 1px solid rgba(216, 210, 192, 0.25);
+  display: none;
+}
+#scoreboard .sub {
+  color: var(--dim);
+  letter-spacing: 0.12em;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+#scoreboard table,
+#results table {
+  width: 100%;
+  border-collapse: collapse;
+}
+#scoreboard th,
+#results th {
+  color: var(--dim);
+  font-weight: normal;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+#scoreboard td,
+#scoreboard th,
+#results td,
+#results th {
+  padding: 4px 8px;
+  text-align: right;
+  border-bottom: 1px solid rgba(216, 210, 192, 0.12);
+}
+#scoreboard td:first-child,
+#scoreboard th:first-child,
+#results td:first-child,
+#results th:first-child {
+  text-align: left;
+}
+#scoreboard tr.self td,
+#results tr.self td {
+  color: #fff;
+}
+#scoreboard td.state,
+#results td.state {
+  color: var(--blood);
+  font-size: 12px;
+}
+#results {
+  width: 480px;
 }

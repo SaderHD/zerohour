@@ -12,6 +12,9 @@ const PITCH_LIMIT = Math.PI / 2 - 0.02;
 const FREECAM_SPEED = 12;
 /** Closest the player's centre can get to a zombie's: bodies block, with a little give. */
 const BODY_GAP = 0.6;
+/** How far the view sinks, and tilts, when downed. */
+const DOWNED_DROP = 1.05;
+const DOWNED_ROLL = 0.28;
 
 /**
  * The player's own body. Movement is simulated locally with the shared collision code and (from
@@ -34,6 +37,10 @@ export class LocalPlayer {
   speedMult = 1;
   noSprint = false;
   zoom = 1;
+  /** Cannot walk (downed, dead or the game is over); `lying` also drops the view to the floor. */
+  frozen = false;
+  lying = false;
+  private drop = 0;
   /** Mouse movement consumed this frame (pixels), for viewmodel sway. */
   lookX = 0;
   lookY = 0;
@@ -77,8 +84,10 @@ export class LocalPlayer {
     this.recoil += (this.recoilTarget - this.recoil) * (1 - Math.exp(-30 * dt));
     this.recoilTarget *= Math.exp(-7 * dt);
 
-    const fwd = (input.down('KeyW') ? 1 : 0) - (input.down('KeyS') ? 1 : 0);
-    const strafe = (input.down('KeyD') ? 1 : 0) - (input.down('KeyA') ? 1 : 0);
+    const walk = this.frozen && !this.freeCam ? 0 : 1;
+    const fwd = walk * ((input.down('KeyW') ? 1 : 0) - (input.down('KeyS') ? 1 : 0));
+    const strafe = walk * ((input.down('KeyD') ? 1 : 0) - (input.down('KeyA') ? 1 : 0));
+    this.drop += ((this.lying ? 1 : 0) - this.drop) * (1 - Math.exp(-6 * dt));
     const sin = Math.sin(this.yaw);
     const cos = Math.cos(this.yaw);
     let wx = -sin * fwd + cos * strafe;
@@ -144,9 +153,9 @@ export class LocalPlayer {
   applyTo(camera: THREE.PerspectiveCamera): void {
     const bobY = this.freeCam ? 0 : Math.sin(this.bob * 2) * 0.035 * this.bobAmount;
     const bobX = this.freeCam ? 0 : Math.cos(this.bob) * 0.02 * this.bobAmount;
-    const y = this.freeCam ? this.flyY : PLAYER_EYE_HEIGHT + bobY;
+    const y = this.freeCam ? this.flyY : PLAYER_EYE_HEIGHT + bobY - DOWNED_DROP * this.drop;
     camera.position.set(this.x + Math.cos(this.yaw) * bobX, y, this.z - Math.sin(this.yaw) * bobX);
-    camera.rotation.set(this.freeCam ? this.pitch : this.viewPitch, this.yaw, this.freeCam ? 0 : bobX * 0.4, 'YXZ');
+    camera.rotation.set(this.freeCam ? this.pitch : this.viewPitch, this.yaw, this.freeCam ? 0 : bobX * 0.4 + DOWNED_ROLL * this.drop, 'YXZ');
     if (Math.abs(camera.fov - this.fov) > 0.01) {
       camera.fov = this.fov;
       camera.updateProjectionMatrix();

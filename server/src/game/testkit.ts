@@ -1,8 +1,8 @@
 import { TICK_DT, type ClientMsg, type GameEvent, type ServerMsg, type Snapshot } from '@zh/shared';
 import { Game } from './Game';
 
-/** A game on a fake clock, with everything it sends collected. For sim tests. */
-export function makeGame(seed = 7) {
+/** A game on a fake clock, with everything it sends collected. For sim tests. The round loop is off unless asked for. */
+export function makeGame(seed = 7, opts: { rounds?: boolean } = {}) {
   let now = 100;
   const events: GameEvent[] = [];
   const snaps: Snapshot[] = [];
@@ -15,7 +15,7 @@ export function makeGame(seed = 7) {
       },
       broadcast: (m: ServerMsg) => void (m.t === 'ev' && events.push(...m.events)),
     },
-    { debug: true, seed, now: () => now },
+    { debug: true, seed, now: () => now, rounds: opts.rounds === true },
   );
   let moveSeq = 0;
   return {

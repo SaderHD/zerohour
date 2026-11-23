@@ -9,3 +9,4 @@ export * from './nav/ray';
 export * from './nav/flowfield';
 export * from './combat';
 export * from './data/weapons';
+export * from './data/rounds';

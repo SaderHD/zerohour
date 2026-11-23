@@ -50,6 +50,8 @@ export interface FireHit {
 export type DebugCmd =
   | { cmd: 'give'; weapon?: WeaponId; perk?: PerkId; points?: number }
   | { cmd: 'setRound'; round: number }
+  /** Stop (clearing every zombie) or resume the round loop. */
+  | { cmd: 'rounds'; on: boolean }
   /** Queue zombies at the windows; with x/z they appear at that spot instead. `interval` sets the spawn spacing. */
   | { cmd: 'spawnZombies'; count: number; hp?: number; speed?: number; interval?: number; x?: number; z?: number }
   | { cmd: 'killZombies' }
@@ -67,6 +69,7 @@ export type ClientMsg =
   | { t: 'leave' }
   | { t: 'ready'; ready: boolean }
   | { t: 'start' }
+  | { t: 'again' } // after a game over: take the room back to the lobby
   | { t: 'move'; seq: number; x: number; z: number; yaw: number; pitch: number; state: MoveState }
   | { t: 'fire'; seq: number; slot: number; yaw: number; pitch: number; aim: boolean; hits: FireHit[] }
   | { t: 'reload' }
@@ -169,6 +172,8 @@ export interface SyncState {
   round: number;
   roundPhase: 'intermission' | 'active' | 'special';
   zombiesLeft: number;
+  /** The game has ended (everyone went down); the results screen is up. */
+  over: boolean;
   power: boolean;
   openDoors: InteractableId[];
   barricades: BarricadeState[];
@@ -215,6 +220,8 @@ export type GameEvent =
   | { e: 'playerHurt'; id: PlayerId; hp: number; fromX: number; fromZ: number }
   | { e: 'playerDowned'; id: PlayerId }
   | { e: 'playerRevived'; id: PlayerId; by?: PlayerId }
+  /** Someone started (`by`) or stopped (`by` 0) reviving downed player `id`. */
+  | { e: 'reviving'; id: PlayerId; by: PlayerId }
   | { e: 'playerDied'; id: PlayerId }
   | { e: 'playerSpawned'; id: PlayerId; x: number; z: number }
   | { e: 'playerLeft'; id: PlayerId }
@@ -253,7 +260,7 @@ export type ServerMsgType = ServerMsg['t'];
 // ---------------------------------------------------------------- encode / decode
 
 const CLIENT_TYPES: ReadonlySet<string> = new Set<ClientMsgType>([
-  'hello', 'create', 'join', 'leave', 'ready', 'start', 'move', 'fire', 'reload', 'swap',
+  'hello', 'create', 'join', 'leave', 'ready', 'start', 'again', 'move', 'fire', 'reload', 'swap',
   'melee', 'throw', 'interact', 'revive', 'chat', 'mark', 'ping', 'debug',
 ]);
 

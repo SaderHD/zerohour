@@ -1,18 +1,20 @@
 import {
   MOVE_BUDGET_CAP, MOVE_SPEED_SLACK, MoveState, PLAYER_MAX_HP, PLAYER_RADIUS, SNAPSHOT_EVERY_TICKS,
-  Rng, SPRINT_SPEED, START_GRENADES, START_POINTS, START_WEAPON, TICK_BUDGET_MS, TICK_DT, ZOMBIE_BASE_HP, ZOMBIE_SPAWN_INTERVAL,
-  ZOMBIE_SPEED_RUN, ZOMBIE_SPEED_SHAMBLE, ZOMBIE_SPEED_WALK, circleFits, compileMap, harrowRidge, isFiniteNum,
+  Rng, SPRINT_SPEED, START_GRENADES, START_POINTS, START_WEAPON, TICK_BUDGET_MS, TICK_DT, ZOMBIE_SPAWN_INTERVAL,
+  circleFits, compileMap, harrowRidge, isFiniteNum,
   type ClientMsg, type CompiledMap, type GameEvent, type PlayerId, type PlayerPublic, type PlayerSnap,
-  type ServerMsg, type Snapshot,
+  type ServerMsg, type Snapshot, type WeaponState,
 } from '@zh/shared';
-import { giveWeapon, newWeapon, onFire, onMelee, onReload, onSwap, onThrow, settleReload } from './combat';
+import { newWeapon, onFire, onMelee, onReload, onSwap, onThrow, settleReload } from './combat';
 import { barricadeStates, createBarricades, onInteract, updateBarricades } from './barricades';
-import { killZombie, spawnDummy, updateEntities, zombieSnap, type Zombie } from './entities';
+import { onDebug } from './debug';
+import { updateEntities, zombieSnap, type Zombie } from './entities';
 import { Nav } from './nav';
-import { updatePlayers } from './players';
+import { everyoneDown, onRevive, sitOut, standing, updatePlayers } from './players';
 import { projectileSnap, updateProjectiles, type Projectile } from './projectiles';
-import { updateSpawner, zombieCount, type SpawnOrder } from './spawner';
-import { spawnZombie, updateZombies } from './zombies';
+import { createRounds, updateRounds } from './rounds';
+import { updateSpawner, type SpawnOrder } from './spawner';
+import { updateZombies } from './zombies';
 
 let sharedMap: CompiledMap | null = null;
 export const gameMap = (): CompiledMap => (sharedMap ??= compileMap(harrowRidge));
@@ -45,6 +47,24 @@ export interface PlayerState {
   god: boolean;
   /** The barricade being rebuilt while F is held, and progress towards the next plank. */
   rebuild: { id: string; t: number } | null;
+  /** While downed: when they bleed out (game time), who is reviving them (0 = nobody) and how far along. */
+  down: { until: number; by: PlayerId; progress: number } | null;
+  /** The loadout set aside while downed (a downed player has only a pistol). */
+  stash: { weapons: WeaponState[]; slot: number } | null;
+  /** The downed teammate this player is holding F on (0 = none). */
+  reviving: PlayerId;
+  /** Points earned from planks this round (capped). */
+  plankPoints: number;
+}
+
+export interface GameOpts {
+  debug: boolean;
+  seed: number;
+  now?: () => number;
+  /** False starts the game with the round loop stopped (sim tests feed the spawner themselves). */
+  rounds?: boolean;
+  /** Called once when everyone is down. */
+  onOver?: () => void;
 }
 
 /** Longest we extrapolate a player's last reported position when building a snapshot. */
@@ -87,9 +107,14 @@ export class Game {
    */
   readonly now: () => number;
 
-  constructor(private readonly out: GameOut, readonly opts: { debug: boolean; seed: number; now?: () => number }) {
+  readonly rounds: ReturnType<typeof createRounds>;
+  /** Set when everyone is down: the sim stops and the results stay up until the room moves on. */
+  over = false;
+
+  constructor(private readonly out: GameOut, readonly opts: GameOpts) {
     this.now = opts.now ?? (() => performance.now() / 1000);
     this.rng = new Rng(opts.seed);
+    this.rounds = createRounds(opts.rounds === false);
   }
 
   // ------------------------------------------------------------ lifecycle
@@ -125,11 +150,13 @@ export class Game {
       x: s.x, z: s.z, yaw: s.yaw, pitch: 0, state: MoveState.Idle, hp: PLAYER_MAX_HP, ack: 0, budget: MOVE_BUDGET_CAP,
       vx: 0, vz: 0, movedAt: this.now(),
       fireAck: 0, nextFireAt: 0, nextMeleeAt: 0, nextThrowAt: 0, reloadUntil: 0,
-      hurtAt: -100, god: false, rebuild: null,
+      hurtAt: -100, god: false, rebuild: null, down: null, stash: null, reviving: 0, plankPoints: 0,
     };
     this.players.set(id, p);
     this.emit({ e: 'player', player: p.pub });
-    this.emit({ e: 'playerSpawned', id, x: p.x, z: p.z });
+    // Joining mid-round: watch until the next one starts.
+    if (this.rounds.phase === 'active') sitOut(p);
+    else this.emit({ e: 'playerSpawned', id, x: p.x, z: p.z });
     return p;
   }
 
@@ -140,7 +167,7 @@ export class Game {
 
   /** Can zombies chase and hurt this player right now? */
   targetable(p: PlayerState): boolean {
-    return p.pub.connected;
+    return p.pub.connected && standing(p);
   }
 
   /** Snap a client back to where the server has it. */
@@ -159,7 +186,8 @@ export class Game {
     const p = this.players.get(id);
     if (!p || p.pub.connected === connected) return;
     p.pub.connected = connected;
-    if (!connected) p.state = MoveState.Idle;
+    if (!connected && standing(p)) p.state = MoveState.Idle;
+    if (!connected) p.reviving = 0;
     this.emit({ e: 'player', player: p.pub });
   }
 
@@ -171,9 +199,10 @@ export class Game {
       map: this.map.def.id,
       seed: this.opts.seed,
       time: this.time,
-      round: 0,
-      roundPhase: 'intermission',
-      zombiesLeft: 0,
+      round: this.rounds.round,
+      roundPhase: this.rounds.phase,
+      zombiesLeft: this.rounds.left,
+      over: this.over,
       power: false,
       openDoors: [...this.openDoors],
       barricades: barricadeStates(this),
@@ -191,7 +220,7 @@ export class Game {
 
   onMessage(id: PlayerId, msg: ClientMsg): void {
     const p = this.players.get(id);
-    if (!p) return;
+    if (!p || this.over) return;
     switch (msg.t) {
       case 'move':
         return this.onMove(p, msg);
@@ -207,11 +236,13 @@ export class Game {
         return onThrow(this, p, msg);
       case 'interact':
         return onInteract(this, p, msg);
+      case 'revive':
+        return onRevive(this, p, msg);
       case 'debug':
-        if (this.opts.debug) this.onDebug(p, msg);
+        if (this.opts.debug) onDebug(this, p, msg);
         return;
       default:
-        return; // revive, chat etc. arrive in later sessions
+        return; // chat, mark etc. arrive in later sessions
     }
   }
 
@@ -222,6 +253,11 @@ export class Game {
     p.yaw = m.yaw;
     p.pitch = Math.max(-1.6, Math.min(1.6, m.pitch));
     const d = Math.hypot(m.x - p.x, m.z - p.z);
+    if (!standing(p)) {
+      // Downed and dead players stay where they fell; they may still look around.
+      if (d > 0.05) this.out.send(p.pub.id, { t: 'correct', x: p.x, z: p.z, seq: m.seq });
+      return;
+    }
     const legal = d <= p.budget + 0.05 && circleFits(this.map, this.openDoors, m.x, m.z, PLAYER_RADIUS - 0.05);
     if (!legal) {
       this.out.send(p.pub.id, { t: 'correct', x: p.x, z: p.z, seq: m.seq });
@@ -245,60 +281,6 @@ export class Game {
     p.state = m.state === MoveState.Sprint ? MoveState.Sprint : m.state === MoveState.Walk ? MoveState.Walk : MoveState.Idle;
   }
 
-  private onDebug(p: PlayerState, m: Extract<ClientMsg, { t: 'debug' }>): void {
-    switch (m.cmd) {
-      case 'teleport':
-        if (!isFiniteNum(m.x) || !isFiniteNum(m.z)) return;
-        p.x = m.x;
-        p.z = m.z;
-        p.budget = MOVE_BUDGET_CAP;
-        p.vx = p.vz = 0;
-        this.correct(p);
-        return;
-      case 'god':
-        p.god = m.on === true;
-        return;
-      case 'spawnZombies':
-        return this.debugSpawn(m);
-      case 'killZombies':
-        for (const z of [...this.zombies.values()]) if (z.kind !== 'dummy') killZombie(this, z, undefined, undefined, 'debug');
-        this.spawnQueue.length = 0;
-        return;
-      case 'give':
-        if (typeof m.weapon === 'string') giveWeapon(this, p, m.weapon);
-        if (isFiniteNum(m.points)) {
-          p.pub.points += Math.round(m.points);
-          this.emit({ e: 'player', player: p.pub });
-        }
-        return;
-      case 'dummy':
-        if ([m.x, m.z, m.yaw].every(isFiniteNum) && this.zombies.size < 32 && circleFits(this.map, this.openDoors, m.x, m.z, PLAYER_RADIUS)) {
-          spawnDummy(this, m.x, m.z, m.yaw);
-        }
-        return;
-      case 'openAllDoors':
-        for (const o of this.map.def.openings) if (o.kind === 'door') this.openDoor(o.id, p.pub.id);
-        return;
-      case 'openDoor':
-        if (this.map.openingById(m.id)?.kind === 'door') this.openDoor(m.id, p.pub.id);
-        return;
-      default:
-        return;
-    }
-  }
-
-  private debugSpawn(m: Extract<ClientMsg, { t: 'debug'; cmd: 'spawnZombies' }>): void {
-    const count = Number.isInteger(m.count) ? Math.max(0, Math.min(64, m.count)) : 0;
-    const hp = isFiniteNum(m.hp) && m.hp > 0 ? m.hp : ZOMBIE_BASE_HP;
-    const speedOf = (): number =>
-      isFiniteNum(m.speed) && m.speed > 0 ? Math.min(m.speed, 8) : this.rng.pick([ZOMBIE_SPEED_SHAMBLE, ZOMBIE_SPEED_WALK, ZOMBIE_SPEED_RUN]);
-    if (isFiniteNum(m.interval)) this.spawnInterval = Math.max(0.05, m.interval);
-    for (let i = 0; i < count; i++) {
-      if (!isFiniteNum(m.x) || !isFiniteNum(m.z)) this.spawnQueue.push({ hp, speed: speedOf() });
-      else if (zombieCount(this) < 64 && circleFits(this.map, this.openDoors, m.x, m.z, PLAYER_RADIUS)) spawnZombie(this, null, m.x, m.z, hp, speedOf());
-    }
-  }
-
   openDoor(id: string, by: PlayerId): void {
     if (this.openDoors.has(id)) return;
     this.openDoors.add(id);
@@ -313,6 +295,7 @@ export class Game {
   }
 
   step(dt: number): void {
+    if (this.over) return;
     const began = performance.now();
     this.time += dt;
     this.tick++;
@@ -327,6 +310,11 @@ export class Game {
     updateProjectiles(this, dt);
     updateEntities(this);
     updateBarricades(this, dt);
+    updateRounds(this);
+    if (everyoneDown(this)) {
+      this.over = true;
+      this.emit({ e: 'gameOver', round: this.rounds.round, players: [...this.players.values()].map((p) => p.pub) });
+    }
     if (this.events.length) {
       this.out.broadcast({ t: 'ev', tick: this.tick, events: this.events });
       this.events = [];
@@ -337,6 +325,7 @@ export class Game {
     this.stats.tickMsMax = Math.max(this.stats.tickMsMax, ms);
     this.stats.ticks++;
     if (ms > TICK_BUDGET_MS) this.stats.overBudget++;
+    if (this.over) this.opts.onOver?.();
   }
 
   private sendSnapshots(): void {

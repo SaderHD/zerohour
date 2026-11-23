@@ -33,6 +33,7 @@ for (let i = 0; i < 50 && !game; i++) {
 }
 if (!game) throw new Error('the bots never started a game');
 if (!shut) for (const o of game.map.def.openings) if (o.kind === 'door') game.openDoor(o.id, 1);
+game.rounds.paused = true; // this soak feeds the spawner itself
 game.spawnInterval = 0.5;
 
 const rng = new Rng(5);

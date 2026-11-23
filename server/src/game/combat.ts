@@ -1,11 +1,12 @@
 import {
   FIRE_RATE_SLACK, GRENADE_COOLDOWN, GRENADE_DAMAGE, GRENADE_FUSE, GRENADE_LOFT, GRENADE_RADIUS, GRENADE_SPEED,
-  HIT_DIST_SLACK, KNIFE_COOLDOWN, KNIFE_DAMAGE, KNIFE_RANGE, KNIFE_RANGE_SLACK, PLAYER_EYE_HEIGHT, SWAP_SECONDS,
+  HIT_DIST_SLACK, KNIFE_COOLDOWN, MoveState, KNIFE_DAMAGE, KNIFE_RANGE, KNIFE_RANGE_SLACK, PLAYER_EYE_HEIGHT, SWAP_SECONDS,
   WEAPON_SLOTS, aimDir, fireInterval, hitDamage, isFiniteNum, lineOfSight, maxHitsPerShot, weaponDef,
   type ClientMsg, type HitZone, type WeaponId, type WeaponState,
 } from '@zh/shared';
 import { damageZombie } from './entities';
 import type { Game, PlayerState } from './Game';
+import { standing } from './players';
 import { spawnProjectile } from './projectiles';
 
 type Msg<T extends ClientMsg['t']> = Extract<ClientMsg, { t: T }>;
@@ -46,6 +47,7 @@ export function settleReload(g: Game, p: PlayerState): void {
 export function onFire(g: Game, p: PlayerState, m: Msg<'fire'>): void {
   if (![m.seq, m.yaw, m.pitch].every(isFiniteNum) || m.seq <= p.fireAck) return;
   p.fireAck = m.seq; // acknowledged even if refused, so the client's ammo count converges
+  if (p.state === MoveState.Dead) return; // a downed player still has their pistol
   settleReload(g, p);
   const w = p.pub.weapons[p.pub.slot];
   const def = w && weaponDef(w.id);
@@ -83,6 +85,7 @@ export function onFire(g: Game, p: PlayerState, m: Msg<'fire'>): void {
 }
 
 export function onReload(g: Game, p: PlayerState): void {
+  if (p.state === MoveState.Dead) return;
   settleReload(g, p);
   const w = p.pub.weapons[p.pub.slot];
   const def = w && weaponDef(w.id);
@@ -91,7 +94,7 @@ export function onReload(g: Game, p: PlayerState): void {
 }
 
 export function onSwap(g: Game, p: PlayerState, m: Msg<'swap'>): void {
-  if (!Number.isInteger(m.slot) || m.slot === p.pub.slot || !p.pub.weapons[m.slot]) return;
+  if (!standing(p) || !Number.isInteger(m.slot) || m.slot === p.pub.slot || !p.pub.weapons[m.slot]) return;
   p.reloadUntil = 0; // swapping abandons a reload
   p.pub.slot = m.slot;
   p.nextFireAt = Math.max(p.nextFireAt, g.now() + SWAP_SECONDS);
@@ -100,7 +103,7 @@ export function onSwap(g: Game, p: PlayerState, m: Msg<'swap'>): void {
 
 export function onMelee(g: Game, p: PlayerState, m: Msg<'melee'>): void {
   const now = g.now();
-  if (now < p.nextMeleeAt - FIRE_RATE_SLACK) return;
+  if (!standing(p) || now < p.nextMeleeAt - FIRE_RATE_SLACK) return;
   p.nextMeleeAt = Math.max(p.nextMeleeAt, now) + KNIFE_COOLDOWN;
   g.emit({ e: 'melee', id: p.pub.id });
   const z = m.hit === undefined ? undefined : g.zombies.get(m.hit);
@@ -111,7 +114,7 @@ export function onMelee(g: Game, p: PlayerState, m: Msg<'melee'>): void {
 }
 
 export function onThrow(g: Game, p: PlayerState, m: Msg<'throw'>): void {
-  if (m.kind !== 'frag' || !isFiniteNum(m.yaw) || !isFiniteNum(m.pitch)) return; // tactical: session 11
+  if (!standing(p) || m.kind !== 'frag' || !isFiniteNum(m.yaw) || !isFiniteNum(m.pitch)) return; // tactical: session 11
   const now = g.now();
   if (p.pub.grenades <= 0 || now < p.nextThrowAt - FIRE_RATE_SLACK) return;
   p.nextThrowAt = now + GRENADE_COOLDOWN;

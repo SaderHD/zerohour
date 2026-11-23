@@ -23,7 +23,20 @@
           <div id="ammo-nades"></div>
         </div>
         <div id="prompt"></div>
-        <div id="hint">Click to play · WASD move · Shift sprint · LMB fire · RMB aim · R reload · Q swap · V knife · G grenade · F rebuild</div>
+        <div id="progress"><i></i></div>
+        <div id="round"></div>
+        <div id="perks"></div>
+        <div id="effects"></div>
+        <div id="banner"><div id="banner-title"></div><div id="banner-sub"></div></div>
+        <div id="points-pop"></div>
+        <div id="points"></div>
+        <div id="downed">
+          <div id="downed-title"></div>
+          <div id="downed-bar"><i></i></div>
+          <div id="downed-sub"></div>
+        </div>
+        <div id="scoreboard"><div class="sub" id="scoreboard-title"></div><table></table></div>
+        <div id="hint">Click to play · WASD move · Shift sprint · LMB fire · RMB aim · R reload · Q swap · V knife · G grenade · F rebuild / revive · Tab scores</div>
         <div id="stamina"><div id="stamina-fill"></div></div>
       </div>
 
@@ -49,6 +62,16 @@
         </div>
         <button id="leave" class="quiet">Leave</button>
         <p id="lobby-error" class="error"></p>
+      </div>
+
+      <div id="results" class="screen">
+        <h1>GAME OVER</h1>
+        <p class="sub" id="results-sub"></p>
+        <table></table>
+        <div class="row">
+          <button id="again">Back to lobby</button>
+          <button id="results-leave" class="quiet">Leave</button>
+        </div>
       </div>
 
       <div id="status" data-state="connecting">connecting…</div>
