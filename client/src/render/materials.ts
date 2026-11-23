@@ -90,6 +90,8 @@ const WALL_DRAW: Record<WallStyle, Draw> = {
   plaster: (px, r) => each((x, y) => px(x, y, 208 + r.range(-7, 7) - (y < 5 ? 26 : 0) - (r.chance(0.02) ? 45 : 0))),
   metal: (px, r) => each((x, y) => px(x, y, 150 + Math.sin((x / 4) * Math.PI) * 42 + r.range(-5, 5) - (y % 16 === 0 ? 40 : 0))),
   fence: (px, r) => each((x, y) => px(x, y, x % 8 === 7 ? 40 : y === 6 || y === 25 ? 120 : 160 + ((x >> 3) % 2) * 18 + r.range(-12, 12), [1, 0.94, 0.84])),
+  // Weatherboards, the lap of each in shadow, rime along the top edges.
+  siding: (px, r) => each((x, y) => px(x, y, y % 8 === 0 ? 96 : y % 8 === 1 ? 228 : x === (y >> 3) * 11 % 32 ? 120 : 176 + r.range(-10, 10) - (y % 8) * 3, [1, 0.94, 0.86])),
   rock: (px, r) => {
     const blobs = Array.from({ length: 9 }, () => [r.int(0, 31), r.int(0, 31), r.range(60, 150)] as const);
     each((x, y) => {

@@ -58,6 +58,12 @@ when its acceptance checks pass.
   `shared/src/map/dressing/<wing>.ts`. Solid props are whole 0.5 m cells in the collision grid:
   leave gaps of nothing or at least 1.5 m, then run `npm run map`. Lamps are drawn from
   `LightDef.fixture`. Door shutters and debris live in `render/doors.ts`.
+- Things players buy: one line in `shared/src/map/dressing/mounts.ts` makes both the prop
+  (`wallbuy`, `tonic`, `cache_site`) and the `Interactable`. The yard's walls take their look from
+  the half-metre strip rooms round its edge (`yard_n_mess`...), not from the buildings behind.
+- Outside the walls (never walkable): `render/exterior.ts` builds roofs, stacks and pines from the
+  room list; `render/snow.ts` drops snow wherever a cell is open to the sky. Signs: `arrow()` in
+  the dressing helpers paints `< TEXT` / `TEXT >`; tiles live in the atlas in `render/signs.ts`.
 - Ambient motion: a builder draws a turning part through `k.mover(x, y, z, axis, motion)` (spin or
   swing; `powered` spins wait for the mains) and marks a roof leak with `k.drip(...)`;
   `render/ambient.ts` animates them and the floor mist of rooms with `mist: true`. Keep movers

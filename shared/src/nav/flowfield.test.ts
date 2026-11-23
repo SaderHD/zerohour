@@ -31,9 +31,9 @@ describe('flow field', () => {
   it('respects closed doors and opens up with them', () => {
     const f = new FlowField(map);
     f.compute(undefined, spawn.x, spawn.z);
-    expect(f.costAt(33, 43)).toBe(UNREACHABLE); // the courtyard, behind a closed door
+    expect(f.costAt(30, 40)).toBe(UNREACHABLE); // the courtyard, behind a closed door
     f.compute(new Set(['d_mess_yard']), spawn.x, spawn.z);
-    expect(f.costAt(33, 43)).toBeLessThan(UNREACHABLE);
+    expect(f.costAt(30, 40)).toBeLessThan(UNREACHABLE);
     expect(f.costAt(10, 27)).toBe(UNREACHABLE); // bunkhouse still shut
   });
 

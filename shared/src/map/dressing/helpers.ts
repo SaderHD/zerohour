@@ -18,6 +18,19 @@ export const row = (type: PropType, x: number, z: number, n: number, dx: number,
 
 export const sign = (text: string, x: number, z: number, face: Dir, y = 1.9, variant = 0): PropInst => prop('sign', x, z, face, { text, y, variant });
 
+/** A sign with an arrow pointing along its wall towards `toward` (as someone reading it sees it). */
+export function arrow(text: string, x: number, z: number, face: Dir, toward: Dir, y = 1.9, variant = 2): PropInst {
+  // Reading a sign that faces north you look south, so east is on your left.
+  const left: Record<Dir, Dir> = { n: 'e', s: 'w', e: 's', w: 'n' };
+  return sign(left[face] === toward ? `< ${text}` : `${text} >`, x, z, face, y, variant);
+}
+
+/** A guy wire from an anchor block at (ax, az) up to height `y` on a mast at (mx, mz). */
+export function guy(ax: number, az: number, mx: number, mz: number, y: number): PropInst[] {
+  const rot = (Math.atan2(-(mx - ax), -(mz - az)) * 180) / Math.PI;
+  return [prop('anchor_block', ax, az), prop('guy_wire', ax, az, 'n', { rot, s: Math.hypot(mx - ax, mz - az), y })];
+}
+
 type LightOpts = Partial<Pick<LightDef, 'intensity' | 'needsPower' | 'flicker' | 'fixture'>>;
 
 /** A mains lamp: dim until the power is on. */

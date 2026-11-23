@@ -54,7 +54,8 @@ zerohour/
     protocol.ts           all message types (client<->server)
     combat.ts             damage/falloff/fire-rate maths used by both sides
     data/                 weapons.ts perks.ts powerups.ts props.ts rounds.ts
-    map/                  types.ts  harrowRidge.ts  dressing/*.ts (props + lights per wing)  compile.ts  validate.ts
+    map/                  types.ts  harrowRidge.ts  dressing/*.ts (props + lights per wing, mounts.ts =
+                          interactables and what stands at them)  compile.ts  validate.ts
     nav/                  grid.ts  flowfield.ts  los.ts  ray.ts (3D ray vs cell grid)  collide.ts
     math/                 vec.ts  rng.ts (seeded)
   server/src/
@@ -66,7 +67,8 @@ zerohour/
     bot.ts                headless bot client for load/soak tests
   client/src/
     main.ts  net/ (socket, interpolation)  input/
-    render/               renderer.ts (retro pipeline), worldBuilder.ts, bake.ts, doors.ts, signs.ts, materials.ts
+    render/               renderer.ts (retro pipeline), worldBuilder.ts, bake.ts, doors.ts, signs.ts, materials.ts,
+                          exterior.ts (roofs, stacks, pines), snow.ts, sky.ts, ambient.ts, atmosphere.ts
     models/               zombie.ts player.ts weapons/*.ts props/*.ts  rig.ts anim.ts
     game/                 localPlayer.ts viewmodel.ts entities.ts interact.ts fx.ts
     audio/                synth.ts sfx.ts music.ts
@@ -104,6 +106,11 @@ zerohour/
   pump/bolt, sprint lower, swap raise.
 - **FX:** muzzle flash quad + 1-frame light, tracer lines, blood = small box particles, bullet
   impact puffs, power-up spin+glow+bob, lightning = jittered line segments.
+- **Outside the walls:** `render/exterior.ts` puts a roof shell over every building (pitched over
+  the timber ones, flat with a parapet over block and metal), a stack over every stove and
+  engine, and snow-laden pines on the rock beyond the wire — one mesh, lit as part of the yard.
+  The sky is a textured cylinder (gradient, stars, moon, aurora, two ridges); snow falls as one
+  cloud of points wherever a cell is open to the sky (`render/snow.ts`).
 - **Static world** is merged into a few meshes per zone (see map compile). Zombies/props that
   repeat use shared geometries. The few world parts that move (fans, flywheels, a swinging lamp)
   are one small mesh each (`render/ambient.ts`), as are all drips together and the floor mist.
@@ -354,6 +361,15 @@ separate prop pass; `tall` ones also block sight and light, and every solid prop
 pass below its height (`propH`, used by `rayWorld`). Gaps between solid props are therefore
 nothing or at least 1.5 m. Clutter (papers, tipped chairs, pipes, signs) collides with nothing.
 A door with `style: 'debris'` is a heap to clear instead of a shutter to raise.
+
+A wall takes its look from the open cell in front of it, so the yard is one big room plus
+half-metre strips round its edge (`yard_n_mess`, `yard_e_motor`...): each strip gives its stretch
+of wall the face of what stands behind it (fence, the mess hall's boards, the motor pool's block).
+
+**Interactables** (`map/dressing/mounts.ts`): each wall buy, tonic and Cache site is one line that
+yields both the prop players see (`wallbuy`, `tonic`, `cache_site`) and the `Interactable` they
+will press F at; the power switch is the lever on a `switchgear` and the Forge is its own prop.
+`TONICS` there fixes the tonic ids, their order (= the dispenser's `variant`) and glow colours.
 
 `validate.ts` runs in tests and fails the build if: a prop blocks the floor inside a window; any zone is unreachable with all doors open;
 any window/spawn can't path to the player spawn; a prop seals a lane (<1.5 m); interactables are
@@ -642,7 +658,31 @@ with no errors in client or server logs.
   cold store seen from the lab doorway is clear until you step in; the generator, truck and rack
   models are well over the 100-triangle guideline (not counted); the power switch on the switchgear is
   session 10; machine and drip sounds are session 12.
-- [ ] 9 Map III: exterior, Comms, Vault, whole-map pass
+- [x] 9 Map III: exterior, Comms, Vault, whole-map pass — done. 22 more prop types (87 in all),
+  406 placed. Courtyard: the radio mast and its three guy wires, a snowed-in truck, a snowcat, the
+  flagpole (its flag is a mover), a watch fire, sandbags inside each fence breach, stores along the
+  walls, drifts, ruts, wire along the fence tops, five floodlights. Comms: two operators' desks, a
+  plotting scope with a turning sweep, the map table, four radio racks, a teleprinter. Vault: the
+  Forge between capacitor banks and transformers, hazard lines, its switchgear. Outside:
+  `render/exterior.ts` (roof shells, stacks, pines), a moon in the sky, falling snow. Whole map:
+  `interactables` is filled (6 wall buys, 6 tonics, 5 Cache sites, power switch, Forge) and each has
+  its mount; `< POWER` arrows lead to the generator hall along both routes and `FORGE` arrows to
+  the vault; every building has its name painted on. The tour has 17 views of the new work (8 more with the
+  power on). Soak, 150 s real time each: doors open — worst idle 2.2 s, tick 0.78 ms average
+  (9 of 4,509 ticks over 5 ms), zombies in all nine zones; doors shut — worst idle 3.0 s, 0.38 ms.
+  Worst viewpoint is 53 draw calls. Changes to the plan: the yard is one room plus edge strips so
+  its walls can differ (section 6.1) and there is a seventh wall style, `siding`; mounts are props
+  generated together with their interactables (section 6.1); the sign atlas is 1024 px and signs
+  can carry arrows; the three fence breaches are the yard's ordinary windows (planks, pocket) with
+  sandbags inside rather than a separate kind of barricade. Moved to fit the mounts: the mess
+  shelves (0.5 m south), a lab crate, and the bunkhouse barrel by the mess door (removed).
+  Deferred: the world is now ~75k triangles and headless software rendering gives ~23 fps with the
+  full horde in the yard (no real GPU was available to measure on — check in session 14, the pines
+  and the mast are the cheapest things to thin); tonic cabinets and wall-buy boards are final
+  enough to keep but show no weapon model or price yet (session 10); a Cache site is a bare pallet
+  until the Cache exists (11); guy wires and the flood masts have no collision; snow does not
+  settle on anything that moves; the mast lamp does not blink (glow modes are on / mains / flame /
+  failing tube only).
 - [ ] 10 Economy: wall buys, power, tonics, Forge
 - [ ] 11 Cache, power-ups, wonder weapons, Howlers
 - [ ] 12 Audio and feel

@@ -3,10 +3,12 @@ import { CELL_SIZE, PLAYER_RADIUS } from '../constants';
 import { Rng } from '../math/rng';
 import { circleFits, moveCircle } from '../nav/collide';
 import { propDef } from '../data/props';
+import { WEAPONS } from '../data/weapons';
 import { lineOfSight, lineWalkable } from '../nav/los';
 import { rayWorld } from '../nav/ray';
 import { asciiMap } from './ascii';
-import { Cell, compileMap } from './compile';
+import { Cell, DIR_VEC, compileMap } from './compile';
+import { TONICS } from './dressing/mounts';
 import { harrowRidge } from './harrowRidge';
 import type { MapDef } from './types';
 import { floodWalkable, validateMap } from './validate';
@@ -215,9 +217,61 @@ describe('Harrow Ridge dressing', () => {
     expect(harrowRidge.zones.find((z) => z.id === 'cold')?.fog).toBeDefined();
   });
 
+  it('the yard, the comms bunker and the vault are furnished, each with its own pieces', () => {
+    expect(count('yard', true)).toBeGreaterThanOrEqual(20);
+    expect(count('yard', false)).toBeGreaterThanOrEqual(20);
+    expect(count('comms', true)).toBeGreaterThanOrEqual(12);
+    expect(count('comms', false)).toBeGreaterThanOrEqual(8);
+    expect(count('vault', true)).toBeGreaterThanOrEqual(8);
+    expect(count('vault', false)).toBeGreaterThanOrEqual(8);
+    const has = (zone: string, type: string) => harrowRidge.props.filter((p) => p.type === type && map.zoneAt(p.x, p.z) === zone).length;
+    for (const type of ['truck_cab', 'truck_bed', 'snowcat', 'flagpole', 'mast']) expect(has('yard', type), type).toBe(1);
+    expect(has('yard', 'guy_wire')).toBe(has('yard', 'anchor_block'));
+    expect(has('yard', 'sandbags')).toBe(harrowRidge.openings.filter((o) => o.kind === 'window' && o.zones[0] === 'yard').length);
+    expect(harrowRidge.lights.filter((l) => l.fixture === 'flood' && map.zoneAt(l.x, l.z) === 'yard').length).toBeGreaterThanOrEqual(4);
+    for (const type of ['console', 'radar', 'map_table', 'radio_rack']) expect(has('comms', type), type).toBeGreaterThanOrEqual(1);
+    expect(has('vault', 'forge')).toBe(1);
+    expect(has('vault', 'stripes')).toBeGreaterThanOrEqual(2);
+    expect(harrowRidge.openings.find((o) => o.id === 'd_vault')?.needsPower).toBe(true);
+    // The yard is one zone however many strips its walls are painted in, and it is all outdoors.
+    for (const r of harrowRidge.rooms) expect(r.zone === 'yard', r.id).toBe(!!r.outdoor);
+  });
+
+  it('everything a player can buy has a place to stand and a mount to see (PLAN 4.5-4.9)', () => {
+    const its = harrowRidge.interactables;
+    expect(new Set(its.map((i) => i.id)).size).toBe(its.length);
+    const of = (kind: string) => its.filter((i) => i.kind === kind);
+    const wallGuns = [...WEAPONS.values()].filter((w) => w.source === 'wall').map((w) => w.id as string).sort();
+    expect(of('wallbuy').map((i) => i.ref).sort()).toEqual(wallGuns);
+    expect(of('tonic').map((i) => i.ref).sort()).toEqual(TONICS.map((t) => t.id).sort());
+    expect(of('cacheSite').map((i) => map.zoneAt(i.x, i.z))).toEqual(['yard', 'bunk', 'cold', 'motor', 'comms']);
+    expect(of('powerSwitch').map((i) => map.zoneAt(i.x, i.z))).toEqual(['gen']);
+    expect(of('forge').map((i) => map.zoneAt(i.x, i.z))).toEqual(['vault']);
+    const zoneOf = (ref: string) => {
+      const it = its.find((i) => i.ref === ref)!;
+      const v = DIR_VEC[it.facing];
+      return map.zoneAt(it.x + v.x * 0.3, it.z + v.z * 0.3);
+    };
+    expect(['farrow', 'pike', 'stitch', 'kestrel', 'brakeman', 'coachman'].map(zoneOf)).toEqual(['mess', 'mess', 'bunk', 'lab', 'cold', 'motor']);
+    expect(TONICS.map((t) => zoneOf(t.id))).toEqual(['comms', 'mess', 'motor', 'lab', 'bunk', 'cold']);
+    // Each has its mount, and a player can stand in front of it.
+    const mounts = { wallbuy: 'wallbuy', tonic: 'tonic', cacheSite: 'cache_site', powerSwitch: 'switchgear', forge: 'forge' } as const;
+    for (const it of its) {
+      expect(harrowRidge.props.some((p) => p.type === mounts[it.kind] && Math.hypot(p.x - it.x, p.z - it.z) < 1), it.id).toBe(true);
+      const v = DIR_VEC[it.facing];
+      expect(circleFits(map, 'all', it.x + v.x * 0.6, it.z + v.z * 0.6, PLAYER_RADIUS), it.id).toBe(true);
+    }
+  });
+
+  it('signs point the way to the power from both ends of the station', () => {
+    const arrows = harrowRidge.props.filter((p) => p.type === 'sign' && /^< POWER$|^POWER >$/.test(p.text ?? ''));
+    const zones = new Set(arrows.map((p) => { const a = ((p.rot ?? 0) * Math.PI) / 180; return map.zoneAt(p.x - Math.sin(a) * 0.3, p.z - Math.cos(a) * 0.3); }));
+    for (const zone of ['mess', 'bunk', 'lab', 'yard', 'motor', 'gen']) expect(zones.has(zone), zone).toBe(true);
+  });
+
   it('every prop has a definition and every zone keeps a light that works without the mains', () => {
     for (const p of harrowRidge.props) expect(propDef(p.type), p.type).toBeDefined();
-    for (const zone of ['mess', 'bunk', 'lab', 'cold', 'gen', 'motor']) {
+    for (const zone of ['mess', 'bunk', 'lab', 'cold', 'gen', 'motor', 'yard', 'comms', 'vault']) {
       expect(harrowRidge.lights.some((l) => !l.needsPower && map.zoneAt(l.x, l.z) === zone), zone).toBe(true);
       expect(harrowRidge.lights.some((l) => l.needsPower && map.zoneAt(l.x, l.z) === zone), zone).toBe(true);
     }

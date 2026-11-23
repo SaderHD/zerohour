@@ -33,3 +33,16 @@ export function fanBlades(k: Kit, x: number, y: number, z: number, r: number, n:
   }
   drumZ(k, x, y, z - 0.05, z + 0.05, r * 0.16, C.iron, 6);
 }
+
+/** A straight bar from a to b (kit space), `w` thick: braces, guy wires, anything askew. */
+export function strut(k: Kit, a: [number, number, number], b: [number, number, number], w: number, colour: number | RGB, o: BoxOpts = {}): void {
+  const [dx, dy, dz] = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+  const len = Math.hypot(dx, dy, dz);
+  const deg = 180 / Math.PI;
+  k.sub(a[0], a[1], a[2], 0, Math.atan2(dz, dy) * deg, -Math.asin(dx / len) * deg).box(-w / 2, 0, -w / 2, w / 2, len, w / 2, colour, { noTop: true, ...o });
+}
+
+/** Snow lying on a flat top: a slab a little smaller than what it lies on. */
+export function snowCap(k: Kit, x0: number, z0: number, x1: number, z1: number, y: number, depth = 0.08): void {
+  k.box(x0 + 0.03, y, z0 + 0.03, x1 - 0.03, y + depth, z1 - 0.03, k.tone(C.snow, 0.04));
+}

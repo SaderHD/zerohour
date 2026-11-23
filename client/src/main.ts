@@ -18,6 +18,7 @@ import { Atmosphere } from './render/atmosphere';
 import { PALETTE } from './render/materials';
 import { RetroRenderer } from './render/renderer';
 import { buildSky } from './render/sky';
+import { Snow } from './render/snow';
 import { buildWorld } from './render/worldBuilder';
 import { Hud } from './ui/hud';
 import { Menu } from './ui/menu';
@@ -50,6 +51,8 @@ const sky = buildSky();
 scene.add(sky);
 const world = buildWorld(map);
 scene.add(world.group);
+const snow = new Snow(map);
+scene.add(snow.points);
 debugState.worldTriangles = world.triangles;
 debugState.movers = world.movers;
 
@@ -454,6 +457,7 @@ renderer.gl.setAnimationLoop((now) => {
   world.update(dt, now / 1000);
   atmosphere.update(dt, camera.position.x, camera.position.z);
   sky.position.set(camera.position.x, 0, camera.position.z);
+  snow.update(now / 1000, camera.position);
   // A scoped rifle swaps the viewmodel for a scope overlay once the sights are up.
   const scoped = playing() && weapons.def?.cls === 'sniper' && weapons.aim > 0.85;
   renderer.render(scene, camera, live() && !player.freeCam && !scoped && life !== 'dead' ? vm : null);

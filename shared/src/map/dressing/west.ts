@@ -1,5 +1,5 @@
 import type { LightDef, PropInst } from '../types';
-import { LIGHT, glow, lamp, prop, row, sign } from './helpers';
+import { LIGHT, arrow, glow, lamp, prop, row, sign } from './helpers';
 
 // Session 7: the west wing — Mess Hall, Bunkhouse + Washroom, Laboratory. Solid props sit on the
 // 0.5 m grid and leave gaps of nothing or at least 1.5 m (the validator checks). Run `npm run map`
@@ -16,11 +16,11 @@ const mess: PropInst[] = [
   // Kitchen corner: serving counter along the east wall, range on the south wall.
   prop('counter', 36, 30.5, 'w'), prop('range', 34.5, 31.5, 'n'),
   // Stores.
-  ...row('shelf', 22.75, 29, 2, 0, 1, 'e', [0, 1]),
+  ...row('shelf', 22.75, 29.5, 2, 0, 1, 'e', [0, 1]),
   prop('crate_stack', 36, 22.5), prop('barrel', 22.75, 22.25),
   // Walls and ceiling.
   prop('notice_board', 29.75, 22, 's'), sign('MESS HALL', 29.75, 22, 's', 2.6, 1),
-  sign('BUNKS', 22.5, 25.3, 'e'), sign('YARD', 30.8, 32, 'n'),
+  sign('BUNKS', 22.5, 25.3, 'e'), sign('YARD', 30.8, 32, 'n'), arrow('POWER', 27.2, 32, 'n', 'e'),
   prop('vent', 25, 32, 'n'), prop('pipe_drop', 31, 22, 's'),
   prop('pipes', 29.5, 22.45, 'n', { s: 13.6, y: 2.85 }), prop('cable', 32.6, 28.4, 'n', { s: 2.6, rot: 25 }),
 ];
@@ -35,9 +35,9 @@ const bunk: PropInst[] = [
   prop('potbelly', 9, 27.5, 'e'), prop('stool', 10.3, 26.6), prop('stool', 10.1, 28.5, 'n', { variant: 1 }), prop('stool', 7.6, 28.4),
   prop('table_small', 6.5, 30.5, 'n', { variant: 9 }), prop('lantern', 6.4, 30.4, 'n', { y: 0.8 }), prop('crate', 7.5, 30.5),
   // Stores by the mess door.
-  prop('crate_stack', 21.5, 23.5), prop('barrel', 21.75, 24.25), ...row('shelf', 21.75, 29.5, 2, 0, 1, 'w', [2, 3]),
+  prop('crate_stack', 21.5, 23.5), ...row('shelf', 21.75, 29.5, 2, 0, 1, 'w', [2, 3]),
   prop('chair_tipped', 12.4, 28.3, 'n', { rot: 110 }), prop('papers', 11.4, 26.8), prop('planks', 7.4, 25.6, 'n', { rot: 70 }),
-  sign('WASHROOM', 11, 23, 's', 2.6), sign('MESS', 22, 25.3, 'w'),
+  sign('WASHROOM', 11, 23, 's', 2.6), sign('MESS', 22, 25.3, 'w', 2.4), arrow('POWER', 13, 23, 's', 'w', 2.05), sign('BUNKHOUSE', 14, 31, 'n', 2.3, 1),
   prop('pipes', 14, 26.2, 'n', { s: 15.6, y: 2.62, variant: 1 }), prop('vent', 17, 31, 'n'), prop('cable', 19.5, 27.6, 'n', { s: 3.4, rot: -15 }),
 ];
 
@@ -56,9 +56,10 @@ const lab: PropInst[] = [
   ...row('computer', 21.5, 13, 3, 0, 1, 'w'),
   ...row('shelf', 14.5, 17.75, 3, 1, 0, 'n', [4, 5, 6]),
   prop('shelf_toppled', 7, 15.5), prop('desk', 6.5, 6.75, 'e'), prop('chair_tipped', 7.8, 7.1, 'n', { rot: 300 }),
-  prop('crate', 21.5, 17.5), prop('barrels', 20.5, 17.5),
+  prop('crate', 19.5, 17.5), prop('barrels', 20.5, 17.5),
   prop('chalkboard', 6, 9.3, 'e'), prop('chalkboard', 8.1, 18, 'n', { variant: 1 }),
-  sign('SPECIMENS', 21, 6, 's', 2.3, 2), sign('COLD STORE', 22, 9.2, 'w'), sign('BUNKS', 12.9, 18, 'n'),
+  sign('SPECIMENS', 21, 6, 's', 2.3, 2), sign('COLD STORE', 22, 9.2, 'w'), sign('BUNKS', 12.9, 18, 'n'), arrow('POWER', 22, 13.4, 'w', 'n', 2.5),
+  sign('LABORATORY', 10.6, 6, 's', 2.9, 1),
   prop('stool', 13, 9.4), prop('stool', 14.2, 13.3, 'n', { variant: 1 }), prop('papers', 12.3, 15.4), prop('papers', 8.4, 11.3),
   prop('rubble', 17.6, 7.6), prop('cable', 19.4, 12.2, 'n', { s: 3.6, rot: -20 }), prop('pipes', 14, 8.1, 'n', { s: 15.6, y: 3.05 }),
   prop('vent', 9, 6, 's', { y: 2.7 }), prop('pipe_drop', 6, 13.4, 'e'),

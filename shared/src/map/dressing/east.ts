@@ -1,5 +1,5 @@
 import type { LightDef, PropInst } from '../types';
-import { LIGHT, glow, lamp, prop, row, sign } from './helpers';
+import { LIGHT, arrow, glow, lamp, prop, row, sign } from './helpers';
 
 // Session 8: the industrial wing — Cold Storage (and the tunnel behind it), Generator Hall, Motor
 // Pool. Same rules as the west wing: solid props on the 0.5 m grid, gaps of nothing or at least
@@ -51,7 +51,7 @@ const gen: PropInst[] = [
   prop('cable', 60, 32, 'n', { s: 2.2, rot: -25 }), prop('cable', 55.5, 32.6, 'n', { s: 3.2, rot: 10 }), prop('cable', 51, 32.8, 'n', { s: 2.6, rot: 160 }),
   prop('drip', 50.2, 33.2), prop('papers', 59.8, 34.2), prop('stool', 60.4, 30.6), prop('rubble', 56.2, 24.4),
   sign('DANGER 440 V', 62, 30.4, 'w', 2.2, 2), sign('NO NAKED FLAME', 48, 30.8, 'e', 2.3, 2), sign('GENERATOR HALL', 55.5, 23.5, 's', 4, 1),
-  sign('MOTOR POOL', 53.2, 35.5, 'n', 2.2), sign('TUNNEL', 53.8, 23.5, 's', 2.2), prop('vent', 60.5, 23.5, 's', { y: 3.6 }),
+  sign('MOTOR POOL', 53.2, 35.5, 'n', 2.2), sign('TUNNEL', 53.8, 23.5, 's', 2.2), arrow('POWER', 58.2, 35.5, 'n', 'e', 2.1), prop('vent', 60.5, 23.5, 's', { y: 3.6 }),
 ];
 
 const motor: PropInst[] = [
@@ -71,7 +71,7 @@ const motor: PropInst[] = [
   // Walls and roof.
   prop('wall_fan', 62.5, 39.3, 'w', { y: 3.6 }), prop('pipes', 54.5, 36.4, 'n', { s: 15.6, y: 4.1 }), prop('pipe_drop', 51.6, 36, 's', { y: 4.1 }),
   prop('drip', 55.9, 46.6), prop('planks', 49.6, 46.9, 'n', { rot: 15 }), prop('papers', 50.6, 38.2), prop('vent', 50, 48, 'n', { y: 3 }),
-  sign('MOTOR POOL', 58.75, 36, 's', 3.4, 1), sign('YARD', 46.5, 40.5, 'e'), sign('GENERATORS', 53.2, 36, 's', 2.2), sign('NO SMOKING', 46.5, 38.5, 'e', 2.2, 2),
+  sign('MOTOR POOL', 58.75, 36, 's', 3.4, 1), sign('YARD', 46.5, 40.5, 'e'), sign('GENERATORS', 53.2, 36, 's', 2.2), sign('NO SMOKING', 46.5, 38.5, 'e', 2.2, 2), arrow('POWER', 57.1, 36, 's', 'w', 2.35),
 ];
 
 export const eastProps: PropInst[] = [...cold, ...tunnel, ...gen, ...motor];

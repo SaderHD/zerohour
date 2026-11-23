@@ -142,7 +142,7 @@ const S = { Approach: 0, Tear: 1, Vault: 2, Chase: 3, Attack: 4, Crawl: 5, Crawl
     await page.evaluate(() => { window.__zh.killZombies(); window.__zh.openAllDoors(); });
     bots = spawn('npx', ['tsx', 'server/src/bot.ts', 'HRDE', '3', `ws://localhost:${port}/ws`], { cwd: root, env, stdio: 'inherit' });
     await until('three bots', async () => (await state()).remotes.length === 3, 20000);
-    await page.evaluate(() => { window.__zh.teleport(33, 44, 0); window.__zh.spawnZombies(64, { interval: 0.25 }); });
+    await page.evaluate(() => { window.__zh.teleport(29, 44, 0); window.__zh.spawnZombies(64, { interval: 0.25 }); });
     await until('32 zombies', async () => (await zombies()).length >= 32, 90000);
     await until('most of them inside', async () => (await zombies()).filter((z) => z.state >= S.Chase).length >= 20, 90000);
     await sleep(2500);

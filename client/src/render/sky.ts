@@ -27,6 +27,24 @@ export function buildSky(): THREE.Mesh {
     ctx.fillRect(rng.int(0, W - 1), rng.int(0, horizon - 28), 1, 1);
   }
 
+  // A gibbous moon low in the south-west, with a halo of ice.
+  const [mx, my] = [Math.round(W * 0.62), 40];
+  const halo = ctx.createRadialGradient(mx, my, 3, mx, my, 22);
+  halo.addColorStop(0, 'rgba(190,210,255,0.35)');
+  halo.addColorStop(1, 'rgba(190,210,255,0)');
+  ctx.fillStyle = halo;
+  ctx.fillRect(mx - 22, my - 22, 44, 44);
+  ctx.fillStyle = '#e4ecf8';
+  ctx.beginPath();
+  ctx.arc(mx, my, 5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = hex(PALETTE.skyHorizon);
+  ctx.globalAlpha = 0.85;
+  ctx.beginPath();
+  ctx.arc(mx + 3, my - 2, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
   // Aurora: stacked translucent wavy bands
   for (let band = 0; band < 3; band++) {
     const y0 = 22 + band * 9;

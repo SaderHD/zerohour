@@ -23,58 +23,58 @@ Doors:
            #llllllllllllllllllllllllllllllll#ooccccccccccccccccccccccccccccooooooooOO#
            #lllllloooooolllllloooooollllllll#ccccccOOccccOOccccccccccOOccccccccccc*OO#
     ########lllllllllllllllllloooooollllllll=ccccccOOccccOOccccccccccOOccc*cccccccccc########################
-    #~Z~~~~wlllllllll*lllllllllll*lllllllll*=ccccccOOcc*cOOccccccccccOOccccooOOccccccccccccccc*ccccccccccccc########
+    #~Z~~~~wlllllllll*lllllllllll*lllllllll*=ccccccOOcc*cOOccccccccccOOccccooOOccccccccccccccc*cccoooocccccc########
     #~~~~~~wlllllloooooollllllllllllllllllOO#c*ccccOOccccOOccccc*ccccOOccccooOOcccccccccccccccccccccccccccccw~~~~Z~#
-    ########lllllloooooolllllloooooollllllOO#ccccccOOccccOOccccccccccOOcccccccccccccccccccccccccccccccccccccw~~~~~~#
-           #llllllllllllllllllllllllllllllOO#OOoocccccccccccccccccccccccccccccccccc*ccccccccccccccccccccccOO########
+    ########lllllloooooolllllloooooollllllOO#ccccccOOccccOOccccc*ccccOOcccccccccccccccccccccccccccccccccccccw~~~~~~#
+           #llllllllllllllllllllllllllllllOO#OOooccccccccccccccOOcccccccccccccccccc*ccccccccccccccccccccccOO########
            #oooolllllllllll*llllllllllllllOO########################################################ccccccoo#
-           #llllllllllllllllllllllllllllllll#                                                      #cccccccc#
-           #llllllllll*lllllOOOOOOlllllloooo#                                                      #cccccccc#
+           #lllllllllllllllllllllllllllllll*#                                                      #cccccccc#
+           #llllllllll*lllllOOOOOOllllooooOO#                                                      #cccccccc#
            ########*====#####################     #######     #######                              #cccccccc#
                #obbbbbbbbOOO#                     #~~Z~~#     #~~Z~~#                              #ccccccc*#     #######
                #obbbbb*bbOOO#                     #~~~~~#     #~~~~~#                              #cccccccc#     #~~Z~~#
                #obbbbbbbbOOO#               ########www#########www#######                         #cccccccc#     #~~~~~#
            #########::::#####################ommmmmmmmmmmmmmmmmmmmmmmmmOO#                         #occccccc#     #~~~~~#
            #ObbbbbbbbbbbbbbOOOOOOObbbOObbbOO#mmmoooooommmmmmmmmmoooooommm#                     #######====##########www######
-           #ObbbbbbbbbbbbbbOObbbOObbbOObbbbo#mmmooo*oommmmmmmmmmooo*oommm#                     #OOOggggg*gggggggggggggggggoo#
+           #ObbbbbbbbbbbbbbOObbbOObbbOObb*OO#mmmooo*oommmmmmmmmmooo*oommm#                     #OOOggggg*gggggggggggggggggoo#
     ########bbbbbbbbbbbbbbboobbboobbboobbbbb#mmmoooooommmmmmmmmmoooooommm########              #OOOggggggggggggggggggggggggg#
     #~Z~~~~wbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb=mmmmmmmmmmmPmmmmmPmmmmmmmmmmw~~~~Z~#              #OOOggggggggggg*ggggggggg*ggg#
     #~~~~~~wbbbbb*obbbbbbb*bbbbbbbbbb*bbbbb*=*mmmmmmmmmmmmmmmmmmmmmmmmmmmw~~~~~~#              #OOOgggggOOOOggggggOOOOgggggg########
-    ########bbbbbbbbbbbbbbboobbboobbboobbbbb#OmmmoooooomPmm*mmPmmmmmmmmmm#############         #OOOgggggOOOOggggggOOOOggggggw~~~~Z~#
+    ########bbbbbbbbbbbbbbboobbboobbboobbbbb#mmmmoooooomPmm*mmPmmmmmmmmmm#############         #OOOgggggOOOOggggggOOOOggggggw~~~~Z~#
            #bbbbbbbbbbbbbbbOObbbOObbbOObbbbO#Ommmoooooommmmmmmmmmmmm*mmoo#    #~~~Z~~#         #OOOgggggOOOOg*g*g*OOOOggggggw~~~~~~#
-           #*ooobbbbbbbbbbbOObbbOOOOOOObbbbO#Ommmmmmmmmmmmmmmmmmmmmmm*moo#    #~~~~~~#         #ggggggggOOOOggggggOOOOgggggg########
-           #########www######################mmmmmmmmmmmmm*mmmmmmmmoooooo#    #~~~~~~#         #ggggggggOOOOggggggOOOOggggOO#
-                  #~~~~~#              #################====####################wwww#########  #ggggg*ggggggggggggggggggggOO#
-                  #~~Z~~#              #yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy#  #ggggggggggggggggggggggggggOO#
-                  #######              #yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy#  #ooOOggggggggggggggggggggg*gg#
-                                       #yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy################==*=##############
-                                       #yyyyyyyy*yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy#oooooooopppppppppppp*ppppppppooo#
-                                       #yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy#ppp*ppppppppppppppppppppppppppoo#
-                                       #yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy#ppppppppppppp*pppppppppppppp*ppp#
-                                ########yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy#pppppppppppppppppppppppppppppppp#
-                                #~~~~~~wyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy#p*pppppppppppppppppppppppppppppp########
-                                #~Z~~~~wyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy=pppppppp*pppppppppp*ppOOOOOpppppw~~~~Z~#
-                                ########yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy=ppppppppppppppppppppppOOOOOpppppw~~~~~~#
-                                       #yyyyyyyyyyyyyyyyyyyyyyyyyy*yyyyyyyyyyyyyyyyyyyyyyyyy#pppppppppOOoopppppppppoooooppppp########
-                                       #yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy#OppppppppOOooppppppppooooooppppp#
-                                       #yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy#Oppppppppooooppppp*ppooooooppppp#
-                                       #yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy#ooppppppppppppppppppppoooooppppp#
-                                       #yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy#ooooppppppppppppppppppppppppppoo#
-                                       #yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy################www###############
-                                       #yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyw~~~~~~#      #~~~~~#
-                                       #yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy*yyyyyyyw~~~~Z~#      #~~Z~~#
-                                       #yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyw~~~~~~#      #######
-                                       ###################====######################################
-                                               #kkkkkkkkkkkkkkkkkkkkkkkk#
-                                               #kkkkkkkkkkkkkkkkkkkkkkkk##############
-                                               #kkkkkkkkkkkkkkkkkkkkkkkk#vvvvvvvvvvvv#
-                                        ########kkkkkkkkkkkkkkkkkkkkkkkk#vvvvvvvvvvvv#
-                                        #~Z~~~~wkkkkkk*kkkkkkkkkkkkkkkkk=vvvvvvvvvvvv#
-                                        #~~~~~~wkkkkkkkkkkkkkkkkkkkkkkkk=vvvvvv*vvvvv#
-                                        ########kkkkkkkkkkkkkkkkkkkkkkkk#vvvvvvvvvvvv#
-                                               #kkkkkkkkkkkkkkkkkk*kkkkk#vvvvvvvvvvvv#
-                                               #kkkkkkkkkkkkkkkkkkkkkkkk##############
-                                               #kkkkkkkkkkkkkkkkkkkkkkkk#
+           #*ooobbbbbbbooooOObbbOOOOOOObbbbO#Ommmmmmmmmmmmmmmmmmmmmmm*moo#    #~~~~~~#         #ggggggggOOOOggggggOOOOgggggg########
+           #########www######################OO*mmmmmmmmmm*mmmmmmmmoooooo#    #~~~~~~#         #ggggggggOOOOggggggOOOOggggOO#
+                  #~~~~~#              #######*#########====#*##################wwww#########  #ggggg*ggggggggggggggggggggOO#
+                  #~~Z~~#              #OOooyyyyyyyyyyyyyyyyyyyoooooooOOOOyyyyyyyyyyyyyyyyOO#  #ggggggggggggggggggggggggggOO#
+                  #######              #ooyyyyyyyyyyyyyyyyyyyyyoooooooOOOOyyyyyyyyyyyyyyyyo*#  #ooOOggggggggggggggggggggg*gg#
+                                       #yyyyyyyyyyyyyy*yyyyyyyyyyyyyyyyyyyyyyyyyooooyyyyyyyy################==*=##############
+                                       #ooyyyyyyyyoyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy#oooooooopppppppppppp*ppppppppooo#
+                                       #ooyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyoo#ppp*ppppppppppppppppppppppppppoo#
+                                       #yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyOOooyyyyyyoo#ppppppppppppp*pppppppppppppp**OO#
+                                ########yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyooyyyyyyyyyy#pppppppppppppppppppppppppppppppp#
+                                #~~~~~~wyyyyoyyyyyyyyyyyyyyyyyyyyy*yyyyyyyyyyyyyyyyyyyyyyyyy#p*pppppppppppppppppppppppppppppp########
+                                #~Z~~~~wyyyyoyyyyyyyyyyyyyyyyyyyOOOOOooyyyyyyyyyyyyyyyyyyyyy=pppppppp*pppppppppp*ppOOOOOpppppw~~~~Z~#
+                                ########yyyyyyyyyyyyyyyyyyyyyyyyOOOOOyyyyyyyyyyyyyyyyyyyyyyy=ppppppppppppppppppppppOOOOOpppppw~~~~~~#
+                                       #oyyyyyyyyyyyyyyyyyyyyyooOOOOOyyyyyyyyyyyyyyyyyyyyyy*#pppppppppOOoopppppppppoooooppppp########
+                                       #yyyyyyyyyyyyyyyyyyyyyyOOOOOOOyyyyyyyyyyyyyyyyyyyyyyy#OppppppppOOooppppppppooooooppppp#
+                                       #yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyoo#Oppppppppooooppppp*ppooooooppppp#
+                                       #*yyyyyyyy*yyyyyyyyyyyyyyyyyyyyyyyyyyooooyyyyyyyyyyoo#ooppppppppppppppppppppoooooppppp#
+                                       #yyyyyyyyoooyyyyyyyyyyyyyyyyyyyyyyyyyooooyyyyyyyyyyy*#ooooppppooooppppppppppppppppppoo#
+                                       #yyyyyyyyoooyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy################www###############
+                                       #yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyoyyyyw~~~~~~#      #~~~~~#
+                                       #yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyoyyyyw~~~~Z~#      #~~Z~~#
+                                       #yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyooOOooOOyyyyyyyyyyw~~~~~~#      #######
+                                       #################*#====##########*###########################
+                                               #ooooo*kkkkkk*kkkkkOOOOOO#
+                                               #ookkkkkkkkkkkkkkkkkkk*OO##############
+                                               #oo*kkkkkkkkkkk*kkkkkkkkk#OOOOvvvvvvOO#
+                                        ########kkkkkkk*kkkkkkkkkkkkkkkk#vvvvvvvvvvoo#
+                                        #~Z~~~~wkkkkkkkkkkoo*okkkkkkkkkk=vvvvvvvvvOOO#
+                                        #~~~~~~wkkkkkkkkkkooookkkkkkkkkk=vvvvv*vvv*OO#
+                                        ########kkkkkkkkkkkkkkkkk*kkkkk*#*vvvvvvvvvoo#
+                                               #Okkkkkkkkkkkkkkkkkkkkkkk#OOoovvvvvvOO#
+                                               #Okkkkkkkkkkkkkkkkkkkkkkk##############
+                                               #oooookkkkkkkkkkkkkOOoooo#
                                                ###########www############
                                                         #~~~~~#
                                                         #~~Z~~#

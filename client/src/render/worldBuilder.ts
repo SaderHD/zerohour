@@ -5,6 +5,7 @@ import type { PropOut } from '../models/props/kit';
 import { Ambient } from './ambient';
 import { Baker, Bucket, type RGB, type Vert } from './bake';
 import { Doors } from './doors';
+import { buildExterior } from './exterior';
 import { glowMaterial, linear, propMaterial, setLightLevels, signMaterial, surfaceMaterial } from './materials';
 import { signTexture } from './signs';
 
@@ -166,6 +167,8 @@ export function buildWorld(map: CompiledMap): World {
   addMesh('props', out.prop, propMaterial());
   addMesh('glow', out.glow, glowMaterial);
   addMesh('signs', out.sign, signMaterial(signTexture()));
+
+  addMesh('exterior', buildExterior(map, baker), propMaterial());
 
   // Whatever moves by itself: fans, flywheels, swinging lamps, drips, mist.
   const ambient = new Ambient(map, baker, out.movers!, out.drips!);

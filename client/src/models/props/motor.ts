@@ -1,14 +1,14 @@
 import { textTile } from '../../render/signs';
 import { crateAt } from './common';
 import { C } from './palette';
-import { axleStand, drumX, wheel } from './parts';
+import { axleStand, drumX, snowCap, wheel } from './parts';
 import type { Kit } from './kit';
 
 // Motor pool.
 
 const STAND = 0.62;
 
-/** The front half of a truck: bonnet to the front (-z), cab behind. Variant 1 is on stands, wheels off. */
+/** The front half of a truck: bonnet to the front (-z), cab behind. Variant 1 is on stands, wheels off; 2 is snowed in. */
 export function truckCab(k: Kit): void {
   const paint = k.tone(C.drab, 0.06);
   const dark: [number, number, number] = [paint[0] * 0.6, paint[1] * 0.6, paint[2] * 0.6];
@@ -44,6 +44,11 @@ export function truckCab(k: Kit): void {
   } else {
     for (const x of [-1.02, 1.02]) wheel(k, x, -0.45, 0.5, 0.3);
   }
+  if (k.variant === 2) {
+    snowCap(k, -0.72, -0.98, 0.72, -0.1, 1.5, 0.1);
+    snowCap(k, -1.1, -0.1, 1.1, 1, 2.22, 0.12);
+    for (const x of [-0.95, 0.95]) k.cyl(x, -0.6, 0, 0.35, 0.5, 0.1, k.tone(C.snow, 0.04), 5);
+  }
 }
 
 /** The back half: a drop-side bed on the chassis, twin rear wheels. Variant 1 is on stands. */
@@ -71,6 +76,11 @@ export function truckBed(k: Kit): void {
     for (const x of [-0.92, 0.92]) wheel(k, x, 0.75, 0.5, 0.5);
   }
   for (const x of [-1.0, 1.0]) k.box(x - 0.28, 0.96, 0.2, x + 0.28, 1.0, 1.3, C.iron, { bottom: true, noTop: true });
+  if (k.variant === 2) {
+    snowCap(k, -1.14, -1.6, 1.14, 0.9, 1.0, 0.12);
+    k.cyl(0.4, 1.1, 1.32, 1.42, 0.2, 0.05, k.tone(C.snow, 0.04), 6);
+    for (const x of [-0.95, 0.95]) k.cyl(x, 0.9, 0, 0.4, 0.55, 0.1, k.tone(C.snow, 0.04), 5);
+  }
 }
 
 /** The fitters' bench: back to the wall (+z), a vice, a stripped part, a shelf of tins underneath. */

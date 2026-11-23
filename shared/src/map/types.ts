@@ -4,7 +4,7 @@
 
 export const FLOOR_STYLES = ['concrete', 'tile', 'plank', 'snow', 'metal', 'lino'] as const;
 export type FloorStyle = (typeof FLOOR_STYLES)[number];
-export const WALL_STYLES = ['panel', 'block', 'plaster', 'metal', 'fence', 'rock'] as const;
+export const WALL_STYLES = ['panel', 'block', 'plaster', 'metal', 'fence', 'rock', 'siding'] as const;
 export type WallStyle = (typeof WALL_STYLES)[number];
 
 export type Dir = 'n' | 's' | 'e' | 'w';

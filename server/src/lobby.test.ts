@@ -165,20 +165,20 @@ describe('game sync', () => {
 
   it('sustained speed hacking is corrected but sprinting is not', () => {
     const g = startedRoom(1);
-    g.host.send({ t: 'debug', cmd: 'teleport', x: 22, z: 42 }); // west edge of the yard
+    g.host.send({ t: 'debug', cmd: 'teleport', x: 22, z: 39 }); // west edge of the yard
     const p = g.game.players.get(g.host.session.id)!;
     g.host.peer.sent.length = 0;
     let seq = 1;
     let x = 22;
     for (let i = 0; i < 60; i++) { // 2 s at 6.5 m/s
       x += 6.5 * TICK_DT;
-      g.host.send(move(g.host.session, seq++, x, 42));
+      g.host.send(move(g.host.session, seq++, x, 39));
       g.step(1);
     }
     expect(g.host.peer.last('correct')).toBeUndefined();
     for (let i = 0; i < 60; i++) { // 2 s at 13 m/s
       x += 13 * TICK_DT;
-      g.host.send(move(g.host.session, seq++, x, 42));
+      g.host.send(move(g.host.session, seq++, x, 39));
       g.step(1);
     }
     expect(g.host.peer.last('correct')).toBeDefined();

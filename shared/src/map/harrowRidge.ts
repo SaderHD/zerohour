@@ -1,5 +1,6 @@
 import { eastLights, eastProps } from './dressing/east';
-import { LIGHT, lamp } from './dressing/helpers';
+import { interactables, mountLights, mountProps } from './dressing/mounts';
+import { southLights, southProps } from './dressing/south';
 import { westLights, westProps } from './dressing/west';
 import type { MapDef, Opening } from './types';
 
@@ -24,6 +25,8 @@ const win = (id: string, zone: string, out: 'n' | 's' | 'e' | 'w', x: number, z:
   d: out === 'n' || out === 's' ? 0.5 : len,
 });
 
+const YARD = { zone: 'yard', ceil: 3.5, floor: 'snow', outdoor: true, tint: 0xc8d8f0 } as const;
+
 export const harrowRidge: MapDef = {
   id: 'harrow_ridge',
   name: 'Harrow Ridge Station',
@@ -35,7 +38,7 @@ export const harrowRidge: MapDef = {
     { id: 'cold', name: 'Cold Storage', letter: 'c', ambient: 0x161e2a, fog: { color: 0x1c2834, near: 1, far: 22 } },
     { id: 'gen', name: 'Generator Hall', letter: 'g', ambient: 0x221a12, fog: { color: 0x120e0a, near: 5, far: 36 } },
     { id: 'motor', name: 'Motor Pool', letter: 'p', ambient: 0x24201a },
-    { id: 'yard', name: 'Courtyard', letter: 'y', ambient: 0x1c2638 },
+    { id: 'yard', name: 'Courtyard', letter: 'y', ambient: 0x1c2638, fog: { color: 0x0c121e, near: 5, far: 44 } },
     { id: 'comms', name: 'Comms Bunker', letter: 'k', ambient: 0x141e18 },
     { id: 'vault', name: 'Vault', letter: 'v', ambient: 0x1a1424 },
   ],
@@ -49,7 +52,18 @@ export const harrowRidge: MapDef = {
     { id: 'tunnel_leg', zone: 'cold', x: 50, z: 15, w: 4, d: 8, ceil: 2.6, floor: 'concrete', wall: 'rock', tint: 0xa0a8b8 },
     { id: 'gen', zone: 'gen', x: 48, z: 23.5, w: 14, d: 12, ceil: 5, floor: 'metal', wall: 'block', tint: 0xc8b090 },
     { id: 'motor', zone: 'motor', x: 46.5, z: 36, w: 16, d: 12, ceil: 4.5, floor: 'concrete', wall: 'block', tint: 0xc0b8a8 },
-    { id: 'yard', zone: 'yard', x: 20, z: 32.5, w: 26, d: 20, ceil: 3.5, floor: 'snow', wall: 'fence', outdoor: true, tint: 0xc8d8f0 },
+    { id: 'yard', ...YARD, x: 20, z: 33, w: 25.5, d: 19, wall: 'fence' },
+    // The yard's outermost half metre, in strips, so each stretch of its wall is the face of what
+    // stands behind it: the fence, the mess hall's boards, the block of the motor pool and the bunker.
+    { id: 'yard_n_w', ...YARD, x: 20, z: 32.5, w: 2.5, d: 0.5, wall: 'fence' },
+    { id: 'yard_n_mess', ...YARD, x: 22.5, z: 32.5, w: 14, d: 0.5, wall: 'siding' },
+    { id: 'yard_n_e', ...YARD, x: 36.5, z: 32.5, w: 9.5, d: 0.5, wall: 'fence' },
+    { id: 'yard_e_n', ...YARD, x: 45.5, z: 33, w: 0.5, d: 3, wall: 'fence' },
+    { id: 'yard_e_motor', ...YARD, x: 45.5, z: 36, w: 0.5, d: 12, wall: 'block' },
+    { id: 'yard_e_s', ...YARD, x: 45.5, z: 48, w: 0.5, d: 4, wall: 'fence' },
+    { id: 'yard_s_w', ...YARD, x: 20, z: 52, w: 4, d: 0.5, wall: 'fence' },
+    { id: 'yard_s_comms', ...YARD, x: 24, z: 52, w: 12, d: 0.5, wall: 'block' },
+    { id: 'yard_s_e', ...YARD, x: 36, z: 52, w: 10, d: 0.5, wall: 'fence' },
     { id: 'comms', zone: 'comms', x: 24, z: 53, w: 12, d: 10, ceil: 2.8, floor: 'concrete', wall: 'block', tint: 0xa8c0a8 },
     { id: 'vault', zone: 'vault', x: 36.5, z: 55, w: 6, d: 6, ceil: 2.6, floor: 'metal', wall: 'metal', tint: 0xb8a8d0 },
   ],
@@ -84,21 +98,13 @@ export const harrowRidge: MapDef = {
     win('w_comms_w', 'comms', 'w', 23.5, 57),
     win('w_comms_s', 'comms', 's', 29, 63),
   ],
-  props: [...westProps, ...eastProps],
-  interactables: [],
+  props: [...westProps, ...eastProps, ...southProps, ...mountProps],
+  interactables,
   playerSpawns: [
     { x: 28, z: 26, yaw: 0 },
     { x: 31, z: 26, yaw: 0 },
     { x: 28, z: 28.5, yaw: 0 },
     { x: 31, z: 28.5, yaw: 0 },
   ],
-  lights: [
-    ...westLights,
-    ...eastLights,
-    // The yard, the comms bunker and the vault are dressed in session 9; until then, bare lamps.
-    lamp(24, 36, 5, LIGHT.flood, 13, { fixture: 'flood', intensity: 0.9 }), lamp(42, 50, 5, LIGHT.flood, 13, { fixture: 'flood', intensity: 0.9 }),
-    lamp(33, 43, 5, LIGHT.flood, 12, { fixture: 'flood', intensity: 0.7 }),
-    lamp(27, 57, 2.6, LIGHT.crt, 7), lamp(33, 60, 2.6, LIGHT.crt, 7),
-    lamp(39.5, 58, 2.4, LIGHT.arc, 6),
-  ],
+  lights: [...westLights, ...eastLights, ...southLights, ...mountLights],
 };

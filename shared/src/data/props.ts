@@ -116,6 +116,51 @@ export const PROPS = {
   roller_door: onWall(4, 3.4),
   creeper: clutter(1, 0.5, 0.12),
   oil_stain: clutter(1.6, 1.4, 0.01),
+
+  // --- Courtyard
+  /** A tracked snow vehicle: blade to the front (-z). */
+  snowcat: solid(2.5, 4, 2.4, true),
+  /** The plinth of a flagpole; the pole and flag are too thin to stop anything. */
+  flagpole: solid(0.5, 0.5, 0.6),
+  /** The foot of the radio mast: an open lattice, so it does not block sight. */
+  mast: solid(1.5, 1.5, 3),
+  /** A concrete block a guy wire is made off to. */
+  anchor_block: solid(0.5, 0.5, 0.5),
+  /** A wire from the ground here up to `y`, `s` metres away along the prop's front. */
+  guy_wire: clutter(0.1, 0.1, 0.1),
+  sandbags: solid(2, 0.5, 0.9),
+  /** Snow blown into a heap, usually against a wall (+z). */
+  snow_drift: clutter(2, 1, 0.4),
+  /** Wheel ruts in the snow along local z; `s` is the length. */
+  tracks: clutter(1.8, 1, 0.01),
+  /** Wire strung on angle irons along the top of a fence at `y`; `s` is the length. */
+  wire_top: onWall(1, 0.5),
+
+  // --- Comms bunker
+  /** An operator's desk: sloped panel of lamps and keys, a scope in the riser. */
+  console: solid(2, 1, 1.3),
+  /** A plotting scope lying flat in its pedestal, the sweep still turning. */
+  radar: solid(1, 1, 1.1),
+  map_table: solid(2, 1.5, 0.9),
+  radio_rack: solid(1, 0.5, 2, true),
+  teleprinter: solid(1, 0.5, 1),
+  wall_map: onWall(2.4, 1.4),
+
+  // --- Vault
+  /** The Forge: a press between two columns, open to the front. */
+  forge: solid(2, 1.5, 2.3, true),
+  capacitor: solid(1, 1, 2.2, true),
+  transformer: solid(1, 1, 1.2),
+  /** Heavy cables clipped along a wall at `y`; `s` is the length. */
+  cable_bundle: onWall(1, 0.3),
+
+  // --- Mounts: where the things players buy stand (the buying itself is in the server's interactables).
+  /** A board a wall weapon hangs on; `text` is the weapon's name. */
+  wallbuy: onWall(1.4, 0.8),
+  /** A tonic dispenser; `variant` picks its colour, `text` its name. */
+  tonic: solid(1, 1, 2.1, true),
+  /** A pallet the Cache can stand on; `text` is its site number. */
+  cache_site: solid(2, 1, 0.3),
 } satisfies Record<string, PropDef>;
 
 export type PropType = keyof typeof PROPS;

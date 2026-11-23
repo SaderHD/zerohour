@@ -2,11 +2,15 @@ import type { PropType } from '@zh/shared';
 import * as bunk from './bunk';
 import * as cold from './cold';
 import * as common from './common';
+import * as comms from './comms';
 import * as gen from './gen';
 import type { Kit } from './kit';
 import * as lab from './lab';
 import * as mess from './mess';
 import * as motor from './motor';
+import * as mounts from './mounts';
+import * as vault from './vault';
+import * as yard from './yard';
 
 /** How to draw every prop in shared/src/data/props.ts. Add new props to both tables. */
 export const PROP_BUILDERS: Record<PropType, (k: Kit) => void> = {
@@ -75,6 +79,28 @@ export const PROP_BUILDERS: Record<PropType, (k: Kit) => void> = {
   roller_door: motor.rollerDoor,
   creeper: motor.creeper,
   oil_stain: motor.oilStain,
+  snowcat: yard.snowcat,
+  flagpole: yard.flagpole,
+  mast: yard.mast,
+  anchor_block: yard.anchorBlock,
+  guy_wire: yard.guyWire,
+  sandbags: yard.sandbags,
+  snow_drift: yard.snowDrift,
+  tracks: yard.tracks,
+  wire_top: yard.wireTop,
+  console: comms.opsConsole,
+  radar: comms.radar,
+  map_table: comms.mapTable,
+  radio_rack: comms.radioRack,
+  teleprinter: comms.teleprinter,
+  wall_map: comms.wallMap,
+  forge: vault.forge,
+  capacitor: vault.capacitor,
+  transformer: vault.transformer,
+  cable_bundle: vault.cableBundle,
+  wallbuy: mounts.wallbuy,
+  tonic: mounts.tonic,
+  cache_site: mounts.cacheSite,
 };
 
 export { Kit } from './kit';
