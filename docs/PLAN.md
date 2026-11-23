@@ -754,8 +754,9 @@ with no errors in client or server logs.
   the three sliders and measures the output (effects 0 silences a shot, music 0 a sting, master 0
   everything, master 50% halves it; they survive a reload), then plays a solo session of about
   140 s through everything that makes a noise while recording it to
-  `test-results/audio-session.webm`: some 530 sounds, never more than 24 at once (a dozen or two
-  cut short for a more important one), sound in every half second. Nobody has listened to it: the
+  `test-results/audio-session.webm`: some 430 sounds, 12 at once at the busiest (the limit is 24;
+  hit ticks, flesh hits and deaths are rate-limited so a shotgun or a wonder weapon cannot flood
+  it), sound in every half second, peak 0.85. Nobody has listened to it: the
   checks are levels and counts, so "sounds complete" still needs a pair of ears, and the balance
   was set from rendered peaks, not by ear.
   Sounds: 14 guns (a recipe per class, adjusted per gun; forged guns add a falling whine), reload
