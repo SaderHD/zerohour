@@ -1,8 +1,8 @@
 import { C, Kit, type WeaponModel } from './kit';
 
 /** "Stitch" SMG: a stamped-steel submachine gun with a wire stock and stick magazine. */
-export function stitch(hands: boolean): WeaponModel {
-  const k = new Kit(hands)
+export function stitch(hands: boolean, upgraded = false): WeaponModel {
+  const k = new Kit(hands, upgraded)
     .box(0.045, 0.05, 0.3, C.metal, 0, 0.03, -0.05)
     .box(0.04, 0.04, 0.16, C.dark, 0, 0.03, -0.28)
     .cyl(0.009, 0.06, C.steel, 0, 0.03, -0.385)

@@ -99,19 +99,20 @@ export class PlayerModel {
     this.mount.add(this.flashMesh);
   }
 
-  setWeapon(id: WeaponId | null): void {
-    if (id === this.weaponId) return;
-    this.weaponId = id;
+  setWeapon(id: WeaponId | null, upgraded = false): void {
+    const key = id && upgraded ? `${id}+` : id;
+    if (key === this.weaponId) return;
+    this.weaponId = key;
     if (this.weapon) {
       this.mount.remove(this.weapon.group);
       disposeWeapon(this.weapon);
     }
-    this.weapon = id ? buildWeapon(id, false) : null;
+    this.weapon = id ? buildWeapon(id, false, upgraded) : null;
     if (!this.weapon) return;
     // Third-person models share the first-person builders; the model's own material is swapped
     // for this player's so one light tint covers body and gun.
     this.weapon.group.traverse((o) => {
-      if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).material = this.material;
+      if ((o as THREE.Mesh).isMesh && o.name !== 'trim') (o as THREE.Mesh).material = this.material;
     });
     this.mount.add(this.weapon.group);
     this.flashMesh.position.copy(this.weapon.muzzle.position);

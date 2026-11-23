@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import {
-  AIM_MOVE_MULT, GRENADE_COOLDOWN, KNIFE_COOLDOWN, KNIFE_RANGE, SWAP_SECONDS, aimDir, fireInterval, lerp, rayWorld, weaponDef,
-  type ClientMsg, type CompiledMap, type DoorSet, type FireHit, type PlayerPublic, type WeaponDef, type WeaponId,
+  AIM_MOVE_MULT, GRENADE_COOLDOWN, KNIFE_COOLDOWN, KNIFE_RANGE, SWAP_SECONDS, aimDir, fireInterval, fireRateMultWith, lerp, rayWorld,
+  reloadMultWith, speedMultWith, weaponStats,
+  type ClientMsg, type CompiledMap, type DoorSet, type FireHit, type PerkId, type PlayerPublic, type WeaponDef, type WeaponId,
 } from '@zh/shared';
 import type { Input } from '../input/input';
 import { damp } from '../models/rig';
@@ -23,6 +24,7 @@ export interface WeaponCtx {
 
 interface Slot {
   id: WeaponId;
+  upgraded: boolean;
   mag: number;
   reserve: number;
 }
@@ -39,6 +41,8 @@ const WALL_COLOUR = 0x8a8478;
 export class LocalWeapons {
   slots: Slot[] = [];
   slot = 0;
+  /** Tonics held: some change how the guns handle. */
+  perks: readonly PerkId[] = [];
   grenades = 0;
   /** 0 = hip, 1 = sights. */
   aim = 0;
@@ -65,20 +69,23 @@ export class LocalWeapons {
   }
 
   get def(): WeaponDef | undefined {
-    return this.current && weaponDef(this.current.id);
+    return this.current && weaponStats(this.current.id, this.current.upgraded);
   }
 
   /** Our loadout as the server sees it. Predicted ammo is kept for weapons we already hold. */
   onPlayer(pub: PlayerPublic): void {
-    const changed = pub.weapons.length !== this.slots.length || pub.weapons.some((w, i) => w.id !== this.slots[i]?.id);
-    this.slots = pub.weapons.map((w, i) => (this.slots[i]?.id === w.id && !changed ? this.slots[i]! : { id: w.id, mag: w.mag, reserve: w.reserve }));
+    const changed = pub.weapons.length !== this.slots.length || pub.weapons.some((w, i) => w.id !== this.slots[i]?.id || w.upgraded !== this.slots[i]?.upgraded);
+    this.slots = pub.weapons.map((w, i) => (changed ? { id: w.id, upgraded: w.upgraded, mag: w.mag, reserve: w.reserve } : this.slots[i]!));
+    // Reserves only ever grow by the server's doing (ammo bought): take its word for those.
+    pub.weapons.forEach((w, i) => (this.slots[i]!.reserve = Math.max(this.slots[i]!.reserve, w.reserve)));
     this.grenades = pub.grenades;
+    this.perks = pub.perks;
     if (changed) {
       this.slot = pub.slot;
       this.reloadT = 0;
       this.reloading = false;
       this.swapT = SWAP_SECONDS;
-      if (this.current) this.ctx.vm.setWeapon(this.current.id);
+      this.ctx.vm.setWeapon(this.current?.id ?? null, this.current?.upgraded);
     }
   }
 
@@ -103,7 +110,6 @@ export class LocalWeapons {
     const { player, vm, send } = this.ctx;
     const cur = this.current;
     const def = this.def;
-    if (!cur || !def) return;
     const held = (code: string) => active && input.down(code);
     const hit = (code: string) => active && input.pressed(code);
     const able = (code: string) => !downed && hit(code);
@@ -114,6 +120,16 @@ export class LocalWeapons {
     this.throwT -= dt;
     this.sinceReload += dt;
     this.bloom *= 1 - damp(7, dt);
+    if (!cur || !def) {
+      // Empty hands (the only gun is in the Forge): the knife and grenades still work.
+      this.aim = 0;
+      this.reloading = false;
+      this.handTools(able);
+      player.speedMult = speedMultWith(this.perks);
+      player.zoom = 1;
+      player.noSprint = false;
+      return;
+    }
 
     // Reload finishing.
     if (this.reloadT > 0 && (this.reloadT -= dt) <= 0) {
@@ -134,9 +150,9 @@ export class LocalWeapons {
       this.reloadT = 0;
       this.cooldown = 0;
       this.bloom = 0;
-      vm.setWeapon(this.slots[want]!.id);
+      vm.setWeapon(this.slots[want]!.id, this.slots[want]!.upgraded);
       send({ t: 'swap', slot: want });
-      this.finish(player, weaponDef(this.slots[want]!.id)!, false);
+      this.finish(player, this.def!, false);
       return;
     }
 
@@ -146,18 +162,12 @@ export class LocalWeapons {
     else this.queued -= dt;
     const trigger = def.auto ? held('Mouse0') : this.queued > 0;
 
-    if (able('KeyV') && this.meleeT <= 0) this.knife();
-    if (able('KeyG') && this.throwT <= 0 && this.grenades > 0) {
-      this.throwT = GRENADE_COOLDOWN;
-      this.grenades--;
-      vm.throwGrenade();
-      send({ t: 'throw', kind: 'frag', yaw: player.yaw, pitch: player.viewPitch });
-    }
+    this.handTools(able);
 
     const wantReload = hit('KeyR') || (cur.mag === 0 && (trigger || hit('Mouse0')));
     if (wantReload && !busy && cur.mag < def.magSize && cur.reserve > 0) {
-      this.reloadT = def.reloadTime;
-      vm.reload(def.reloadTime);
+      this.reloadT = def.reloadTime * reloadMultWith(this.perks);
+      vm.reload(this.reloadT);
       send({ t: 'reload' });
     } else if (trigger && !busy && this.cooldown <= 0 && cur.mag > 0 && !player.sprinting && this.throwT < GRENADE_COOLDOWN - 0.4) {
       this.shoot(cur, def);
@@ -165,10 +175,22 @@ export class LocalWeapons {
     this.finish(player, def, held('Mouse0'));
   }
 
+  /** Knife and grenades, gun or no gun. */
+  private handTools(able: (code: string) => boolean): void {
+    const { player, vm, send } = this.ctx;
+    if (able('KeyV') && this.meleeT <= 0) this.knife();
+    if (able('KeyG') && this.throwT <= 0 && this.grenades > 0) {
+      this.throwT = GRENADE_COOLDOWN;
+      this.grenades--;
+      vm.throwGrenade();
+      send({ t: 'throw', kind: 'frag', yaw: player.yaw, pitch: player.viewPitch });
+    }
+  }
+
   /** Feed movement modifiers back to the player body. */
   private finish(player: LocalPlayer, def: WeaponDef, triggerHeld: boolean): void {
     this.reloading = this.reloadT > 0;
-    player.speedMult = def.moveSpeedMult * lerp(1, AIM_MOVE_MULT, this.aim);
+    player.speedMult = def.moveSpeedMult * lerp(1, AIM_MOVE_MULT, this.aim) * speedMultWith(this.perks);
     player.zoom = lerp(1, def.zoom, this.aim);
     player.noSprint = triggerHeld || this.aim > 0.3 || this.reloadT > 0;
   }
@@ -220,7 +242,7 @@ export class LocalWeapons {
     cur.mag--;
     this.queued = 0;
     this.shots++;
-    this.cooldown += fireInterval(def);
+    this.cooldown += fireInterval(def, fireRateMultWith(this.perks));
     this.bloom = Math.min(def.spreadHip, this.bloom + def.spreadHip * 0.18 * (1 - 0.6 * this.aim));
     player.kick(def.recoil * (1 - 0.35 * this.aim));
     vm.fire();

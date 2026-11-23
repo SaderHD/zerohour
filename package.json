@@ -24,7 +24,8 @@
     "bot": "tsx server/src/bot.ts",
     "e2e": "node scripts/mp.cjs",
     "soak": "tsx scripts/soak.ts",
-    "horde": "node scripts/horde.cjs"
+    "horde": "node scripts/horde.cjs",
+    "economy": "node scripts/economy.cjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

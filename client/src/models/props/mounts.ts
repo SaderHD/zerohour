@@ -1,23 +1,21 @@
-import { TONICS } from '@zh/shared';
+import { TONICS, weaponDef } from '@zh/shared';
 import { linear } from '../../render/materials';
 import { outlineTile, textTile } from '../../render/signs';
 import { C } from './palette';
 import type { Kit } from './kit';
 
-// Where the things players buy stand. The buying itself comes later (sessions 10 and 11); these
-// make sure every one of them already has its place in the station.
+// Where the things players buy stand: wall-buy boards, tonic dispensers, Cache sites.
 
-const SIDEARMS = new Set(['WARDEN', 'DOCKHAND']);
-
-/** A board on the wall with pegs for a weapon, its outline chalked on and its name underneath. */
+/** A board on the wall with pegs for a weapon: its outline chalked on, its name and price underneath. */
 export function wallbuy(k: Kit): void {
   const y = k.inst.y ?? 1.45;
   const name = k.inst.text ?? '';
+  const cost = weaponDef(name.toLowerCase())?.cost;
   k.box(-0.7, y - 0.4, -0.04, 0.7, y + 0.4, 0, k.tone(C.woodDark, 0.06));
   k.box(-0.72, y + 0.4, -0.06, 0.72, y + 0.44, 0, C.wood, { bottom: true });
-  k.picture(0, y + 0.1, -0.045, 1.26, 0.45, outlineTile(SIDEARMS.has(name)), [1.3, 1.3, 1.3]);
+  k.picture(0, y + 0.1, -0.045, 1.26, 0.45, outlineTile(name.toLowerCase()), [1.3, 1.3, 1.3]);
   for (const x of [-0.32, 0.36]) k.box(x - 0.02, y - 0.02, -0.14, x + 0.02, y + 0.02, -0.04, C.steel, { bottom: true });
-  const label = textTile(name, 'chalk');
+  const label = textTile(cost === undefined ? name : `${name} ${cost}`, 'chalk');
   k.picture(0, y - 0.26, -0.045, Math.min(1.3, 0.2 * label.aspect), 0.2, label.uv, [1.3, 1.3, 1.3]);
 }
 

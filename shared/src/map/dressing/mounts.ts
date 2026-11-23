@@ -4,7 +4,7 @@ import { lamp, prop } from './helpers';
 
 // Session 9: everything a player can buy has its place in the station (PLAN 4.5-4.9). Each line
 // here is both the thing you see (a prop) and the thing you press F at (an interactable); the
-// buying itself arrives in sessions 10 and 11.
+// buying is server/src/game/interact.ts (the Cache: session 11).
 
 /** Tonics in the order of their `variant`, with the colour each one glows. */
 export const TONICS = [

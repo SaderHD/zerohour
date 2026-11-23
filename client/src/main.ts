@@ -1,10 +1,13 @@
 import * as THREE from 'three';
 import {
-  BLEEDOUT_SECONDS, CLIENT_MOVE_SEND_HZ, DOOR_OPEN_SECONDS, MoveState, PLAYER_EYE_HEIGHT, PLAYER_MAX_HP, aimDir, compileMap, harrowRidge, rayWorld, validateMap, weaponDef,
+  BLEEDOUT_SECONDS, CLIENT_MOVE_SEND_HZ, DOOR_OPEN_SECONDS, MoveState, PLAYER_EYE_HEIGHT, PLAYER_MAX_HP, TONICS, aimDir, compileMap, harrowRidge,
+  maxHpWith, perkDef, rayWorld, staminaWith, validateMap, weaponDef,
+  type ForgeState, type PerkId, type PlayerPublic,
 } from '@zh/shared';
-import { debugState, installDebug } from './debug';
+import { debugState, wireDebug } from './debug';
 import { Barricades } from './game/barricades';
 import { Entities } from './game/entities';
+import { ForgeView } from './game/forgeView';
 import { Fx } from './game/fx';
 import { Interact } from './game/interact';
 import { LocalPlayer } from './game/localPlayer';
@@ -125,8 +128,28 @@ function openDoor(id: string): void {
     if (soldDoors.has(id)) openDoors.add(id);
   }, DOOR_OPEN_SECONDS * 800);
 }
-const interact = new Interact(barricades, remotes, map, soldDoors, (m) => net.socket.send(m));
 let power = false;
+/** Our tonics, and what the Forge is doing. */
+let perks: readonly PerkId[] = [];
+let forge: ForgeState = { phase: 'idle' };
+const forgeView = new ForgeView(scene, map, world.lightAt, fx);
+const interact = new Interact(barricades, remotes, map, soldDoors, () => ({
+  id: net.id, points: scores.players.get(net.id)?.points ?? 0, perks, weapons: weapons.slots, slot: weapons.slot, power, forge,
+  solo: [...scores.players.values()].filter((p) => p.connected).length <= 1,
+}), (m) => net.socket.send(m));
+
+/** Our own slow state changed: guns, grenades, tonics. */
+function onSelf(me: PlayerPublic): void {
+  weapons.onPlayer(me);
+  perks = me.perks;
+  player.staminaMax = staminaWith(perks);
+  player.stamina = Math.min(player.stamina, player.staminaMax);
+  hud.setPerks(perks);
+}
+function setForge(state: ForgeState): void {
+  forge = state;
+  forgeView.set(state);
+}
 
 const weapons = new LocalWeapons({ player, camera, map, openDoors, entities, fx, vm, send: (m) => net.socket.send(m) });
 
@@ -199,7 +222,8 @@ s.on('sync', (m) => {
   barricades.reset(m.barricades);
   scores.reset(m.players);
   const me = m.players.find((p) => p.id === net.id);
-  if (me) weapons.onPlayer(me);
+  if (me) onSelf(me);
+  setForge(m.forge);
   round = scores.round = m.round;
   roundPhase = m.roundPhase;
   zombiesLeft = m.zombiesLeft;
@@ -229,7 +253,7 @@ s.on('ev', (m) => {
     switch (ev.e) {
       case 'player':
         scores.upsert(ev.player);
-        if (ev.player.id === net.id) weapons.onPlayer(ev.player);
+        if (ev.player.id === net.id) onSelf(ev.player);
         else remotes.upsert(ev.player);
         break;
       case 'points':
@@ -328,6 +352,15 @@ s.on('ev', (m) => {
       case 'denied':
         interact.deny(ev.reason);
         break;
+      case 'forge':
+        setForge(ev.state);
+        break;
+      case 'purchase':
+        // Our own tonic: knock it back.
+        if (ev.id !== net.id || ev.what !== 'perk') break;
+        vm.drink(TONICS.find((t) => t.id === ev.ref)?.glow ?? 0xffffff);
+        hud.banner('', `${perkDef(ev.ref)?.name ?? ev.ref} \u2014 ${perkDef(ev.ref)?.blurb ?? ''}`);
+        break;
       default:
         break;
     }
@@ -353,55 +386,7 @@ function remoteShot(id: number, weapon: string, yaw: number, pitch: number): voi
   }
 }
 
-installDebug({
-  teleport: (x, z, yaw) => {
-    player.teleport(x, z, yaw);
-    if (playing()) s.send({ t: 'debug', cmd: 'teleport', x, z });
-  },
-  gotoZone: (zoneId, yaw = 0) => {
-    const room = harrowRidge.rooms.filter((r) => r.zone === zoneId).sort((a, b) => b.w * b.d - a.w * a.d)[0];
-    if (room) window.__zh.teleport(room.x + room.w / 2, room.z + room.d / 2, yaw);
-  },
-  look: (yaw, pitch = 0) => {
-    player.yaw = yaw;
-    player.pitch = pitch;
-  },
-  lookAt: (x, y, z) => {
-    const dx = x - player.x;
-    const dz = z - player.z;
-    player.yaw = Math.atan2(-dx, -dz);
-    player.pitch = Math.atan2(y - PLAYER_EYE_HEIGHT, Math.hypot(dx, dz));
-  },
-  give: (what) => s.send(typeof what === 'number' ? { t: 'debug', cmd: 'give', points: what } : { t: 'debug', cmd: 'give', weapon: what }),
-  spawnZombies: (count, opts = {}) => s.send({ t: 'debug', cmd: 'spawnZombies', count, ...opts }),
-  killZombies: () => s.send({ t: 'debug', cmd: 'killZombies' }),
-  setRound: (n) => s.send({ t: 'debug', cmd: 'setRound', round: n }),
-  rounds: (on) => s.send({ t: 'debug', cmd: 'rounds', on }),
-  god: (on) => s.send({ t: 'debug', cmd: 'god', on }),
-  dummy: (x, z) => {
-    const [dx, , dz] = aimDir(player.yaw, 0);
-    const px = x ?? player.x + dx * 3;
-    const pz = z ?? player.z + dz * 3;
-    s.send({ t: 'debug', cmd: 'dummy', x: px, z: pz, yaw: Math.atan2(-(player.x - px), -(player.z - pz)) });
-  },
-  press: (code) => {
-    input.setKey(code, true);
-    requestAnimationFrame(() => requestAnimationFrame(() => input.setKey(code, false)));
-  },
-  freeCam: (on) => player.setFreeCam(on ?? !player.freeCam),
-  openAllDoors: () => s.send({ t: 'debug', cmd: 'openAllDoors' }),
-  openDoor: (id) => s.send({ t: 'debug', cmd: 'openDoor', id }),
-  powerOn: () => s.send({ t: 'debug', cmd: 'powerOn' }),
-  key: (code, down) => input.setKey(code, down),
-  renderScale: (scale) => {
-    renderer.scale = scale;
-    resize();
-  },
-  dither: (on) => {
-    renderer.dither = on;
-  },
-  dropConnection: () => s.drop(),
-});
+wireDebug({ player, input, socket: s, playing, renderer, resize });
 
 const SPECTATE_BACK = 2.4;
 const SPECTATE_HEIGHT = 2;
@@ -454,6 +439,7 @@ renderer.gl.setAnimationLoop((now) => {
   remotes.update(dt, clock.renderTime, camera, window.innerWidth, window.innerHeight);
   entities.update(dt, clock.renderTime);
   fx.update(dt);
+  forgeView.update(dt, now / 1000);
   world.update(dt, now / 1000);
   atmosphere.update(dt, camera.position.x, camera.position.z);
   sky.position.set(camera.position.x, 0, camera.position.z);
@@ -470,15 +456,18 @@ renderer.gl.setAnimationLoop((now) => {
 
   const zoneId = map.zoneAt(player.x, player.z);
   hud.setZone(map.zones.find((z) => z.id === zoneId)?.name ?? '');
-  hud.setStamina(player.stamina);
-  hud.setHealth(live() && life !== 'dead' ? hp : PLAYER_MAX_HP, dt);
+  hud.setStamina(player.stamina, player.staminaMax);
+  const maxHp = maxHpWith(perks);
+  hud.setHealth(live() && life !== 'dead' ? hp : maxHp, maxHp, dt);
   hud.setPrompt(live() ? interact.prompt : '');
   hud.setProgress(live() ? interact.progress : 0);
   if (!live() || life === 'alive') hud.setDowned('', -1, '', false);
   else if (life === 'downed') {
+    const self = revivedBy === net.id;
     const by = scores.players.get(revivedBy)?.name;
     const alone = scores.players.size < 2;
-    hud.setDowned('YOU ARE DOWN', bleed / BLEEDOUT_SECONDS, by ? `${by} is reviving you` : alone ? '' : 'Hold on \u2014 a teammate can revive you', !!by);
+    const sub = self ? 'Second Wind \u2014 getting back up' : by ? `${by} is reviving you` : alone ? '' : 'Hold on \u2014 a teammate can revive you';
+    hud.setDowned('YOU ARE DOWN', self ? -1 : bleed / BLEEDOUT_SECONDS, sub, !!by);
   } else hud.setDowned('SPECTATING', -1, `${watching ? `${watching.name} \u00b7 ` : ''}you are back in when the next round starts`, false);
   scores.update(live() && input.down('Tab'));
   input.endFrame();
@@ -501,7 +490,8 @@ renderer.gl.setAnimationLoop((now) => {
     drawCalls: renderer.lastDrawCalls, triangles: renderer.lastTriangles,
     resolution: [renderer.width, renderer.height], openDoors: [...openDoors], power,
     pingMs: net.pingMs, remotes: remotes.list(),
-    weapon: cur?.id ?? null, weapons: weapons.slots.map((w) => w.id), slot: weapons.slot, mag: cur?.mag ?? 0,
+    weapon: cur?.id ?? null, weapons: weapons.slots.map((w) => w.id), upgraded: weapons.slots.map((w) => w.upgraded), perks: [...perks], maxHp,
+    forge: forge.phase, slot: weapons.slot, mag: cur?.mag ?? 0,
     reserve: cur?.reserve ?? 0, grenades: weapons.grenades, reloading: weapons.reloading, aim: weapons.aim,
     shots: weapons.shots, entities: entities.list(), fx: fx.counts, hp, barricades: barricades.list(), prompt: interact.prompt,
     round, roundPhase, zombiesLeft, life, over, points: scores.players.get(net.id)?.points ?? 0, roster: scores.list(),

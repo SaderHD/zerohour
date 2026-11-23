@@ -1,8 +1,8 @@
 import { C, Kit, type WeaponModel } from './kit';
 
 /** M9 "Warden": the starting service pistol. */
-export function warden(hands: boolean): WeaponModel {
-  return new Kit(hands)
+export function warden(hands: boolean, upgraded = false): WeaponModel {
+  return new Kit(hands, upgraded)
     .box(0.03, 0.028, 0.18, C.dark, 0, 0, -0.04)
     .box(0.016, 0.016, 0.02, C.steel, 0, 0.034, -0.148)
     .box(0.031, 0.11, 0.05, 0x3a2a1e, 0, -0.065, 0.04, [0.22, 0, 0])
@@ -19,8 +19,8 @@ export function warden(hands: boolean): WeaponModel {
 }
 
 /** "Dockhand" .38: a heavy six-shot revolver. */
-export function dockhand(hands: boolean): WeaponModel {
-  return new Kit(hands)
+export function dockhand(hands: boolean, upgraded = false): WeaponModel {
+  return new Kit(hands, upgraded)
     .box(0.022, 0.026, 0.17, C.steel, 0, 0.042, -0.125)
     .box(0.014, 0.016, 0.11, C.steel, 0, 0.021, -0.1)
     .box(0.03, 0.062, 0.075, C.steel, 0, 0.024, 0.002)

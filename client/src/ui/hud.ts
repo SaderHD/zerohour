@@ -1,11 +1,11 @@
-import { PLAYER_MAX_HP, STAMINA_SECONDS } from '@zh/shared';
+import { TONICS, perkDef, type PerkId } from '@zh/shared';
 
 const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 /**
  * HUD: zone name, stamina bar, crosshair, hit marker, ammo, hurt vignette, interaction prompt and
  * its progress bar, round numeral and banner, downed / spectating overlay, debug readout.
- * (#perks and #effects are empty trays until sessions 10 and 11 fill them.)
+ * and the tray of tonics held. (#effects stays empty until session 11.)
  */
 export class Hud {
   private readonly zone = el('zone');
@@ -37,6 +37,8 @@ export class Hud {
   private lastRound = -1;
   private lastProgress = -1;
   private lastDowned = '';
+  private readonly perks = el('perks');
+  private lastPerks = '';
 
   /** The round numeral; it flashes when the round changes. */
   setRound(n: number, flash = true): void {
@@ -82,9 +84,9 @@ export class Hud {
   }
 
   /** Red closes in from the edges as health drops; a fresh hit flashes it. */
-  setHealth(hp: number, dt: number): void {
+  setHealth(hp: number, max: number, dt: number): void {
     this.flash = Math.max(0, this.flash - dt * 2.5);
-    const level = Math.round(Math.min(1, (1 - hp / PLAYER_MAX_HP) * 1.1 + this.flash * 0.5) * 50) / 50;
+    const level = Math.round(Math.min(1, (1 - hp / max) * 1.1 + this.flash * 0.5) * 50) / 50;
     if (level === this.lastHurt) return;
     this.lastHurt = level;
     this.hurtEl.classList.toggle('flash', this.flash > 0);
@@ -94,6 +96,25 @@ export class Hud {
   /** We were just hit. */
   hurt(): void {
     this.flash = 1;
+  }
+
+  /** The tonics held, as a row of coloured tabs; a new one pops in. */
+  setPerks(perks: readonly PerkId[]): void {
+    const key = perks.join(',');
+    if (key === this.lastPerks) return;
+    const had = new Set(this.lastPerks.split(','));
+    this.lastPerks = key;
+    this.perks.replaceChildren(...perks.map((id) => {
+      const tonic = TONICS.find((t) => t.id === id);
+      const name = perkDef(id)?.name ?? id;
+      const tab = document.createElement('div');
+      tab.className = had.has(id) ? 'perk' : 'perk new';
+      tab.dataset.perk = id;
+      tab.title = name;
+      tab.style.setProperty('--glow', `#${(tonic?.glow ?? 0xffffff).toString(16).padStart(6, '0')}`);
+      tab.textContent = name.split(' ').map((w) => w[0]).join('');
+      return tab;
+    }));
   }
 
   setPrompt(text: string): void {
@@ -109,8 +130,8 @@ export class Hud {
     this.zone.textContent = name;
   }
 
-  setStamina(seconds: number): void {
-    const f = seconds / STAMINA_SECONDS;
+  setStamina(seconds: number, max: number): void {
+    const f = Math.min(1, seconds / max);
     this.staminaFill.style.width = `${Math.round(f * 100)}%`;
     this.stamina.style.opacity = f >= 0.999 ? '0' : '1';
   }

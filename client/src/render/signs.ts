@@ -166,40 +166,52 @@ export function mapTile(seed: number): UVRect {
   });
 }
 
-/** The chalk outline of a long gun (or, `short`, a hand gun) on a wall-buy board. */
-export function outlineTile(short: boolean): UVRect {
-  return signTile(`outline:${short}`, 112, 40, (c, w, h) => {
+interface Outline {
+  /** Barrel length, 0..1 of the room on the board. */
+  barrel: number;
+  stock: 'solid' | 'wire' | 'none';
+  mag: 'none' | 'stick' | 'curved';
+  pump?: boolean;
+  twin?: boolean;
+}
+
+/** What each wall weapon looks like in chalk; anything else gets the plain long gun. */
+const OUTLINES: Record<string, Outline> = {
+  farrow: { barrel: 1, stock: 'solid', mag: 'none' },
+  pike: { barrel: 0.95, stock: 'solid', mag: 'none', pump: true },
+  stitch: { barrel: 0.45, stock: 'wire', mag: 'stick' },
+  coachman: { barrel: 0.8, stock: 'solid', mag: 'none', twin: true },
+  kestrel: { barrel: 0.75, stock: 'solid', mag: 'curved' },
+  brakeman: { barrel: 0.3, stock: 'wire', mag: 'stick' },
+};
+
+/** The chalk outline of a weapon on its wall-buy board: stock to the left, muzzle to the right. */
+export function outlineTile(weapon: string): UVRect {
+  const o = OUTLINES[weapon] ?? OUTLINES.farrow!;
+  return signTile(`outline:${weapon in OUTLINES ? weapon : 'farrow'}`, 112, 40, (c) => {
     c.strokeStyle = '#e4ecdc';
     c.lineWidth = 2;
     c.lineJoin = 'round';
-    c.beginPath();
-    if (short) {
-      c.moveTo(38, 12);
-      c.lineTo(80, 12);
-      c.lineTo(80, 20);
-      c.lineTo(56, 20);
-      c.lineTo(52, 36);
-      c.lineTo(42, 36);
-      c.lineTo(44, 20);
-      c.lineTo(38, 20);
-    } else {
-      c.moveTo(4, 14);
-      c.lineTo(30, 12);
-      c.lineTo(106, 12);
-      c.lineTo(106, 17);
-      c.lineTo(66, 18);
-      c.lineTo(62, 22);
-      c.lineTo(48, 22);
-      c.lineTo(44, 34);
-      c.lineTo(36, 34);
-      c.lineTo(38, 22);
-      c.lineTo(26, 22);
-      c.lineTo(6, 30);
-    }
-    c.closePath();
-    c.stroke();
-    void w;
-    void h;
+    const poly = (...pts: number[]): void => {
+      c.beginPath();
+      for (let i = 0; i < pts.length; i += 2) c[i ? 'lineTo' : 'moveTo'](pts[i]!, pts[i + 1]!);
+      c.closePath();
+      c.stroke();
+    };
+    const end = 62 + o.barrel * 44;
+    if (o.stock === 'solid') poly(4, 13, 30, 11, 30, 22, 6, 30);
+    if (o.stock === 'wire') poly(6, 13, 30, 13, 30, 16, 9, 16, 9, 28, 6, 28);
+    poly(30, 10, 62, 10, 62, 22, 30, 22); // receiver
+    poly(37, 22, 44, 22, 41, 34, 33, 34); // grip
+    poly(62, 11, end, 11, end, 15, 62, 15); // barrel
+    if (o.twin) poly(62, 15, end, 15, end, 19, 62, 19);
+    if (o.pump) {
+      poly(62, 17, end - 6, 17, end - 6, 20, 62, 20);
+      poly(70, 16, 88, 16, 88, 23, 70, 23);
+    } else if (!o.twin) poly(62, 15, 62 + o.barrel * 22, 15, 62 + o.barrel * 20, 20, 62, 21); // fore-end
+    if (o.mag === 'stick') poly(49, 22, 56, 22, 56, 38, 49, 38);
+    if (o.mag === 'curved') poly(49, 22, 57, 22, 63, 35, 55, 38);
+    poly(end - 3, 8, end - 1, 8, end - 1, 11, end - 3, 11); // front sight
   });
 }
 

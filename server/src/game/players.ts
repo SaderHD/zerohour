@@ -1,10 +1,12 @@
 import {
-  BLEEDOUT_SECONDS, INTERACT_RANGE, MOVE_BUDGET_CAP, MoveState, PLAYER_MAX_HP, PLAYER_REGEN_DELAY, PLAYER_REGEN_RATE, POINTS_REVIVE,
-  RESPAWN_MIN_POINTS, REVIVE_RANGE_SLACK, REVIVE_SECONDS, START_GRENADES, START_WEAPON, type ClientMsg,
+  BLEEDOUT_SECONDS, INTERACT_RANGE, MOVE_BUDGET_CAP, MoveState, PLAYER_REGEN_DELAY, PLAYER_REGEN_RATE, POINTS_REVIVE,
+  RESPAWN_MIN_POINTS, REVIVE_GRACE_SECONDS, REVIVE_RANGE_SLACK, SELF_REVIVE_SECONDS, START_GRENADES, START_WEAPON, maxHpWith, reviveSecondsWith,
+  type ClientMsg,
 } from '@zh/shared';
 import { newWeapon } from './combat';
 import { award, downPenalty } from './economy';
 import type { Game, PlayerState } from './Game';
+import { isSolo, losePerks } from './perks';
 
 // Player health and the down / revive / bleed-out / respawn cycle (PLAN 4.1).
 
@@ -13,7 +15,7 @@ export const standing = (p: PlayerState): boolean => p.state !== MoveState.Downe
 
 /** Hurt a player. `fromX/fromZ` is where it came from (for the client's feedback). */
 export function damagePlayer(g: Game, p: PlayerState, dmg: number, fromX: number, fromZ: number): void {
-  if (dmg <= 0 || p.god || !p.pub.connected || !standing(p)) return;
+  if (dmg <= 0 || p.god || !p.pub.connected || !standing(p) || g.time < p.safeUntil) return;
   p.hp = Math.max(0, p.hp - dmg);
   p.hurtAt = g.time;
   g.emit({ e: 'playerHurt', id: p.pub.id, hp: Math.round(p.hp), fromX, fromZ });
@@ -28,20 +30,23 @@ function goDown(g: Game, p: PlayerState): void {
   p.rebuild = null;
   p.reviving = 0;
   p.reloadUntil = 0;
-  p.down = { until: g.time + BLEEDOUT_SECONDS, by: 0, progress: 0 };
   p.stash = { weapons: p.pub.weapons, slot: p.pub.slot };
   p.pub.weapons = [newWeapon(START_WEAPON)];
   p.pub.slot = 0;
-  p.pub.perks = [];
+  // Alone with a Second Wind: it is spent getting them back up, with nobody's help.
+  const self = losePerks(p).includes('second_wind') && isSolo(g);
+  p.down = { until: g.time + BLEEDOUT_SECONDS, by: self ? p.pub.id : 0, progress: 0, self };
   p.pub.downs++;
   award(g, p, -downPenalty(p.pub.points), 'down');
   g.emit({ e: 'playerDowned', id: p.pub.id });
   g.emit({ e: 'player', player: p.pub });
+  if (self) g.emit({ e: 'reviving', id: p.pub.id, by: p.pub.id });
 }
 
 function getUp(g: Game, p: PlayerState, by?: PlayerState): void {
   p.state = MoveState.Idle;
-  p.hp = PLAYER_MAX_HP;
+  p.hp = maxHpWith(p.pub.perks);
+  p.safeUntil = g.time + REVIVE_GRACE_SECONDS;
   p.down = null;
   p.reloadUntil = 0;
   if (p.stash) {
@@ -81,7 +86,8 @@ export function respawn(g: Game, p: PlayerState): void {
   p.vx = p.vz = 0;
   p.budget = MOVE_BUDGET_CAP;
   p.state = MoveState.Idle;
-  p.hp = PLAYER_MAX_HP;
+  p.pub.perks = [];
+  p.hp = maxHpWith(p.pub.perks);
   p.hurtAt = -100;
   p.down = null;
   p.stash = null;
@@ -107,11 +113,16 @@ export function updatePlayers(g: Game, dt: number): void {
   for (const p of g.players.values()) {
     if (standing(p)) {
       // Health comes back quickly once a player has gone unhurt for a few seconds.
-      if (p.hp < PLAYER_MAX_HP && g.time - p.hurtAt >= PLAYER_REGEN_DELAY) p.hp = Math.min(PLAYER_MAX_HP, p.hp + PLAYER_REGEN_RATE * dt);
+      const max = maxHpWith(p.pub.perks);
+      if (p.hp < max && g.time - p.hurtAt >= PLAYER_REGEN_DELAY) p.hp = Math.min(max, p.hp + PLAYER_REGEN_RATE * dt);
       continue;
     }
     const d = p.down;
     if (!d) continue;
+    if (d.self) {
+      if ((d.progress += dt) >= SELF_REVIVE_SECONDS) getUp(g, p);
+      continue;
+    }
     let by = d.by ? g.players.get(d.by) : undefined;
     if (d.by && !(by && canRevive(by, p))) {
       // The reviver let go, walked off or went down: start over.
@@ -136,7 +147,7 @@ export function updatePlayers(g: Game, dt: number): void {
     }
     if (by) {
       d.until += dt; // bleeding stops while someone is working on them
-      if ((d.progress += dt) >= REVIVE_SECONDS) getUp(g, p, by);
+      if ((d.progress += dt) >= reviveSecondsWith(by.pub.perks)) getUp(g, p, by);
     } else if (g.time >= d.until) die(g, p);
   }
 }
@@ -146,7 +157,7 @@ export function everyoneDown(g: Game): boolean {
   let connected = 0;
   for (const p of g.players.values()) {
     if (!p.pub.connected) continue;
-    if (standing(p)) return false;
+    if (standing(p) || p.down?.self) return false;
     connected++;
   }
   return connected > 0;

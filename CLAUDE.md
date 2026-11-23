@@ -33,6 +33,9 @@ when its acceptance checks pass.
   soak on a fake clock.)
 - `npm run rounds` — after a build: two browser players through the round loop (round 1, points,
   late join, down, revive, scoreboard, game over, back to lobby). Writes `test-results/rounds-*.png`.
+- `npm run economy` — after a build: one browser player through the purchases (wall gun and ammo,
+  door, solo Second Wind, master switch, tonic, Forge, upgraded damage, self-revive). Writes
+  `test-results/economy-*.png`.
 - `npm run horde` — after a build: browser walk-through of the zombie features (tear, vault,
   attack, damage, rebuild, hit zones, crawler, full horde). Writes `test-results/horde-*.png`.
 - URL flags for quick testing: `?autostart=1` (straight into a solo game), `?room=ABCD&autostart=1`
@@ -86,6 +89,14 @@ when its acceptance checks pass.
   `players.ts` owns down / revive / bleed-out / respawn and the game-over check; `debug.ts` the
   debug commands. `makeGame()` in the testkit starts with the round loop stopped
   (`makeGame(seed, { rounds: true })` to run it).
+- Buying (server): every F press lands in `game/interact.ts` — doors (`doors.ts`), then the map's
+  interactables by id (wall buys there, tonics in `perks.ts`, the Forge in `forge.ts`, the master
+  switch), else the barricade. Refusals go to the one player as `denied {reason}`.
+  Tonic prices and effect numbers are in `shared/src/data/perks.ts`; read an effect through its
+  helper (`maxHpWith(perks)`, `fireRateMultWith`, ...) on both sides. A held weapon's stats are
+  `weaponStats(id, upgraded)`, never `weaponDef` (that is the unforged table entry).
+- Buying (client): `game/interact.ts` picks the prompt and sends the press; `game/forgeView.ts`
+  shows the weapon in the Forge; upgraded gun models come from `buildWeapon(id, hands, true)`.
 - Client HUD: `ui/hud.ts` (numeral, banner, downed overlay), `ui/scoreboard.ts` (points list,
   Tab table, results). Scripts that are not about rounds call `__zh.rounds(false)` first.
 - Zombies (client): `models/zombie.ts` poses a box rig in code; `models/zombieHorde.ts` draws all
@@ -95,7 +106,8 @@ when its acceptance checks pass.
 - The first-person weapon (`game/viewmodel.ts`) is its own scene drawn over the world after a
   depth clear. Gun models come from `models/weapons/` (`Kit` boxes, muzzle at -z, origin at the
   grip); add new guns to the table in `models/weapons/index.ts`.
-- Try things in a debug game from the console: `__zh.give('pike')`, `__zh.dummy()`,
+- Try things in a debug game from the console: `__zh.give('pike')` (`give('pike', true)` upgraded,
+  `give('ironhide')` a tonic, `give(5000)` points), `__zh.dummy()`,
   `__zh.spawnZombies(8, { interval: 0.3 })`, `__zh.god(true)`, `__zh.killZombies()`, `__zh.setRound(10)`, `__zh.rounds(false)`,
   `__zh.openDoor('d_mess_bunk')`, `__zh.powerOn()`.
 - Tests and visual checks go through `window.__zh` (`client/src/debug.ts`); extend it as features

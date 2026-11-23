@@ -63,14 +63,15 @@ zerohour/
     lobby.ts              rooms, codes, join/leave
     game/                 Game.ts (tick loop) + one file per system:
                           players, zombies, spawner, rounds, combat, economy,
-                          doors, barricades, perks, cache, forge, powerups, power
+                          doors (and power), barricades, interact (the F path), perks, forge,
+                          cache, powerups
     bot.ts                headless bot client for load/soak tests
   client/src/
     main.ts  net/ (socket, interpolation)  input/
     render/               renderer.ts (retro pipeline), worldBuilder.ts, bake.ts, doors.ts, signs.ts, materials.ts,
                           exterior.ts (roofs, stacks, pines), snow.ts, sky.ts, ambient.ts, atmosphere.ts
     models/               zombie.ts player.ts weapons/*.ts props/*.ts  rig.ts anim.ts
-    game/                 localPlayer.ts viewmodel.ts entities.ts interact.ts fx.ts
+    game/                 localPlayer.ts viewmodel.ts entities.ts interact.ts forgeView.ts fx.ts
     audio/                synth.ts sfx.ts music.ts
     ui/                   hud.ts menu.ts lobby.ts scoreboard.ts settings.ts
     debug.ts              window.__zh test hooks
@@ -132,7 +133,9 @@ All numbers live in `shared/src/data` and `constants.ts` so balance never requir
 - **Downed:** crawl-speed 0, pistol only, 45 s bleed-out; teammate holds F for 3 s to revive.
   Going down loses all perks. Bled-out players spectate and respawn at the start of the next round
   with the starting pistol and 1,500 points minimum. All players down ⇒ game over.
-  **Solo:** the Second Wind perk gives an automatic self-revive (max 3 purchases per game).
+  **Solo:** the Second Wind perk gives an automatic self-revive (max 3 purchases per game): the
+  player lies downed for 8 s, the game carries on, and they get up with what they carried (bar
+  the tonics). Nothing hurts a player for 2 s after any revive.
 
 ### 4.2 Points
 | Event | Points |
@@ -194,7 +197,8 @@ Start with 500.
 
 Wall buys also sell ammo (half price; upgraded ammo 4,500). Weapon stats schema:
 `damage, headMult, rpm, auto, magSize, reserve, reloadTime, spreadHip, spreadAim, pellets, range,
-falloff, pierce, moveSpeedMult, recoil, projectile?`. Every weapon has an upgraded variant
+falloff, pierce, moveSpeedMult, recoil, projectile?, forged {name, damage, magSize, reserve}`.
+Every weapon has an upgraded variant
 (new name, ×2–3 damage, bigger mag, recoloured model with emissive trim; wonder weapons gain a
 stronger effect).
 
@@ -209,7 +213,7 @@ power. Max 4 per player. Lost on down.
 | Quickhands | 3000 | Reload 2× faster | Motor Pool |
 | Hair Trigger | 2000 | +33% fire rate | Laboratory |
 | Marathon | 2000 | Sprint 2× longer, +8% speed | Bunkhouse |
-| Packmule | 4000 | Third weapon slot (lost with the perk) | Cold Storage |
+| Packmule | 4000 | Third weapon slot (the gun in it is lost with the perk) | Cold Storage |
 
 ### 4.7 The Cache (random weapon crate)
 950 points. Lid opens, weapons cycle for 4 s, result floats for 10 s for the buyer to take (F).
@@ -219,8 +223,10 @@ refunded and the Cache relocates to another of its 5 possible sites, marked by a
 without power.
 
 ### 4.8 The Forge (weapon upgrade)
-In the Vault behind the Comms Bunker; the vault door only opens when power is on. 5,000 points,
-3 s process, upgraded weapon must be collected within 15 s.
+In the Vault behind the Comms Bunker; the vault door only opens when power is on. 5,000 points
+and the weapon in your hands (not one already upgraded): it lies in the cradle for 3 s, then its
+upgraded form floats there for its owner alone, and is lost if not collected within 15 s. One
+weapon at a time; ammo for an upgraded weapon comes from its wall buy (4,500) if it has one.
 
 ### 4.9 Power
 Master switch in the Generator Hall. Turning it on: lights/emissives up, tonic dispensers and the
@@ -402,11 +408,14 @@ systems pure enough to unit-test with a fake clock and seeded RNG (no sockets, n
 ### 6.5 Interaction
 Server-side: each interactable has a position + radius + optional facing. Client shows the prompt
 for the nearest valid one in view ("Hold F — Kestrel AR [1500]"); pressing F sends
-`interact {id}`; the server re-checks range, cost, power and state. One generic path for doors,
+`interact {id}`; the server re-checks range (and that the player is on the side it faces), cost,
+power and state, and answers a refusal with `denied {reason}` to that player. One generic path
+(`server/game/interact.ts`, `client/game/interact.ts`) for doors,
 wall buys, tonics, Cache, Forge, power switch, barricade rebuild and revive.
 
 ### 6.6 Testing & debug hooks (required — this is how agents verify work)
-- `window.__zh` in dev: `state()`, `teleport(x,z)`, `give(weapon|perk|points)`, `setRound(n)`,
+- `window.__zh` in dev: `state()`, `teleport(x,z)`, `give(weapon|perk|points)` (`give(weapon, true)`
+  for the Forge upgrade), `setRound(n)`,
   `rounds(bool)` (stop/resume the round loop), `spawnZombies(n, opts)`, `killZombies()`, `god(bool)`, `freeCam()`, `openAllDoors()`, `powerOn()`, `dummy(x,z)` (target
   dummy), `lookAt(x,y,z)`, `press(code)` (mouse buttons are `Mouse0`/`Mouse2`). Matching server-side
   `debug` messages, enabled only when `ZH_DEBUG=1`.
@@ -683,7 +692,24 @@ with no errors in client or server logs.
   until the Cache exists (11); guy wires and the flood masts have no collision; snow does not
   settle on anything that moves; the mast lamp does not blink (glow modes are on / mains / flame /
   failing tube only).
-- [ ] 10 Economy: wall buys, power, tonics, Forge
+- [x] 10 Economy: wall buys, power, tonics, Forge — done. `npm run economy` plays it alone in a
+  browser (wall gun, ammo, door, solo Second Wind, master switch, tonic, Forge, upgraded damage,
+  self-revive); `purchases.test.ts` and `perks.test.ts` cover cost, power, reach and limits and
+  each tonic's effect. Every F press goes through `game/interact.ts` on the server. Choices the
+  plan left open: tonic numbers live in `shared/src/data/perks.ts` and are read where they apply
+  (`maxHpWith`, `reloadMultWith`, ...); upgrades are a `forged` block per weapon (new name, x2.2-3
+  damage, magazine, reserve), reached through `weaponStats(id, upgraded)`; ammo from a wall buy
+  fills the reserve only; the Forge takes the weapon out of your hands while it works (with
+  nothing left you still have the knife and grenades); Second Wind alone gets you up after 8 s;
+  2 s of safety after any revive (deferred in session 6); Ironhide fills health when bought.
+  Protocol v6 (`denied` reasons `owned`/`full`/`upgraded`, debug `give {upgraded}`, a `reviving`
+  event with `by` = `id` for a self-revive, `sync.forge` is real). Client: wall-buy boards show
+  each weapon's own chalk outline and its price; upgraded guns wear a violet finish with glowing
+  trim (first and third person); a tonic is drunk from a canister in the left hand; the tray shows
+  the tonics held. Deferred: the master lever and the dispensers do not move when used; firing is
+  not blocked while drinking; purchases are not checked for line of sight, only reach and side;
+  bots buy nothing; no purchase sounds or tonic stings (12); `client/src/main.ts` is still ~500
+  lines (the debug hooks moved to `debug.ts`; the event switch is what is left to split, 13).
 - [ ] 11 Cache, power-ups, wonder weapons, Howlers
 - [ ] 12 Audio and feel
 - [ ] 13 UX, menus, robustness

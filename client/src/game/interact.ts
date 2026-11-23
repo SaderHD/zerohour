@@ -1,4 +1,8 @@
-import { INTERACT_RANGE, REVIVE_SECONDS, openingDistance, type ClientMsg, type CompiledMap, type Opening } from '@zh/shared';
+import {
+  DIR_VEC, FORGE_COST, INTERACT_RANGE, MAX_PERKS, ammoCost, openingDistance, perkCost, perkDef, perkNeedsPower, reviveSecondsWith,
+  weaponDef, weaponStats,
+  type ClientMsg, type CompiledMap, type ForgeState, type Interactable, type Opening, type PerkId, type WeaponId,
+} from '@zh/shared';
 import type { Input } from '../input/input';
 import type { Barricades } from './barricades';
 import type { RemotePlayers } from './remotePlayers';
@@ -6,10 +10,28 @@ import type { RemotePlayers } from './remotePlayers';
 /** Seconds between repeats of a held interaction, so the server picks it back up after it stopped. */
 const RESEND = 0.5;
 
+/** What the prompts need to know about us and the world; read fresh every frame. */
+export interface BuyerState {
+  id: number;
+  points: number;
+  perks: readonly PerkId[];
+  weapons: readonly { id: WeaponId; upgraded: boolean; reserve: number }[];
+  slot: number;
+  power: boolean;
+  /** Alone in the room (Second Wind's own rules). */
+  solo: boolean;
+  forge: ForgeState;
+}
+
+const REFUSALS: Record<string, string> = {
+  points: 'Not enough points', power: 'Needs power', limit: 'You cannot hold another', busy: 'In use',
+  full: 'Ammo is full', owned: 'You already have it', upgraded: 'Already upgraded',
+};
+
 /**
- * F interactions: reviving a downed teammate, rebuilding the barricade you are standing at (both
- * held), or buying the door in front of you (one press). Wall buys and the rest join the same
- * path later (PLAN 6.5).
+ * F interactions (PLAN 6.5): reviving a downed teammate and rebuilding the barricade you are
+ * standing at (both held); and, with one press, the door in front of you or the nearest thing on
+ * the map's list - a wall buy, a tonic dispenser, the master switch, the Forge.
  */
 export class Interact {
   /** Text for the HUD prompt, or '' when there is nothing in reach. */
@@ -26,7 +48,7 @@ export class Interact {
 
   constructor(
     private readonly barricades: Barricades, private readonly remotes: RemotePlayers, private readonly map: CompiledMap,
-    private readonly soldDoors: ReadonlySet<string>, private readonly send: (msg: ClientMsg) => void,
+    private readonly soldDoors: ReadonlySet<string>, private readonly buyer: () => BuyerState, private readonly send: (msg: ClientMsg) => void,
   ) {}
 
   /** The shut door in reach that the player is facing, if any. */
@@ -47,9 +69,64 @@ export class Interact {
     return best;
   }
 
+  /** The nearest interactable in reach that the player is in front of and looking towards. */
+  private thing(x: number, z: number, yaw: number): Interactable | null {
+    let best: Interactable | null = null;
+    let bestD = INTERACT_RANGE;
+    for (const it of this.map.def.interactables) {
+      const dx = it.x - x;
+      const dz = it.z - z;
+      const d = Math.hypot(dx, dz);
+      const v = DIR_VEC[it.facing];
+      if (d >= bestD || -dx * v.x - dz * v.z < 0) continue;
+      if ((-Math.sin(yaw) * dx - Math.cos(yaw) * dz) / (d || 1) < 0.3) continue;
+      best = it;
+      bestD = d;
+    }
+    return best;
+  }
+
+  /** What F would do at this interactable: the prompt, and whether pressing is worth sending. */
+  private offer(it: Interactable): { text: string; go: boolean } {
+    const b = this.buyer();
+    const no = (text = ''): { text: string; go: boolean } => ({ text, go: false });
+    const yes = (text: string): { text: string; go: boolean } => ({ text: `Press F — ${text}`, go: true });
+    switch (it.kind) {
+      case 'wallbuy': {
+        const def = weaponDef(it.ref ?? '');
+        if (!def) return no();
+        const held = b.weapons.find((w) => w.id === def.id);
+        if (!held) return yes(`${def.name} [${def.cost ?? 0}]`);
+        const stats = weaponStats(held.id, held.upgraded)!;
+        return held.reserve >= stats.reserve ? no(`${stats.name} — ammo is full`) : yes(`${stats.name} ammo [${ammoCost(def, held.upgraded)}]`);
+      }
+      case 'tonic': {
+        const def = perkDef(it.ref ?? '');
+        if (!def || b.perks.includes(def.id)) return no();
+        if (perkNeedsPower(def, b.solo) && !b.power) return no(`${def.name} — needs power`);
+        if (b.perks.length >= MAX_PERKS) return no('You cannot hold another tonic');
+        return yes(`${def.name}: ${def.blurb} [${perkCost(def, b.solo)}]`);
+      }
+      case 'powerSwitch':
+        return b.power ? no() : yes('turn on the power');
+      case 'forge': {
+        const f = b.forge;
+        if (!b.power) return no('The Forge needs power');
+        if (f.phase === 'offering' && f.by === b.id) return yes(`take the ${weaponStats(f.weapon ?? '', true)?.name ?? 'weapon'}`);
+        if (f.phase !== 'idle') return no(f.by === b.id ? 'The Forge is at work' : 'The Forge is in use');
+        const held = b.weapons[b.slot];
+        const def = held && weaponDef(held.id);
+        if (!held || !def) return no();
+        return held.upgraded ? no('This weapon is already upgraded') : yes(`forge the ${def.name} [${FORGE_COST}]`);
+      }
+      default:
+        return no(); // Cache sites: session 11
+    }
+  }
+
   /** The server turned a purchase down. */
   deny(reason: string): void {
-    this.refusal = reason === 'points' ? 'Not enough points' : reason === 'power' ? 'Needs power' : '';
+    this.refusal = REFUSALS[reason] ?? '';
     this.refusalFor = 1.5;
   }
 
@@ -61,12 +138,18 @@ export class Interact {
     const mate = active ? this.remotes.revivable(x, z) : null;
     const win = active && !mate ? this.barricades.rebuildable(x, z) : null;
     const door = active && !mate && !win ? this.door(x, z, yaw) : null;
+    const thing = active && !mate && !win && !door ? this.thing(x, z, yaw) : null;
     this.refusalFor -= dt;
-    this.prompt = mate ? `Hold F \u2014 revive ${mate.name}` : win ? 'Hold F \u2014 rebuild barricade' : '';
+    const refused = this.refusalFor > 0 ? this.refusal : '';
+    this.prompt = mate ? `Hold F — revive ${mate.name}` : win ? 'Hold F — rebuild barricade' : '';
     if (door) {
       const what = door.style === 'debris' ? 'clear debris' : 'open door';
-      this.prompt = this.refusalFor > 0 && this.refusal ? this.refusal : door.needsPower ? 'This door needs power' : `Press F \u2014 ${what} [${door.cost ?? 0}]`;
+      this.prompt = refused || (door.needsPower ? 'This door needs power' : `Press F — ${what} [${door.cost ?? 0}]`);
       if (!door.needsPower && input.pressed('KeyF')) this.send({ t: 'interact', id: door.id, hold: true });
+    } else if (thing) {
+      const offer = this.offer(thing);
+      this.prompt = refused || offer.text;
+      if (offer.go && input.pressed('KeyF')) this.send({ t: 'interact', id: thing.id, hold: true });
     }
     const want = !input.down('KeyF') ? null : mate ? `p:${mate.id}` : win ? win.id : null;
     if (want !== this.holding) {
@@ -82,6 +165,6 @@ export class Interact {
         this.send(this.msg(want, true));
       }
     }
-    this.progress = want && mate ? Math.min(1, this.held / REVIVE_SECONDS) : 0;
+    this.progress = want && mate ? Math.min(1, this.held / reviveSecondsWith(this.buyer().perks)) : 0;
   }
 }

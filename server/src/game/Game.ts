@@ -3,12 +3,13 @@ import {
   Rng, SPRINT_SPEED, START_GRENADES, START_POINTS, START_WEAPON, TICK_BUDGET_MS, TICK_DT, ZOMBIE_SPAWN_INTERVAL,
   circleFits, compileMap, harrowRidge, isFiniteNum,
   type ClientMsg, type CompiledMap, type GameEvent, type PlayerId, type PlayerPublic, type PlayerSnap,
-  type ServerMsg, type Snapshot, type WeaponState,
+  type ForgeState, type Interactable, type ServerMsg, type Snapshot, type WeaponState,
 } from '@zh/shared';
 import { newWeapon, onFire, onMelee, onReload, onSwap, onThrow, settleReload } from './combat';
-import { barricadeStates, createBarricades, onInteract, updateBarricades } from './barricades';
+import { barricadeStates, createBarricades, updateBarricades } from './barricades';
 import { onDebug } from './debug';
-import { buyDoor } from './doors';
+import { createForge, updateForge } from './forge';
+import { onInteract } from './interact';
 import { updateEntities, zombieSnap, type Zombie } from './entities';
 import { Nav } from './nav';
 import { everyoneDown, onRevive, sitOut, standing, updatePlayers } from './players';
@@ -49,13 +50,17 @@ export interface PlayerState {
   /** The barricade being rebuilt while F is held, and progress towards the next plank. */
   rebuild: { id: string; t: number } | null;
   /** While downed: when they bleed out (game time), who is reviving them (0 = nobody) and how far along. */
-  down: { until: number; by: PlayerId; progress: number } | null;
+  down: { until: number; by: PlayerId; progress: number; self?: boolean } | null;
   /** The loadout set aside while downed (a downed player has only a pistol). */
   stash: { weapons: WeaponState[]; slot: number } | null;
   /** The downed teammate this player is holding F on (0 = none). */
   reviving: PlayerId;
   /** Points earned from planks this round (capped). */
   plankPoints: number;
+  /** Game time until which nothing hurts them (just back on their feet). */
+  safeUntil: number;
+  /** Second Winds bought while alone (there is a limit per game). */
+  secondWinds: number;
 }
 
 export interface GameOpts {
@@ -85,6 +90,8 @@ export class Game {
   readonly map = gameMap();
   readonly players = new Map<PlayerId, PlayerState>();
   readonly openDoors = new Set<string>();
+  readonly interactables: ReadonlyMap<string, Interactable> = new Map(this.map.def.interactables.map((i) => [i.id, i]));
+  forge: ForgeState = createForge();
   /** The master switch has been thrown (permanent). */
   power = false;
   time = 0;
@@ -153,7 +160,7 @@ export class Game {
       x: s.x, z: s.z, yaw: s.yaw, pitch: 0, state: MoveState.Idle, hp: PLAYER_MAX_HP, ack: 0, budget: MOVE_BUDGET_CAP,
       vx: 0, vz: 0, movedAt: this.now(),
       fireAck: 0, nextFireAt: 0, nextMeleeAt: 0, nextThrowAt: 0, reloadUntil: 0,
-      hurtAt: -100, god: false, rebuild: null, down: null, stash: null, reviving: 0, plankPoints: 0,
+      hurtAt: -100, god: false, rebuild: null, down: null, stash: null, reviving: 0, plankPoints: 0, safeUntil: 0, secondWinds: 0,
     };
     this.players.set(id, p);
     this.emit({ e: 'player', player: p.pub });
@@ -214,7 +221,7 @@ export class Game {
       powerups: [],
       activeEffects: [],
       cache: { site: '', phase: 'idle' },
-      forge: { phase: 'idle' },
+      forge: this.forge,
       self: { x: p.x, z: p.z, yaw: p.yaw },
     };
   }
@@ -238,7 +245,6 @@ export class Game {
       case 'throw':
         return onThrow(this, p, msg);
       case 'interact':
-        if (msg.hold === true && typeof msg.id === 'string' && buyDoor(this, p, msg.id)) return;
         return onInteract(this, p, msg);
       case 'revive':
         return onRevive(this, p, msg);
@@ -319,6 +325,7 @@ export class Game {
     updateProjectiles(this, dt);
     updateEntities(this);
     updateBarricades(this, dt);
+    updateForge(this);
     updateRounds(this);
     if (everyoneDown(this)) {
       this.over = true;

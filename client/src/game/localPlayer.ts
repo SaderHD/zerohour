@@ -29,6 +29,8 @@ export class LocalPlayer {
   vz = 0;
   /** Seconds of sprint left. */
   stamina = STAMINA_SECONDS;
+  /** Seconds of sprint when rested (Marathon doubles it). */
+  staminaMax = STAMINA_SECONDS;
   sprinting = false;
   sensitivity = 0.0022;
   /** Debug fly camera: no collision, free vertical movement. */
@@ -116,7 +118,7 @@ export class LocalPlayer {
       this.sinceSprint = 0;
     } else {
       this.sinceSprint += dt;
-      if (this.sinceSprint >= STAMINA_REGEN_DELAY) this.stamina = Math.min(STAMINA_SECONDS, this.stamina + dt);
+      if (this.sinceSprint >= STAMINA_REGEN_DELAY) this.stamina = Math.min(this.staminaMax, this.stamina + dt);
     }
 
     const target = (this.sprinting ? SPRINT_SPEED : WALK_SPEED) * this.speedMult;

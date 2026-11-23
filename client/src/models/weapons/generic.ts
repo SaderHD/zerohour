@@ -15,8 +15,8 @@ export interface LongGunSpec {
   action?: WeaponModel['action'];
 }
 
-export function longGun(hands: boolean, s: LongGunSpec): WeaponModel {
-  const k = new Kit(hands);
+export function longGun(hands: boolean, upgraded: boolean, s: LongGunSpec): WeaponModel {
+  const k = new Kit(hands, upgraded);
   const bore = s.bore ?? 0.011;
   const front = -0.14 - s.barrel;
   k.box(0.046, 0.065, 0.28, s.body, 0, 0.025, -0.03);

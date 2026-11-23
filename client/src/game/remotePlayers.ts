@@ -55,8 +55,9 @@ export class RemotePlayers {
     }
     r.name = p.name;
     r.connected = p.connected;
-    r.weapon = p.weapons[p.slot]?.id ?? null;
-    r.model.setWeapon(r.weapon);
+    const held = p.weapons[p.slot];
+    r.weapon = held?.id ?? null;
+    r.model.setWeapon(r.weapon, held?.upgraded);
     r.tag.classList.toggle('lost', !p.connected);
   }
 

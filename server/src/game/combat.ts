@@ -1,8 +1,8 @@
 import {
   FIRE_RATE_SLACK, GRENADE_COOLDOWN, GRENADE_DAMAGE, GRENADE_FUSE, GRENADE_LOFT, GRENADE_RADIUS, GRENADE_SPEED,
   HIT_DIST_SLACK, KNIFE_COOLDOWN, MoveState, KNIFE_DAMAGE, KNIFE_RANGE, KNIFE_RANGE_SLACK, PLAYER_EYE_HEIGHT, SWAP_SECONDS,
-  WEAPON_SLOTS, aimDir, fireInterval, hitDamage, isFiniteNum, lineOfSight, maxHitsPerShot, weaponDef,
-  type ClientMsg, type HitZone, type WeaponId, type WeaponState,
+  aimDir, fireInterval, fireRateMultWith, hitDamage, isFiniteNum, lineOfSight, maxHitsPerShot, reloadMultWith, weaponSlotsWith, weaponStats,
+  type ClientMsg, type HitZone, type WeaponDef, type WeaponId, type WeaponState,
 } from '@zh/shared';
 import { damageZombie } from './entities';
 import type { Game, PlayerState } from './Game';
@@ -12,20 +12,23 @@ import { spawnProjectile } from './projectiles';
 type Msg<T extends ClientMsg['t']> = Extract<ClientMsg, { t: T }>;
 const ZONES: ReadonlySet<string> = new Set<HitZone>(['head', 'torso', 'limb']);
 
-export function newWeapon(id: WeaponId): WeaponState {
-  const def = weaponDef(id)!;
-  return { id, upgraded: false, mag: def.magSize, reserve: def.reserve };
+export function newWeapon(id: WeaponId, upgraded = false): WeaponState {
+  const def = weaponStats(id, upgraded)!;
+  return { id, upgraded, mag: def.magSize, reserve: def.reserve };
 }
 
-/** Debug/give path (wall buys and the Cache reuse it later): refill if owned, else fill a slot or replace the held gun. */
-export function giveWeapon(g: Game, p: PlayerState, id: WeaponId): boolean {
-  if (!weaponDef(id)) return false;
+/** The stats of a held weapon, upgrade included. */
+const statsOf = (w: WeaponState | undefined): WeaponDef | undefined => w && weaponStats(w.id, w.upgraded);
+
+/** Hand a weapon over (wall buys, the Forge, the debug hook): refill if owned, else fill a slot or replace the held gun. */
+export function giveWeapon(g: Game, p: PlayerState, id: WeaponId, upgraded = false): boolean {
+  if (!weaponStats(id, upgraded)) return false;
   const ws = p.pub.weapons;
   const owned = ws.findIndex((w) => w.id === id);
   p.reloadUntil = 0;
-  if (owned >= 0) ws[owned] = newWeapon(id);
-  else if (ws.length < WEAPON_SLOTS) ws.push(newWeapon(id));
-  else ws[p.pub.slot] = newWeapon(id);
+  if (owned >= 0) ws[owned] = newWeapon(id, upgraded || ws[owned]!.upgraded);
+  else if (ws.length < weaponSlotsWith(p.pub.perks)) ws.push(newWeapon(id, upgraded));
+  else ws[p.pub.slot] = newWeapon(id, upgraded);
   p.pub.slot = owned >= 0 ? owned : ws.findIndex((w) => w.id === id);
   g.emit({ e: 'player', player: p.pub });
   return true;
@@ -36,7 +39,7 @@ export function settleReload(g: Game, p: PlayerState): void {
   if (p.reloadUntil <= 0 || g.now() < p.reloadUntil) return;
   p.reloadUntil = 0;
   const w = p.pub.weapons[p.pub.slot];
-  const def = w && weaponDef(w.id);
+  const def = statsOf(w);
   if (!w || !def) return;
   const take = Math.min(def.magSize - w.mag, w.reserve);
   w.mag += take;
@@ -50,11 +53,11 @@ export function onFire(g: Game, p: PlayerState, m: Msg<'fire'>): void {
   if (p.state === MoveState.Dead) return; // a downed player still has their pistol
   settleReload(g, p);
   const w = p.pub.weapons[p.pub.slot];
-  const def = w && weaponDef(w.id);
+  const def = statsOf(w);
   if (!w || !def || m.slot !== p.pub.slot || p.reloadUntil > 0 || w.mag <= 0) return;
   const now = g.now();
   if (now < p.nextFireAt - FIRE_RATE_SLACK) return; // faster than the weapon can cycle
-  p.nextFireAt = Math.max(p.nextFireAt, now) + fireInterval(def);
+  p.nextFireAt = Math.max(p.nextFireAt, now) + fireInterval(def, fireRateMultWith(p.pub.perks));
   w.mag--;
   g.emit({ e: 'fired', id: p.pub.id, weapon: w.id, yaw: m.yaw, pitch: m.pitch });
 
@@ -88,9 +91,9 @@ export function onReload(g: Game, p: PlayerState): void {
   if (p.state === MoveState.Dead) return;
   settleReload(g, p);
   const w = p.pub.weapons[p.pub.slot];
-  const def = w && weaponDef(w.id);
+  const def = statsOf(w);
   if (!w || !def || p.reloadUntil > 0 || w.mag >= def.magSize || w.reserve <= 0) return;
-  p.reloadUntil = g.now() + def.reloadTime - FIRE_RATE_SLACK;
+  p.reloadUntil = g.now() + def.reloadTime * reloadMultWith(p.pub.perks) - FIRE_RATE_SLACK;
 }
 
 export function onSwap(g: Game, p: PlayerState, m: Msg<'swap'>): void {

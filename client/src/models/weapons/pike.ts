@@ -1,8 +1,8 @@
 import { C, Kit, type WeaponModel } from './kit';
 
 /** "Pike" 12: pump-action shotgun. The pump is the animated part. */
-export function pike(hands: boolean): WeaponModel {
-  return new Kit(hands)
+export function pike(hands: boolean, upgraded = false): WeaponModel {
+  return new Kit(hands, upgraded)
     .box(0.046, 0.07, 0.22, C.metal, 0, 0.02, -0.02)
     .cyl(0.013, 0.56, C.steel, 0, 0.04, -0.4)
     .cyl(0.012, 0.42, C.dark, 0, 0.012, -0.34)

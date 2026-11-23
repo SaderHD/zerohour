@@ -3,6 +3,11 @@
 // Commands that change authoritative state are sent to the server, which only honours them
 // when started with ZH_DEBUG=1.
 
+import { PLAYER_EYE_HEIGHT, aimDir, harrowRidge, perkDef, type ClientMsg } from '@zh/shared';
+import type { LocalPlayer } from './game/localPlayer';
+import type { Input } from './input/input';
+import type { RetroRenderer } from './render/renderer';
+
 export interface DebugState {
   phase: string;
   connected: boolean;
@@ -32,9 +37,14 @@ export interface DebugState {
   /** Other players as currently drawn (interpolated). */
   remotes: { id: number; name: string; x: number; z: number; visible: boolean; connected: boolean; weapon: string | null; shots: number; state: number }[];
   corrections: number;
-  /** Held weapon and predicted ammo. */
+  /** Held weapon and predicted ammo; `upgraded` lists which of `weapons` the Forge has been at. */
   weapon: string | null;
   weapons: string[];
+  upgraded: boolean[];
+  /** Tonics held, top health with them, and what the Forge is doing. */
+  perks: string[];
+  maxHp: number;
+  forge: string;
   slot: number;
   mag: number;
   reserve: number;
@@ -75,8 +85,8 @@ export interface ZhDebug {
   look(yaw: number, pitch?: number): void;
   /** Aim the view at a world point. */
   lookAt(x: number, y: number, z: number): void;
-  /** `give('pike')` hands over a weapon, `give(500)` points (debug servers only). */
-  give(what: string | number): void;
+  /** `give('pike')` hands over a weapon (`give('pike', true)` its Forge upgrade), `give('ironhide')` a tonic, `give(500)` points (debug servers only). */
+  give(what: string | number, upgraded?: boolean): void;
   /** Queue zombies at the windows; `opts.x/z` drops them at a spot instead (debug servers only). */
   spawnZombies(count: number, opts?: { hp?: number; speed?: number; interval?: number; x?: number; z?: number }): void;
   killZombies(): void;
@@ -113,10 +123,71 @@ export const debugState: DebugState = {
   x: 0, z: 0, yaw: 0, pitch: 0, zone: null, stamina: 0, sprinting: false, freeCam: false,
   drawCalls: 0, triangles: 0, worldTriangles: 0, movers: 0, resolution: [0, 0], openDoors: [], power: false, mapErrors: [],
   remotes: [], corrections: 0,
-  weapon: null, weapons: [], slot: 0, mag: 0, reserve: 0, grenades: 0, reloading: false, aim: 0, shots: 0,
+  weapon: null, weapons: [], upgraded: [], perks: [], maxHp: 100, forge: 'idle', slot: 0, mag: 0, reserve: 0, grenades: 0, reloading: false, aim: 0, shots: 0,
   entities: [], hp: 100, hurts: 0, round: 0, roundPhase: 'intermission', zombiesLeft: 0, points: 0, life: 'alive', roster: [], over: false, barricades: [], prompt: '', hits: [], kills: 0, explosions: 0, fx: { particles: 0, tracers: 0, projectiles: 0 },
 };
 
-export function installDebug(api: Omit<ZhDebug, 'state'>): void {
+export interface DebugWiring {
+  player: LocalPlayer;
+  input: Input;
+  socket: { send(msg: ClientMsg): void; drop(): void };
+  playing(): boolean;
+  renderer: RetroRenderer;
+  resize(): void;
+}
+
+/** Install window.__zh. Anything that changes the game is a debug message to the server. */
+export function wireDebug({ player, input, socket: s, playing, renderer, resize }: DebugWiring): void {
+  const api: Omit<ZhDebug, 'state'> = {
+  teleport: (x, z, yaw) => {
+    player.teleport(x, z, yaw);
+    if (playing()) s.send({ t: 'debug', cmd: 'teleport', x, z });
+  },
+  gotoZone: (zoneId, yaw = 0) => {
+    const room = harrowRidge.rooms.filter((r) => r.zone === zoneId).sort((a, b) => b.w * b.d - a.w * a.d)[0];
+    if (room) api.teleport(room.x + room.w / 2, room.z + room.d / 2, yaw);
+  },
+  look: (yaw, pitch = 0) => {
+    player.yaw = yaw;
+    player.pitch = pitch;
+  },
+  lookAt: (x, y, z) => {
+    const dx = x - player.x;
+    const dz = z - player.z;
+    player.yaw = Math.atan2(-dx, -dz);
+    player.pitch = Math.atan2(y - PLAYER_EYE_HEIGHT, Math.hypot(dx, dz));
+  },
+  give: (what, upgraded = false) =>
+    s.send(typeof what === 'number' ? { t: 'debug', cmd: 'give', points: what }
+      : perkDef(what) ? { t: 'debug', cmd: 'give', perk: what } : { t: 'debug', cmd: 'give', weapon: what, upgraded }),
+  spawnZombies: (count, opts = {}) => s.send({ t: 'debug', cmd: 'spawnZombies', count, ...opts }),
+  killZombies: () => s.send({ t: 'debug', cmd: 'killZombies' }),
+  setRound: (n) => s.send({ t: 'debug', cmd: 'setRound', round: n }),
+  rounds: (on) => s.send({ t: 'debug', cmd: 'rounds', on }),
+  god: (on) => s.send({ t: 'debug', cmd: 'god', on }),
+  dummy: (x, z) => {
+    const [dx, , dz] = aimDir(player.yaw, 0);
+    const px = x ?? player.x + dx * 3;
+    const pz = z ?? player.z + dz * 3;
+    s.send({ t: 'debug', cmd: 'dummy', x: px, z: pz, yaw: Math.atan2(-(player.x - px), -(player.z - pz)) });
+  },
+  press: (code) => {
+    input.setKey(code, true);
+    requestAnimationFrame(() => requestAnimationFrame(() => input.setKey(code, false)));
+  },
+  freeCam: (on) => player.setFreeCam(on ?? !player.freeCam),
+  openAllDoors: () => s.send({ t: 'debug', cmd: 'openAllDoors' }),
+  openDoor: (id) => s.send({ t: 'debug', cmd: 'openDoor', id }),
+  powerOn: () => s.send({ t: 'debug', cmd: 'powerOn' }),
+  key: (code, down) => input.setKey(code, down),
+  renderScale: (scale) => {
+    renderer.scale = scale;
+    resize();
+  },
+  dither: (on) => {
+    renderer.dither = on;
+  },
+  dropConnection: () => s.drop(),
+};
   window.__zh = { state: () => ({ ...debugState }), ...api };
 }

@@ -1,6 +1,6 @@
 // Every tunable number in the game lives here or in shared/src/data. See docs/PLAN.md section 4.
 
-export const PROTOCOL_VERSION = 5;
+export const PROTOCOL_VERSION = 6;
 
 // --- Networking ---
 export const TICK_RATE = 30; // server sim Hz
@@ -37,6 +37,7 @@ export const PLAYER_REGEN_DELAY = 4;
 export const PLAYER_REGEN_RATE = 60; // hp per second once regen starts
 export const BLEEDOUT_SECONDS = 45;
 export const REVIVE_SECONDS = 3;
+export const REVIVE_GRACE_SECONDS = 2; // nothing hurts a player just back on their feet
 export const REVIVE_RANGE_SLACK = 0.6; // server tolerance on INTERACT_RANGE for a revive
 export const MAX_PERKS = 4;
 export const SOLO_SELF_REVIVES = 3;
@@ -127,6 +128,8 @@ export const ROUND_GRENADE_REFILL = 1;
 export const CACHE_COST = 950;
 export const CACHE_CLEARANCE_COST = 10;
 export const FORGE_COST = 5000;
+export const FORGE_SECONDS = 3; // the Forge at work
+export const FORGE_COLLECT_SECONDS = 15; // then the weapon waits this long for its owner
 export const UPGRADED_AMMO_COST = 4500;
 export const POWERUP_DROP_CHANCE = 0.02;
 export const POWERUP_MAX_PER_ROUND = 4;

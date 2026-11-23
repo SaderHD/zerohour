@@ -48,7 +48,7 @@ export interface FireHit {
 }
 
 export type DebugCmd =
-  | { cmd: 'give'; weapon?: WeaponId; perk?: PerkId; points?: number }
+  | { cmd: 'give'; weapon?: WeaponId; upgraded?: boolean; perk?: PerkId; points?: number }
   | { cmd: 'setRound'; round: number }
   /** Stop (clearing every zombie) or resume the round loop. */
   | { cmd: 'rounds'; on: boolean }
@@ -158,6 +158,7 @@ export interface CacheState {
 }
 
 export interface ForgeState {
+  /** idle -> working (the weapon is inside) -> offering (it waits for `by` until `until`, game time) -> idle. */
   phase: 'idle' | 'working' | 'offering';
   by?: PlayerId;
   weapon?: WeaponId;
@@ -220,7 +221,7 @@ export type GameEvent =
   | { e: 'playerHurt'; id: PlayerId; hp: number; fromX: number; fromZ: number }
   | { e: 'playerDowned'; id: PlayerId }
   | { e: 'playerRevived'; id: PlayerId; by?: PlayerId }
-  /** Someone started (`by`) or stopped (`by` 0) reviving downed player `id`. */
+  /** Someone started (`by`) or stopped (`by` 0) reviving downed player `id`; `by` = `id` is a solo Second Wind. */
   | { e: 'reviving'; id: PlayerId; by: PlayerId }
   | { e: 'playerDied'; id: PlayerId }
   | { e: 'playerSpawned'; id: PlayerId; x: number; z: number }
@@ -232,7 +233,7 @@ export type GameEvent =
   | { e: 'barricade'; id: InteractableId; planks: number; by?: PlayerId }
   | { e: 'powerOn'; by: PlayerId }
   | { e: 'purchase'; id: PlayerId; what: 'weapon' | 'ammo' | 'perk' | 'door' | 'cache' | 'forge'; ref: string }
-  | { e: 'denied'; reason: 'points' | 'power' | 'limit' | 'busy' | 'range' | 'invalid' }
+  | { e: 'denied'; reason: 'points' | 'power' | 'limit' | 'busy' | 'range' | 'invalid' | 'owned' | 'full' | 'upgraded' }
   | { e: 'cache'; state: CacheState }
   | { e: 'forge'; state: ForgeState }
   | { e: 'powerupDrop'; drop: PowerupDrop }

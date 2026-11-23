@@ -6,6 +6,7 @@ import { giveWeapon } from './combat';
 import { powerOn } from './doors';
 import { award } from './economy';
 import { killZombie, spawnDummy } from './entities';
+import { givePerk } from './perks';
 import type { Game, PlayerState } from './Game';
 import { setPaused, setRound } from './rounds';
 import { zombieCount } from './spawner';
@@ -34,7 +35,8 @@ export function onDebug(g: Game, p: PlayerState, m: Debug): void {
       g.spawnQueue.length = 0;
       return;
     case 'give':
-      if (typeof m.weapon === 'string') giveWeapon(g, p, m.weapon);
+      if (typeof m.weapon === 'string') giveWeapon(g, p, m.weapon, m.upgraded === true);
+      if (typeof m.perk === 'string') givePerk(g, p, m.perk);
       if (isFiniteNum(m.points)) award(g, p, m.points, 'debug');
       return;
     case 'dummy':

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { SWAP_SECONDS, clamp, lerp, type WeaponId } from '@zh/shared';
-import { damp, modelMaterial, part, shadedBox } from '../models/rig';
+import { damp, modelMaterial, part, shadedBox, shadedCyl } from '../models/rig';
 import { buildWeapon, type WeaponModel } from '../models/weapons';
 import { C } from '../models/weapons/kit';
 
@@ -9,6 +9,7 @@ const PUMP_SECONDS = 0.5;
 const MELEE_SECONDS = 0.32;
 const THROW_SECONDS = 0.45;
 const FLASH_SECONDS = 0.05;
+const DRINK_SECONDS = 1.3;
 
 export interface ViewmodelInput {
   /** 0 = hip, 1 = aiming down sights. */
@@ -38,6 +39,10 @@ export class Viewmodel {
   private readonly flash = new THREE.Group();
   private readonly knife: THREE.Group;
   private readonly knifeMat = modelMaterial();
+  /** A tonic canister, raised and tipped back when one is bought. */
+  private readonly canister: THREE.Group;
+  private readonly canisterGlow = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  private drinkT = 1;
   private model: WeaponModel | null = null;
   private kick = 0;
   private slideKick = 0;
@@ -76,6 +81,27 @@ export class Viewmodel {
     ));
     this.knife.visible = false;
     this.scene.add(this.knife);
+
+    this.canister = new THREE.Group();
+    this.canister.add(
+      part(
+        this.knifeMat,
+        shadedCyl(0.034, 0.018, 8, C.steel, 0, 0.058, 0, 'y'),
+        shadedCyl(0.014, 0.03, 6, C.brass, 0, 0.08, 0, 'y'),
+        shadedCyl(0.034, 0.014, 8, C.steel, 0, -0.056, 0, 'y'),
+        shadedBox(0.06, 0.085, 0.07, C.glove, 0.012, -0.02, 0.02),
+        shadedBox(0.07, 0.07, 0.4, C.sleeve, 0.05, -0.2, 0.12, [1.0, 0, 0.2]),
+      ),
+      new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.1, 8), this.canisterGlow),
+    );
+    this.canister.visible = false;
+    this.scene.add(this.canister);
+  }
+
+  /** Knock back a tonic of this colour: the gun dips while the canister comes up. */
+  drink(colour: number): void {
+    this.canisterGlow.color.setHex(colour);
+    this.drinkT = 0;
   }
 
   setAspect(aspect: number): void {
@@ -83,10 +109,15 @@ export class Viewmodel {
     this.camera.updateProjectionMatrix();
   }
 
-  setWeapon(id: WeaponId): void {
-    let m = this.models.get(id);
-    if (!m) this.models.set(id, (m = buildWeapon(id, true)));
+  /** Show a weapon (`upgraded`: in its Forge finish), or empty hands. */
+  setWeapon(id: WeaponId | null, upgraded = false): void {
     if (this.model) this.holder.remove(this.model.group);
+    this.model = null;
+    this.flash.visible = false;
+    if (!id) return;
+    const key = upgraded ? `${id}+` : id;
+    let m = this.models.get(key);
+    if (!m) this.models.set(key, (m = buildWeapon(id, true, upgraded)));
     this.model = m;
     this.holder.add(m.group);
     this.flash.position.copy(m.muzzle.position);
@@ -133,6 +164,25 @@ export class Viewmodel {
 
   update(dt: number, i: ViewmodelInput): void {
     const m = this.model;
+    this.drinkT = Math.min(1, this.drinkT + dt / DRINK_SECONDS);
+    this.canister.visible = this.drinkT < 1;
+    const [lr, lg, lb] = i.light;
+    this.knifeMat.color.setRGB(Math.min(lr, 1.6), Math.min(lg, 1.6), Math.min(lb, 1.6));
+    if (this.canister.visible) {
+      // Up from the left, tipped back at the mouth, away again.
+      const up = ramp(this.drinkT, 0, 0.25) * (1 - ramp(this.drinkT, 0.8, 1));
+      const tip = ramp(this.drinkT, 0.2, 0.4) * (1 - ramp(this.drinkT, 0.7, 0.85));
+      this.canister.position.set(lerp(-0.2, -0.05, up), lerp(-0.42, -0.1, up) + tip * 0.03, -0.3 + tip * 0.06);
+      this.canister.rotation.set(tip * 1.25, 0, -0.25 * (1 - tip));
+    }
+    this.melee = Math.min(1, this.melee + dt / MELEE_SECONDS);
+    // Knife swipe across the view.
+    this.knife.visible = this.melee < 1;
+    if (this.knife.visible) {
+      const t = ease(this.melee);
+      this.knife.position.set(lerp(0.3, -0.24, t), -0.1 + Math.sin(t * Math.PI) * 0.05, -0.34 - Math.sin(t * Math.PI) * 0.1);
+      this.knife.rotation.set(0.15, lerp(-0.5, 1.2, t), lerp(-1.2, -0.3, t));
+    }
     if (!m) return;
     this.time += dt;
     const aim = i.aim;
@@ -143,7 +193,6 @@ export class Viewmodel {
     this.slideKick *= 1 - damp(26, dt);
     this.raise = Math.min(1, this.raise + dt / SWAP_SECONDS);
     this.pump = Math.min(1, this.pump + dt / PUMP_SECONDS);
-    this.melee = Math.min(1, this.melee + dt / MELEE_SECONDS);
     this.toss = Math.min(1, this.toss + dt / THROW_SECONDS);
     this.reloadT = Math.max(0, this.reloadT - dt);
     this.sprint += ((i.sprinting ? 1 : 0) - this.sprint) * damp(10, dt);
@@ -183,7 +232,7 @@ export class Viewmodel {
     // Swap raise, knife and grenade: the gun drops out of the way.
     const meleeDip = Math.sin(this.melee * Math.PI);
     const tossDip = Math.sin(this.toss * Math.PI);
-    const down = (1 - ease(this.raise)) + meleeDip * 0.8 + tossDip * 0.7;
+    const down = (1 - ease(this.raise)) + meleeDip * 0.8 + tossDip * 0.7 + Math.sin(this.drinkT * Math.PI) * 0.9;
     pos.y -= down * 0.26;
     rot.x -= down * 0.7;
 
@@ -207,19 +256,10 @@ export class Viewmodel {
     }
     if (m.slide) m.slide.position.z = m.slideTravel * (m.action === 'blowback' ? Math.max(this.slideKick, rack) : rack);
 
-    // Knife swipe across the view.
-    this.knife.visible = this.melee < 1;
-    if (this.knife.visible) {
-      const t = ease(this.melee);
-      this.knife.position.set(lerp(0.3, -0.24, t), -0.1 + Math.sin(t * Math.PI) * 0.05, -0.34 - Math.sin(t * Math.PI) * 0.1);
-      this.knife.rotation.set(0.15, lerp(-0.5, 1.2, t), lerp(-1.2, -0.3, t));
-    }
-
     this.flashT -= dt;
     this.flash.visible = this.flashT > 0;
     const glow = this.flashT > 0 ? 1.8 : 1;
     const [r, g, b] = i.light;
     m.material.color.setRGB(Math.min(r, 1.6) * glow, Math.min(g, 1.6) * glow, Math.min(b, 1.6) * glow);
-    this.knifeMat.color.setRGB(Math.min(r, 1.6), Math.min(g, 1.6), Math.min(b, 1.6));
   }
 }

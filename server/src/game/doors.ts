@@ -22,7 +22,7 @@ export function buyDoor(g: Game, p: PlayerState, id: string): boolean {
   return true;
 }
 
-/** Throw the master switch (the switch itself arrives with the economy; for now the debug hook calls this). */
+/** Throw the master switch: permanent, and the power-locked doors open by themselves. */
 export function powerOn(g: Game, by: number): void {
   if (g.power) return;
   g.power = true;
