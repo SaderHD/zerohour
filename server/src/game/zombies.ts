@@ -1,7 +1,7 @@
 import {
   CRAWLER_DAMAGE, CRAWLER_SPEED, PLANK_TEAR_SECONDS, UNREACHABLE, ZOMBIE_ATTACK_COOLDOWN, ZOMBIE_ATTACK_HIT_RANGE,
   ZOMBIE_ATTACK_RANGE, ZOMBIE_ATTACK_WINDUP, ZOMBIE_DAMAGE, ZOMBIE_DIRECT_CHASE_RANGE, ZOMBIE_QUEUE_GAP, ZOMBIE_RADIUS,
-  ZOMBIE_RETARGET_SECONDS, ZOMBIE_SEPARATION, ZOMBIE_TURN_RATE, ZOMBIE_VAULT_SECONDS, ZombieState, lineOfSight, moveCircle,
+  ZOMBIE_RETARGET_SECONDS, ZOMBIE_SEPARATION, ZOMBIE_TURN_RATE, ZOMBIE_VAULT_SECONDS, ZombieState, lineOfSight, lineWalkable, moveCircle,
   wrapAngle, type WindowInfo,
 } from '@zh/shared';
 import { setPlanks } from './barricades';
@@ -166,7 +166,8 @@ function chase(g: Game, z: Zombie, ai: ZombieAI, list: Zombie[], dt: number): vo
   const tx = t.x - z.x;
   const tz = t.z - z.z;
   const d = Math.hypot(tx, tz);
-  const sees = d < ZOMBIE_DIRECT_CHASE_RANGE && lineOfSight(g.map, z.x, z.z, t.x, t.z, g.openDoors);
+  // "Sees" means a clear run: a table between them is as good as a wall.
+  const sees = d < ZOMBIE_DIRECT_CHASE_RANGE && lineWalkable(g.map, z.x, z.z, t.x, t.z, g.openDoors);
   if (d <= ZOMBIE_ATTACK_RANGE && sees) {
     z.state = ai.crawler ? ZombieState.CrawlAttack : ZombieState.Attack;
     ai.swingAt = g.time + ZOMBIE_ATTACK_WINDUP;

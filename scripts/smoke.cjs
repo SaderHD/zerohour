@@ -56,8 +56,27 @@ async function waitForServer() {
     await page.waitForTimeout(1200);
     const blocked = await page.evaluate(() => window.__zh.state());
     if (blocked.zone !== 'mess' || blocked.z > 31.7) throw new Error(`closed door did not block: z=${blocked.z}`);
-    await page.evaluate(() => window.__zh.openDoor('d_mess_yard'));
-    await page.waitForTimeout(1500);
+    // Buy it: the prompt names the price, F pays it, the shutter rises and we carry on through.
+    if (!/open door \[750\]/.test(blocked.prompt)) throw new Error(`expected a door prompt, got "${blocked.prompt}"`);
+    await page.evaluate(() => window.__zh.press('KeyF'));
+    await page.waitForTimeout(300);
+    const broke = await page.evaluate(() => window.__zh.state());
+    if (broke.openDoors.length || broke.prompt !== 'Not enough points') throw new Error(`bought a door with ${broke.points} points (prompt "${broke.prompt}")`);
+    await page.evaluate(() => { window.__zh.give(1000); });
+    await page.waitForTimeout(200);
+    await page.evaluate(() => window.__zh.press('KeyF'));
+    await page.waitForFunction(() => window.__zh.state().points === 750, null, { timeout: 3000 });
+    await page.waitForTimeout(150);
+    await page.screenshot({ path: path.join(root, 'test-results/smoke-door.png') }); // the shutter on its way up
+    if ((await page.evaluate(() => window.__zh.state())).prompt) throw new Error('a door that is opening should have no prompt');
+    await page.waitForTimeout(1400);
+    const paid = await page.evaluate(() => window.__zh.state());
+    if (paid.points !== 750 || !paid.openDoors.includes('d_mess_yard')) throw new Error(`door purchase failed: ${paid.points} points, open ${paid.openDoors}`);
+    // The power: lights come up and the vault opens.
+    await page.evaluate(() => window.__zh.powerOn());
+    await page.waitForTimeout(1200);
+    const powered = await page.evaluate(() => window.__zh.state());
+    if (!powered.power || !powered.openDoors.includes('d_vault')) throw new Error('power did not come on');
     const through = await page.evaluate(() => { window.__zh.key('KeyW', false); window.__zh.key('ShiftLeft', false); return window.__zh.state(); });
     if (through.zone !== 'yard') throw new Error(`expected to walk into the yard, in ${through.zone} at z=${through.z}`);
     if (through.stamina >= 4) throw new Error('sprinting did not drain stamina');

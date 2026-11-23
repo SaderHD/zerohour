@@ -7,11 +7,13 @@ export function makeGame(seed = 7, opts: { rounds?: boolean } = {}) {
   const events: GameEvent[] = [];
   const snaps: Snapshot[] = [];
   const corrections: { id: number; x: number; z: number }[] = [];
+  const denied: { id: number; reason: string }[] = [];
   const game = new Game(
     {
       send: (id: number, m: ServerMsg) => {
         if (m.t === 'snap') snaps.push(m);
         else if (m.t === 'correct') corrections.push({ id, x: m.x, z: m.z });
+        else if (m.t === 'ev') for (const ev of m.events) if (ev.e === 'denied') denied.push({ id, reason: ev.reason });
       },
       broadcast: (m: ServerMsg) => void (m.t === 'ev' && events.push(...m.events)),
     },
@@ -19,7 +21,7 @@ export function makeGame(seed = 7, opts: { rounds?: boolean } = {}) {
   );
   let moveSeq = 0;
   return {
-    game, events, snaps, corrections,
+    game, events, snaps, corrections, denied,
     /** Advance the wall clock and the sim together. */
     wait(sec: number, each?: () => void): void {
       for (let t = 0; t < sec - 1e-9; t += TICK_DT) {

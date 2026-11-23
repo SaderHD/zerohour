@@ -8,6 +8,7 @@ import {
 import { newWeapon, onFire, onMelee, onReload, onSwap, onThrow, settleReload } from './combat';
 import { barricadeStates, createBarricades, onInteract, updateBarricades } from './barricades';
 import { onDebug } from './debug';
+import { buyDoor } from './doors';
 import { updateEntities, zombieSnap, type Zombie } from './entities';
 import { Nav } from './nav';
 import { everyoneDown, onRevive, sitOut, standing, updatePlayers } from './players';
@@ -84,6 +85,8 @@ export class Game {
   readonly map = gameMap();
   readonly players = new Map<PlayerId, PlayerState>();
   readonly openDoors = new Set<string>();
+  /** The master switch has been thrown (permanent). */
+  power = false;
   time = 0;
   tick = 0;
   private events: GameEvent[] = [];
@@ -203,7 +206,7 @@ export class Game {
       roundPhase: this.rounds.phase,
       zombiesLeft: this.rounds.left,
       over: this.over,
-      power: false,
+      power: this.power,
       openDoors: [...this.openDoors],
       barricades: barricadeStates(this),
       players: [...this.players.values()].map((q) => q.pub),
@@ -235,6 +238,7 @@ export class Game {
       case 'throw':
         return onThrow(this, p, msg);
       case 'interact':
+        if (msg.hold === true && typeof msg.id === 'string' && buyDoor(this, p, msg.id)) return;
         return onInteract(this, p, msg);
       case 'revive':
         return onRevive(this, p, msg);
@@ -292,6 +296,11 @@ export class Game {
 
   emit(ev: GameEvent): void {
     this.events.push(ev);
+  }
+
+  /** An event only one player needs to hear (a refused purchase). */
+  emitTo(id: PlayerId, ev: GameEvent): void {
+    this.out.send(id, { t: 'ev', tick: this.tick, events: [ev] });
   }
 
   step(dt: number): void {

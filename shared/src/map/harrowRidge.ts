@@ -1,4 +1,6 @@
-import type { LightDef, MapDef, Opening } from './types';
+import { LIGHT, glow, lamp } from './dressing/helpers';
+import { westLights, westProps } from './dressing/west';
+import type { MapDef, Opening } from './types';
 
 // Harrow Ridge Station — a snowed-in 1970s mountain signals outpost. See docs/PLAN.md 4.11.
 // Layout (north is up). Run `npm run map` after any edit and read docs/MAP.txt.
@@ -10,19 +12,6 @@ import type { LightDef, MapDef, Opening } from './types';
 //               Courtyard ──────── Motor Pool
 //                   │
 //              Comms Bunker ── Vault
-
-const WARM = 0xffc880;
-const DIM_WARM = 0xffb060;
-const LAB = 0xc0ffe8;
-const ICE = 0x90c8ff;
-const RED = 0xff4030;
-const AMBER = 0xffa040;
-const SODIUM = 0xffd070;
-const FLOOD = 0xa8c8ff;
-const CRT = 0x70ff90;
-const ARC = 0xb060ff;
-
-const light = (x: number, z: number, y: number, color: number, radius: number, intensity = 1): LightDef => ({ x, y, z, color, radius, intensity });
 
 const door = (id: string, a: string, b: string, cost: number, x: number, z: number, w: number, d: number): Opening => ({
   id, kind: 'door', zones: [a, b], cost, x, z, w, d,
@@ -67,7 +56,7 @@ export const harrowRidge: MapDef = {
     door('d_mess_bunk', 'mess', 'bunk', 750, 22, 26, 0.5, 2),
     door('d_mess_yard', 'mess', 'yard', 750, 28, 32, 2, 0.5),
     { id: 'a_bunk_wash', kind: 'arch', zones: ['bunk', 'bunk'], x: 10, z: 22.5, w: 2, d: 0.5 },
-    door('d_bunk_lab', 'bunk', 'lab', 1000, 10, 18, 2, 0.5),
+    { ...door('d_bunk_lab', 'bunk', 'lab', 1000, 10, 18, 2, 0.5), style: 'debris' },
     door('d_lab_cold', 'lab', 'cold', 1250, 22, 10, 0.5, 2),
     door('d_cold_gen', 'cold', 'gen', 1000, 51, 23, 2, 0.5),
     door('d_gen_motor', 'gen', 'motor', 1250, 54, 35.5, 2, 0.5),
@@ -94,7 +83,7 @@ export const harrowRidge: MapDef = {
     win('w_comms_w', 'comms', 'w', 23.5, 57),
     win('w_comms_s', 'comms', 's', 29, 63),
   ],
-  props: [],
+  props: [...westProps],
   interactables: [],
   playerSpawns: [
     { x: 28, z: 26, yaw: 0 },
@@ -103,14 +92,15 @@ export const harrowRidge: MapDef = {
     { x: 31, z: 28.5, yaw: 0 },
   ],
   lights: [
-    light(26, 25, 3, WARM, 9), light(33, 29, 3, WARM, 9),
-    light(10, 27, 2.6, DIM_WARM, 7), light(18, 27, 2.6, DIM_WARM, 7), light(11, 20.5, 2.4, LAB, 5, 0.8),
-    light(10, 10, 3.2, LAB, 9), light(18, 14, 3.2, LAB, 9),
-    light(27, 11.5, 2.8, ICE, 8), light(37, 11.5, 2.8, ICE, 8), light(47, 13, 2.4, RED, 6, 0.9), light(52, 19, 2.4, RED, 6, 0.9),
-    light(52, 29, 4.6, AMBER, 10), light(58, 31, 4.6, AMBER, 10),
-    light(51, 40, 4.2, SODIUM, 10), light(58, 44, 4.2, SODIUM, 10),
-    light(24, 36, 5, FLOOD, 13, 0.9), light(42, 50, 5, FLOOD, 13, 0.9), light(33, 43, 5, FLOOD, 12, 0.7),
-    light(27, 57, 2.6, CRT, 7), light(33, 60, 2.6, CRT, 7),
-    light(39.5, 58, 2.4, ARC, 6),
+    ...westLights,
+    // The rest of the station is dressed in sessions 8 and 9; until then, bare bulbs.
+    lamp(27, 11.5, 2.8, LIGHT.ice, 8), lamp(37, 11.5, 2.8, LIGHT.ice, 8),
+    glow(47, 13, 2.4, LIGHT.red, 6, { fixture: 'cage', intensity: 0.9 }), glow(52, 19, 2.4, LIGHT.red, 6, { fixture: 'cage', intensity: 0.9 }),
+    lamp(52, 29, 4.6, LIGHT.amber, 10), lamp(58, 31, 4.6, LIGHT.amber, 10),
+    lamp(51, 40, 4.2, LIGHT.sodium, 10), lamp(58, 44, 4.2, LIGHT.sodium, 10),
+    lamp(24, 36, 5, LIGHT.flood, 13, { fixture: 'flood', intensity: 0.9 }), lamp(42, 50, 5, LIGHT.flood, 13, { fixture: 'flood', intensity: 0.9 }),
+    lamp(33, 43, 5, LIGHT.flood, 12, { fixture: 'flood', intensity: 0.7 }),
+    lamp(27, 57, 2.6, LIGHT.crt, 7), lamp(33, 60, 2.6, LIGHT.crt, 7),
+    lamp(39.5, 58, 2.4, LIGHT.arc, 6),
   ],
 };

@@ -39,7 +39,8 @@ when its acceptance checks pass.
   (shared room across tabs), `?name=X`, `?debug=1`.
 - `npm run map` — validate the map and rewrite the ASCII dump `docs/MAP.txt`.
 - `npm run tour [view...]` — after a build: screenshots of every zone to `test-results/tour-*.png`
-  (views are listed in `scripts/tour.cjs`; add one when you add something worth looking at).
+  (views are listed in `scripts/tour.cjs`; add one when you add something worth looking at;
+  views named `*-on` are taken with the power on).
 - `npm run smoke` — after a build: boots the server, drives headless Chromium, checks handshake
   and rendering, writes `test-results/smoke.png`. Uses the globally installed `playwright`; do not
   add it as a dependency in the cloud environment.
@@ -49,8 +50,14 @@ when its acceptance checks pass.
   (`vite.config.ts`) cannot import it.
 - Coordinates: metres, x east, z south, y up, 0.5 m cells. Yaw 0 looks north (−z), positive turns
   left.
-- World lighting is baked into vertex colours in `client/src/render/worldBuilder.ts`; the scene's
-  white ambient light only passes it through. Use its `box()` helper for static geometry.
+- World lighting is baked into vertex colours by `client/src/render/bake.ts` (`Baker`); the scene's
+  white ambient light only passes it through. Lights that change (mains lights before/after the
+  power, flames, failing tubes) are extra baked attributes scaled by uniforms in `materials.ts`.
+- Props: add the footprint to `shared/src/data/props.ts`, a builder to `client/src/models/props`
+  (drawn with `Kit` boxes/prisms, front towards -z, registered in its `index.ts`) and place it in
+  `shared/src/map/dressing/<wing>.ts`. Solid props are whole 0.5 m cells in the collision grid:
+  leave gaps of nothing or at least 1.5 m, then run `npm run map`. Lamps are drawn from
+  `LightDef.fixture`. Door shutters and debris live in `render/doors.ts`.
 - Server: `lobby.ts` (rooms, seats, reconnect; transport-agnostic via `Peer`) and `game/Game.ts`
   (the match; `step(dt)` is pure so tests drive it without timers). Client: `net/net.ts` is the
   connection/lobby state machine, `main.ts` wires everything.
@@ -62,7 +69,7 @@ when its acceptance checks pass.
   dummy), thrown/launched things in `game/projectiles.ts`.
 - Zombies (server): `game/zombies.ts` (brain and movement), `spawner.ts` (queue → windows of
   active zones), `barricades.ts` (planks, rebuild), `nav.ts` (a `FlowField` per player),
-  `players.ts` (damage, regen). Window geometry for both sides comes from `mapWindows()`.
+  `players.ts` (damage, regen), `doors.ts` (buying doors, power). Window geometry for both sides comes from `mapWindows()`.
   Sim tests use `game/testkit.ts`.
 - Rounds and players (server): `game/rounds.ts` fills the spawn queue each round from the tables in
   `shared/src/data/rounds.ts`; `economy.ts` is the only place points change (`award`);
@@ -79,6 +86,7 @@ when its acceptance checks pass.
   depth clear. Gun models come from `models/weapons/` (`Kit` boxes, muzzle at -z, origin at the
   grip); add new guns to the table in `models/weapons/index.ts`.
 - Try things in a debug game from the console: `__zh.give('pike')`, `__zh.dummy()`,
-  `__zh.spawnZombies(8, { interval: 0.3 })`, `__zh.god(true)`, `__zh.killZombies()`, `__zh.setRound(10)`, `__zh.rounds(false)`.
+  `__zh.spawnZombies(8, { interval: 0.3 })`, `__zh.god(true)`, `__zh.killZombies()`, `__zh.setRound(10)`, `__zh.rounds(false)`,
+  `__zh.openDoor('d_mess_bunk')`, `__zh.powerOn()`.
 - Tests and visual checks go through `window.__zh` (`client/src/debug.ts`); extend it as features
   land.

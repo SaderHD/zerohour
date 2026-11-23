@@ -1,4 +1,5 @@
 import { CELL_SIZE } from '../constants';
+import { propDef, propRect, quarterTurns } from '../data/props';
 import { FLOOR_STYLES, WALL_STYLES, type Dir, type MapDef, type Opening, type ZSpawn, type ZoneDef } from './types';
 
 export const enum Cell {
@@ -48,6 +49,10 @@ export class CompiledMap {
   readonly sky: Uint8Array;
   /** Linear-ish multiplier colour per cell (hex), from the room tint. */
   readonly tint: Uint32Array;
+  /** Solid props on floor cells: 0 none, 1 blocks movement, 2 also blocks sight. */
+  readonly block: Uint8Array;
+  /** Height of the prop standing in the cell (0 = none): shots below it are stopped. */
+  readonly propH: Float32Array;
   readonly zones: ZoneDef[];
   readonly spawns: ZSpawn[] = [];
   /** zone id -> neighbouring zones and the opening that links them. */
@@ -68,6 +73,8 @@ export class CompiledMap {
     this.wallStyle = new Uint8Array(n);
     this.sky = new Uint8Array(n);
     this.tint = new Uint32Array(n).fill(0xffffff);
+    this.block = new Uint8Array(n);
+    this.propH = new Float32Array(n);
     this.zones = def.zones;
   }
 
@@ -88,19 +95,19 @@ export class CompiledMap {
     if (!this.inBounds(cx, cz)) return false;
     const i = this.idx(cx, cz);
     const k = this.kind[i];
-    if (k === Cell.Floor) return true;
+    if (k === Cell.Floor) return this.block[i] === 0;
     if (k === Cell.Door) return this.isDoorOpen(i, open);
     return false;
   }
 
-  /** Does this cell block sight/bullets at torso height? Windows and pockets do not. */
+  /** Does this cell block sight/bullets at torso height? Windows, pockets and low props do not. */
   isOpaque(cx: number, cz: number, open?: DoorSet): boolean {
     if (!this.inBounds(cx, cz)) return true;
     const i = this.idx(cx, cz);
     const k = this.kind[i];
     if (k === Cell.Solid) return true;
     if (k === Cell.Door) return !this.isDoorOpen(i, open);
-    return false;
+    return this.block[i] === 2;
   }
 
   private isDoorOpen(i: number, open: DoorSet): boolean {
@@ -294,5 +301,30 @@ export function compileMap(def: MapDef): CompiledMap {
       }
     }
   }
+
+  // 3. Props: the solid ones take their cells out of the floor.
+  def.props.forEach((p, pi) => {
+    const pd = propDef(p.type);
+    const what = `prop ${pi} (${p.type} at ${p.x}, ${p.z})`;
+    if (!pd) return err(`${what}: unknown type`);
+    if (!pd.solid) {
+      if (m.kindAt(Math.floor(p.x / CELL_SIZE), Math.floor(p.z / CELL_SIZE)) === Cell.Solid && !pd.wall) err(`${what}: inside solid`);
+      return;
+    }
+    if (quarterTurns(p.rot) < 0) return err(`${what}: solid props turn in quarter turns only`);
+    const c = checkRect(what, propRect(pd, p));
+    if (!c) return;
+    let bad = '';
+    for (let cz = c.z0; cz < c.z1; cz++) {
+      for (let cx = c.x0; cx < c.x1; cx++) {
+        const i = m.idx(cx, cz);
+        if (m.kind[i] !== Cell.Floor || m.opening[i]! >= 0) bad = 'must stand on room floor';
+        else if (m.block[i]) bad = 'overlaps another prop';
+        m.block[i] = pd.tall ? 2 : 1;
+        m.propH[i] = pd.h;
+      }
+    }
+    if (bad) err(`${what}: ${bad}`);
+  });
   return m;
 }

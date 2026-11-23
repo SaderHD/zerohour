@@ -20,6 +20,7 @@ export const DEFAULT_PORT = 8080;
 // --- World ---
 export const CELL_SIZE = 0.5; // metres per nav/collision cell
 export const MIN_LANE_WIDTH = 1.5;
+export const POWER_OFF_LIGHT = 0.4; // share of a mains light's glow before the power is on
 
 // --- Player ---
 export const PLAYER_RADIUS = 0.35;
@@ -46,6 +47,8 @@ export const KNIFE_DAMAGE = 150;
 export const KNIFE_COOLDOWN = 0.6;
 export const KNIFE_RANGE = 1.6;
 export const INTERACT_RANGE = 1.8;
+export const INTERACT_SLACK = 0.6; // server tolerance on INTERACT_RANGE for a purchase
+export const DOOR_OPEN_SECONDS = 0.8; // the client's opening animation; it blocks the player until done
 
 // --- Combat ---
 export const LIMB_MULT = 0.75;

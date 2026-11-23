@@ -35,7 +35,7 @@ const S = { Approach: 0, Tear: 1, Vault: 2, Chase: 3, Attack: 4, Crawl: 5, Crawl
     const shot = (name) => page.screenshot({ path: path.join(root, `test-results/horde-${name}.png`) });
     const zombies = async () => (await state()).entities.filter((e) => e.kind === 'zombie');
     // Inside standing spots for the mess hall's windows, and a point outside each to look at.
-    const WINDOWS = { w_mess_n1: [28.2, 24.6, 26.75, 21.2], w_mess_n2: [31.3, 24.6, 32.75, 21.2], w_mess_e: [33.6, 28.2, 37.3, 26.75] };
+    const WINDOWS = { w_mess_n1: [28.2, 24.6, 26.75, 21.2], w_mess_n2: [31.3, 24.6, 32.75, 21.2], w_mess_e: [33.6, 27.4, 37.3, 26.75] };
     const watch = async (id) => {
       await page.evaluate(([x, z, lx, lz]) => { window.__zh.teleport(x, z, 0); window.__zh.lookAt(lx, 1.45, lz); }, WINDOWS[id]);
       await sleep(250);

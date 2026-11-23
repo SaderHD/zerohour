@@ -15,7 +15,7 @@ function wallCosts(map: CompiledMap): Uint8Array {
   let w = wallCostCache.get(map);
   if (w) return w;
   w = new Uint8Array(map.cols * map.rows);
-  const open = (cx: number, cz: number) => { const k = map.kindAt(cx, cz); return k === Cell.Floor || k === Cell.Door; };
+  const open = (cx: number, cz: number) => { const k = map.kindAt(cx, cz); return (k === Cell.Floor || k === Cell.Door) && !map.block[map.idx(cx, cz)]; };
   for (let cz = 0; cz < map.rows; cz++) {
     for (let cx = 0; cx < map.cols; cx++) {
       if (!open(cx, cz)) continue;

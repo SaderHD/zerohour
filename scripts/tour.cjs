@@ -8,13 +8,18 @@ const { chromium } = require('playwright');
 const root = path.resolve(__dirname, '..');
 const port = 19080 + Math.floor(Math.random() * 900);
 
-// [name, x, z, yaw (0 = north, + = turn left), pitch]
+// [name, x, z, yaw (0 = north, + = turn left), pitch]. Views named *-on are taken after the
+// power has been switched on (it stays on, so they come last).
 const VIEWS = [
-  ['mess', 34.5, 30.5, 0.9, -0.05],
-  ['mess-door', 29, 25, Math.PI, -0.05],
-  ['bunk', 20.5, 29.5, 1.2, -0.05],
-  ['washroom', 11, 22, 0, 0],
-  ['lab', 20, 16.5, 0.9, 0],
+  ['mess', 35, 28, 0.9, -0.05],
+  ['mess-kitchen', 30.5, 27, -2.3, -0.08],
+  ['mess-door', 29, 28.5, Math.PI, -0.05],
+  ['bunk', 20.5, 27, 1.5, -0.05],
+  ['bunk-stove', 12.2, 25.6, 2.2, -0.12],
+  ['washroom', 11, 22.2, 0, 0],
+  ['lab', 20, 16, 0.9, -0.03],
+  ['lab-tanks', 12, 11.5, -0.74, 0],
+  ['lab-computers', 17.5, 15.8, -1.21, 0],
   ['cold', 41, 13.5, 1.45, 0],
   ['tunnel', 44, 13, -1.57, 0],
   ['gen', 60, 34, 0.75, 0.12],
@@ -23,7 +28,13 @@ const VIEWS = [
   ['yard-north', 33, 50, 0, 0.15],
   ['comms', 34.5, 61.5, 0.85, 0],
   ['vault', 41.5, 60, 0.8, 0],
-  ['window', 27, 24.5, 0.05, 0],
+  ['window', 27.7, 24.2, 0.05, 0],
+  ['mess-on', 35, 28, 0.9, -0.05],
+  ['mess-kitchen-on', 30.5, 27, -2.3, -0.08],
+  ['bunk-on', 20.5, 27, 1.5, -0.05],
+  ['washroom-on', 11, 22.2, 0, 0],
+  ['lab-on', 20, 16, 0.9, -0.03],
+  ['lab-tanks-on', 12, 11.5, -0.74, 0],
 ];
 
 (async () => {
@@ -41,10 +52,15 @@ const VIEWS = [
     page.on('pageerror', (e) => console.error('[page]', String(e)));
     await page.goto(`http://localhost:${port}/?debug=1&autostart=1`);
     await page.waitForFunction(() => window.__zh?.state().phase === 'playing', null, { timeout: 15000 });
+    await page.evaluate(() => window.__zh.rounds(false));
     mkdirSync(path.join(root, 'test-results'), { recursive: true });
     const only = process.argv.slice(2);
     for (const [name, x, z, yaw, pitch] of VIEWS) {
       if (only.length && !only.includes(name)) continue;
+      if (name.endsWith('-on') && !(await page.evaluate(() => window.__zh.state().power))) {
+        await page.evaluate(() => window.__zh.powerOn());
+        await page.waitForTimeout(2200); // the lights stutter up
+      }
       await page.evaluate(([x, z, yaw, pitch]) => { window.__zh.teleport(x, z, yaw); window.__zh.look(yaw, pitch); }, [x, z, yaw, pitch]);
       await page.waitForTimeout(250); // server round-trip for the teleport, then a few frames
       await page.screenshot({ path: path.join(root, `test-results/tour-${name}.png`) });

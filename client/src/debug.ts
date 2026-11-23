@@ -25,6 +25,7 @@ export interface DebugState {
   worldTriangles: number;
   resolution: [number, number];
   openDoors: string[];
+  power: boolean;
   mapErrors: string[];
   /** Other players as currently drawn (interpolated). */
   remotes: { id: number; name: string; x: number; z: number; visible: boolean; connected: boolean; weapon: string | null; shots: number; state: number }[];
@@ -89,6 +90,8 @@ export interface ZhDebug {
   freeCam(on?: boolean): void;
   openAllDoors(): void;
   openDoor(id: string): void;
+  /** Throw the master switch (debug servers only). */
+  powerOn(): void;
   /** Hold or release a key by KeyboardEvent.code, e.g. key('KeyW', true). */
   key(code: string, down: boolean): void;
   renderScale(scale: 1 | 2): void;
@@ -106,7 +109,7 @@ declare global {
 export const debugState: DebugState = {
   phase: 'connecting', connected: false, playerId: null, room: null, isHost: false, pingMs: null, frames: 0, fps: 0,
   x: 0, z: 0, yaw: 0, pitch: 0, zone: null, stamina: 0, sprinting: false, freeCam: false,
-  drawCalls: 0, triangles: 0, worldTriangles: 0, resolution: [0, 0], openDoors: [], mapErrors: [],
+  drawCalls: 0, triangles: 0, worldTriangles: 0, resolution: [0, 0], openDoors: [], power: false, mapErrors: [],
   remotes: [], corrections: 0,
   weapon: null, weapons: [], slot: 0, mag: 0, reserve: 0, grenades: 0, reloading: false, aim: 0, shots: 0,
   entities: [], hp: 100, hurts: 0, round: 0, roundPhase: 'intermission', zombiesLeft: 0, points: 0, life: 'alive', roster: [], over: false, barricades: [], prompt: '', hits: [], kills: 0, explosions: 0, fx: { particles: 0, tracers: 0, projectiles: 0 },

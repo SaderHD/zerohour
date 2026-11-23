@@ -6,6 +6,15 @@ import type { CompiledMap, DoorSet } from '../map/compile';
  * the two points. Closed doors block unless listed in `open`.
  */
 export function lineOfSight(map: CompiledMap, x0: number, z0: number, x1: number, z1: number, open?: DoorSet): boolean {
+  return trace(map, x0, z0, x1, z1, open, false);
+}
+
+/** True if nothing stands on the straight line between the two points: no wall and no furniture. */
+export function lineWalkable(map: CompiledMap, x0: number, z0: number, x1: number, z1: number, open?: DoorSet): boolean {
+  return trace(map, x0, z0, x1, z1, open, true);
+}
+
+function trace(map: CompiledMap, x0: number, z0: number, x1: number, z1: number, open: DoorSet, walk: boolean): boolean {
   let cx = Math.floor(x0 / CELL_SIZE);
   let cz = Math.floor(z0 / CELL_SIZE);
   const ex = Math.floor(x1 / CELL_SIZE);
@@ -29,7 +38,7 @@ export function lineOfSight(map: CompiledMap, x0: number, z0: number, x1: number
       tMaxZ += tDeltaZ;
     }
     if (cx === ex && cz === ez) return true;
-    if (map.isOpaque(cx, cz, open)) return false;
+    if (walk ? !map.isWalkable(cx, cz, open) : map.isOpaque(cx, cz, open)) return false;
   }
   return false;
 }

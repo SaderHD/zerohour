@@ -1,5 +1,6 @@
 import { CELL_SIZE, MIN_LANE_WIDTH, PLAYER_RADIUS } from '../constants';
 import { circleFits } from '../nav/collide';
+import { mapWindows } from './windows';
 import { Cell, NO_ZONE, type CompiledMap, type DoorSet } from './compile';
 
 export interface ValidationResult {
@@ -60,7 +61,7 @@ export function validateMap(map: CompiledMap): ValidationResult {
   const unreachableZones = new Set<string>();
   for (let i = 0; i < all.length; i++) {
     const k = map.kind[i];
-    if ((k === Cell.Floor || k === Cell.Door) && !all[i]) unreachableZones.add(map.zones[map.zone[i]!]?.id ?? '?');
+    if ((k === Cell.Floor || k === Cell.Door) && !all[i] && !map.block[i]) unreachableZones.add(map.zones[map.zone[i]!]?.id ?? '?');
   }
   for (const z of unreachableZones) errors.push(`zone ${z} has floor that cannot be reached from the spawn with all doors open`);
   for (const z of map.zones) {
@@ -139,6 +140,11 @@ export function validateMap(map: CompiledMap): ValidationResult {
   }
   for (const [i, l] of def.lights.entries()) {
     if (map.kindAt(cell(l.x), cell(l.z)) === Cell.Solid) errors.push(`light ${i} at (${l.x}, ${l.z}) is inside solid`);
+  }
+  // Zombies climbing in must land on clear, reachable floor.
+  for (const w of mapWindows(map)) {
+    const i = map.idx(cell(w.inX), cell(w.inZ));
+    if (!all[i] || !circleFits(map, 'all', w.inX, w.inZ, PLAYER_RADIUS)) errors.push(`window ${w.id}: a prop blocks the floor inside it`);
   }
   for (const sp of map.spawns) {
     if (map.kindAt(cell(sp.x), cell(sp.z)) !== Cell.Outside) errors.push(`zombie spawn ${sp.id} is not inside its pocket`);

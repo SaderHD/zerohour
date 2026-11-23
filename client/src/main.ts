@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  BLEEDOUT_SECONDS, CLIENT_MOVE_SEND_HZ, MoveState, PLAYER_EYE_HEIGHT, PLAYER_MAX_HP, aimDir, compileMap, harrowRidge, rayWorld, validateMap, weaponDef,
+  BLEEDOUT_SECONDS, CLIENT_MOVE_SEND_HZ, DOOR_OPEN_SECONDS, MoveState, PLAYER_EYE_HEIGHT, PLAYER_MAX_HP, aimDir, compileMap, harrowRidge, rayWorld, validateMap, weaponDef,
 } from '@zh/shared';
 import { debugState, installDebug } from './debug';
 import { Barricades } from './game/barricades';
@@ -60,7 +60,6 @@ const entities = new Entities(scene, world);
 const fx = new Fx(scene);
 const vm = new Viewmodel();
 const barricades = new Barricades(scene, map, world, fx);
-const interact = new Interact(barricades, remotes, (m) => net.socket.send(m));
 const scores = new Scoreboard();
 let hp = PLAYER_MAX_HP;
 
@@ -97,15 +96,31 @@ document.getElementById('results-leave')!.onclick = () => net.leave();
 
 /** Doors the server has opened. Also used for local collision. */
 const openDoors = new Set<string>();
+/** Doors that are open or on their way: nothing left to buy. */
+const soldDoors = new Set<string>();
 function setDoors(ids: Iterable<string>): void {
   const want = new Set(ids);
-  for (const o of harrowRidge.openings) {
-    if (o.kind !== 'door') continue;
-    world.setDoorOpen(o.id, want.has(o.id));
-  }
+  world.setDoors(want);
   openDoors.clear();
-  for (const id of want) openDoors.add(id);
+  soldDoors.clear();
+  for (const id of want) {
+    openDoors.add(id);
+    soldDoors.add(id);
+  }
 }
+/** A door was just bought: play it opening; it stops blocking us once it is out of the way. */
+function openDoor(id: string): void {
+  if (soldDoors.has(id)) return;
+  soldDoors.add(id);
+  world.openDoor(id);
+  const o = map.openingById(id);
+  if (o) for (let i = 0; i < 3; i++) fx.puff(o.x + o.w * Math.random(), o.style === 'debris' ? 0.8 : 0.1, o.z + o.d * Math.random(), 0x8a8478, 6, 1.2, 0.05, 0.7);
+  setTimeout(() => {
+    if (soldDoors.has(id)) openDoors.add(id);
+  }, DOOR_OPEN_SECONDS * 800);
+}
+const interact = new Interact(barricades, remotes, map, soldDoors, (m) => net.socket.send(m));
+let power = false;
 
 const weapons = new LocalWeapons({ player, camera, map, openDoors, entities, fx, vm, send: (m) => net.socket.send(m) });
 
@@ -172,6 +187,7 @@ s.on('sync', (m) => {
   player.teleport(m.self.x, m.self.z, m.self.yaw);
   player.pitch = 0;
   setDoors(m.openDoors);
+  world.setPower((power = m.power));
   remotes.reset(m.players);
   entities.reset(m.zombies);
   barricades.reset(m.barricades);
@@ -296,7 +312,15 @@ s.on('ev', (m) => {
         remotes.remove(ev.id);
         break;
       case 'doorOpened':
-        setDoors([...openDoors, ev.id]);
+        openDoor(ev.id);
+        break;
+      case 'powerOn':
+        power = true;
+        world.setPower(true, true);
+        hud.banner('', 'The power is back on');
+        break;
+      case 'denied':
+        interact.deny(ev.reason);
         break;
       default:
         break;
@@ -361,6 +385,7 @@ installDebug({
   freeCam: (on) => player.setFreeCam(on ?? !player.freeCam),
   openAllDoors: () => s.send({ t: 'debug', cmd: 'openAllDoors' }),
   openDoor: (id) => s.send({ t: 'debug', cmd: 'openDoor', id }),
+  powerOn: () => s.send({ t: 'debug', cmd: 'powerOn' }),
   key: (code, down) => input.setKey(code, down),
   renderScale: (scale) => {
     renderer.scale = scale;
@@ -389,7 +414,7 @@ renderer.gl.setAnimationLoop((now) => {
   if (playing()) {
     const acting = live() && !player.freeCam;
     weapons.update(dt, input, acting && life !== 'dead', life === 'downed');
-    interact.update(dt, input, player.x, player.z, acting && life === 'alive');
+    interact.update(dt, input, player.x, player.z, player.yaw, acting && life === 'alive');
     player.frozen = over || life !== 'alive';
     player.lying = life === 'downed';
     player.update(dt, input, map, openDoors, player.freeCam ? [] : entities.blockers());
@@ -423,6 +448,7 @@ renderer.gl.setAnimationLoop((now) => {
   remotes.update(dt, clock.renderTime, camera, window.innerWidth, window.innerHeight);
   entities.update(dt, clock.renderTime);
   fx.update(dt);
+  world.update(dt, now / 1000);
   sky.position.set(camera.position.x, 0, camera.position.z);
   // A scoped rifle swaps the viewmodel for a scope overlay once the sights are up.
   const scoped = playing() && weapons.def?.cls === 'sniper' && weapons.aim > 0.85;
@@ -465,7 +491,7 @@ renderer.gl.setAnimationLoop((now) => {
     x: player.x, z: player.z, yaw: player.yaw, pitch: player.pitch, zone: zoneId,
     stamina: player.stamina, sprinting: player.sprinting, freeCam: player.freeCam,
     drawCalls: renderer.lastDrawCalls, triangles: renderer.lastTriangles,
-    resolution: [renderer.width, renderer.height], openDoors: [...openDoors],
+    resolution: [renderer.width, renderer.height], openDoors: [...openDoors], power,
     pingMs: net.pingMs, remotes: remotes.list(),
     weapon: cur?.id ?? null, weapons: weapons.slots.map((w) => w.id), slot: weapons.slot, mag: cur?.mag ?? 0,
     reserve: cur?.reserve ?? 0, grenades: weapons.grenades, reloading: weapons.reloading, aim: weapons.aim,

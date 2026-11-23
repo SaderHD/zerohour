@@ -109,6 +109,29 @@ const WALL_DRAW: Record<WallStyle, Draw> = {
   },
 };
 
+/**
+ * How bright the changing lights are right now: mains lights (0 until the power is on), flames
+ * and failing tubes. World.update sets them every frame; the world shader and Baker.lightAt read them.
+ */
+export const lightLevels = { power: 0, fire: 1, tube: 0 };
+const uniforms = { uPower: { value: 0 }, uFire: { value: 1 }, uTube: { value: 0 } };
+export function setLightLevels(power: number, fire: number, tube: number): void {
+  uniforms.uPower.value = lightLevels.power = power;
+  uniforms.uFire.value = lightLevels.fire = fire;
+  uniforms.uTube.value = lightLevels.tube = tube;
+}
+
+/** Make a material add the baked `lightP/A/B` attributes (see bake.ts) to its vertex colours. */
+function lit<T extends THREE.Material>(mat: T): T {
+  mat.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader =
+      'attribute vec3 lightP;\nattribute vec3 lightA;\nattribute vec3 lightB;\nuniform float uPower;\nuniform float uFire;\nuniform float uTube;\n' +
+      shader.vertexShader.replace('#include <color_vertex>', '#include <color_vertex>\n\tvColor.rgb += lightP * uPower + lightA * uFire + lightB * uTube;');
+  };
+  return mat;
+}
+
 const cache = new Map<string, THREE.MeshLambertMaterial>();
 
 /** World surface material: baked vertex colours x a procedural texture. One per style, shared. */
@@ -118,13 +141,28 @@ export function surfaceMaterial(kind: 'floor' | 'wall', style: FloorStyle | Wall
   if (!mat) {
     const draw = kind === 'floor' ? FLOOR_DRAW[style as FloorStyle] : WALL_DRAW[style as WallStyle];
     const seed = [...key].reduce((a, c) => a * 31 + c.charCodeAt(0), 7) >>> 0;
-    mat = new THREE.MeshLambertMaterial({ map: makeTexture(seed, draw), vertexColors: true });
+    mat = lit(new THREE.MeshLambertMaterial({ map: makeTexture(seed, draw), vertexColors: true }));
     cache.set(key, mat);
   }
   return mat;
 }
 
-export const emissiveMaterial = new THREE.MeshBasicMaterial({ vertexColors: true, fog: true });
+let propMat: THREE.MeshLambertMaterial | null = null;
+/** Props: baked vertex colours over a faint grain so flat faces are not dead flat. */
+export function propMaterial(): THREE.MeshLambertMaterial {
+  propMat ??= lit(new THREE.MeshLambertMaterial({
+    map: makeTexture(977, (px, r) => each((x, y) => px(x, y, 226 + r.range(-12, 12) - (r.chance(0.04) ? 34 : 0) - (y % 16 === 0 ? 14 : 0)))),
+    vertexColors: true,
+  }));
+  return propMat;
+}
+
+/** Things that glow by themselves: lamp faces, screens, embers. */
+export const glowMaterial = lit(new THREE.MeshBasicMaterial({ vertexColors: true, fog: true }));
+
+/** Lettering and drawings from the sign atlas (render/signs.ts), lit like everything else. */
+export const signMaterial = (map: THREE.Texture): THREE.MeshLambertMaterial =>
+  lit(new THREE.MeshLambertMaterial({ map, vertexColors: true, alphaTest: 0.5 }));
 
 /** sRGB hex -> linear [r, g, b]. */
 export function linear(hex: number): [number, number, number] {

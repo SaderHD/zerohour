@@ -55,14 +55,28 @@ export interface Opening {
   out?: Dir;
   /** Windows only: pocket depth in metres (default 3). */
   pocket?: number;
+  /** Doors only: a heap of wreckage to clear instead of a door to open. */
+  style?: 'debris';
 }
 
+/**
+ * A placed prop (see data/props.ts). (x, z) is the centre of its footprint; wall-hung props sit
+ * with their back on that point. `rot` is in degrees like a yaw: 0 faces north, 90 west, 180
+ * south, 270 east. Solid props only turn in quarter turns.
+ */
 export interface PropInst {
   type: string;
   x: number;
   z: number;
   rot?: number;
+  /** Picks the look (contents, colour, damage); the rest is seeded from the position. */
   variant?: number;
+  /** Height off the floor, for props that hang (signs, pipes, lamps). */
+  y?: number;
+  /** Length in metres, for runs (pipes, cables). */
+  s?: number;
+  /** Lettering, for signs. */
+  text?: string;
 }
 
 export type InteractableKind = 'wallbuy' | 'tonic' | 'cacheSite' | 'powerSwitch' | 'forge';
@@ -84,8 +98,11 @@ export interface LightDef {
   color: number;
   radius: number;
   intensity: number;
+  /** Glows weakly until the power is on. */
   needsPower?: boolean;
   flicker?: boolean;
+  /** The lamp drawn at the light: default 'shade'. 'none' when a prop is the source (a stove, a tank). */
+  fixture?: 'shade' | 'tube' | 'cage' | 'flood' | 'none';
 }
 
 export interface MapDef {

@@ -5,7 +5,8 @@ import { Cell, type CompiledMap, type DoorSet } from '../map/compile';
 const SKY_LIMIT = 14;
 
 /**
- * 3D ray against the cell grid (walls, floors, ceilings, sills and lintels). Returns the distance
+ * 3D ray against the cell grid (walls, floors, ceilings, sills, lintels and the props standing
+ * on it, as boxes the size of their cells). Returns the distance
  * to the first surface, or `max` if nothing is hit. The direction must be normalised.
  */
 export function rayWorld(
@@ -25,7 +26,7 @@ export function rayWorld(
 
   for (let guard = 0; guard < 4096; guard++) {
     const i = map.idx(cx, cz);
-    const lo = map.lo[i]!;
+    const lo = Math.max(map.lo[i]!, map.propH[i]!);
     const hi = map.sky[i] || map.kind[i] === Cell.Outside ? SKY_LIMIT : map.hi[i]!;
     const yIn = oy + dy * tEnter;
     if (yIn < lo || yIn > hi) return tEnter; // sill, lintel or a lower ceiling's face

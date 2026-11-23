@@ -3,6 +3,7 @@ import {
   type ClientMsg,
 } from '@zh/shared';
 import { giveWeapon } from './combat';
+import { powerOn } from './doors';
 import { award } from './economy';
 import { killZombie, spawnDummy } from './entities';
 import type { Game, PlayerState } from './Game';
@@ -47,6 +48,8 @@ export function onDebug(g: Game, p: PlayerState, m: Debug): void {
     case 'openDoor':
       if (g.map.openingById(m.id)?.kind === 'door') g.openDoor(m.id, p.pub.id);
       return;
+    case 'powerOn':
+      return powerOn(g, p.pub.id);
     case 'setRound':
       if (isFiniteNum(m.round)) setRound(g, m.round);
       return;

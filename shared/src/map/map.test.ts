@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { CELL_SIZE, PLAYER_RADIUS } from '../constants';
 import { Rng } from '../math/rng';
 import { circleFits, moveCircle } from '../nav/collide';
-import { lineOfSight } from '../nav/los';
+import { propDef } from '../data/props';
+import { lineOfSight, lineWalkable } from '../nav/los';
+import { rayWorld } from '../nav/ray';
 import { asciiMap } from './ascii';
 import { Cell, compileMap } from './compile';
 import { harrowRidge } from './harrowRidge';
@@ -129,5 +131,84 @@ describe('lineOfSight', () => {
     expect(lineOfSight(m, 6, 5, 12, 5)).toBe(false);
     expect(lineOfSight(m, 6, 5, 12, 5, new Set(['d']))).toBe(true);
     expect(lineOfSight(m, 6, 4.7, 3, 4.7)).toBe(true); // out through the window into the pocket
+  });
+});
+
+describe('props', () => {
+  const withProps = (...props: MapDef['props']) => compileMap(tiny({ props }));
+
+  it('solid props take their cells out of the floor; clutter does not', () => {
+    const m = withProps({ type: 'crate', x: 8, z: 6 }, { type: 'papers', x: 6.5, z: 6.5 });
+    expect(m.errors).toEqual([]);
+    expect(m.isWalkable(15, 11)).toBe(false);
+    expect(m.isWalkable(16, 12)).toBe(false);
+    expect(m.isWalkable(17, 12)).toBe(true);
+    expect(m.isWalkable(13, 13)).toBe(true);
+    expect(circleFits(m, undefined, 8, 6, PLAYER_RADIUS)).toBe(false);
+    expect(asciiMap(m)).toContain('o');
+  });
+
+  it('turn in quarter turns: a 3 x 0.5 bench turned 90 degrees is 0.5 x 3', () => {
+    const m = withProps({ type: 'bench', x: 7.75, z: 5.5, rot: 90 });
+    expect(m.errors).toEqual([]);
+    expect([8, 9, 10, 11, 12, 13].every((cz) => !m.isWalkable(15, cz))).toBe(true);
+    expect(m.isWalkable(14, 10) && m.isWalkable(16, 10)).toBe(true);
+    expect(withProps({ type: 'bench', x: 7.75, z: 5.5, rot: 45 }).errors.join('\n')).toMatch(/quarter turns/);
+  });
+
+  it('low props stop movement and low shots, but not sight; tall ones stop both', () => {
+    const low = withProps({ type: 'crate', x: 8, z: 6 });
+    expect(lineOfSight(low, 6, 6, 9.5, 6)).toBe(true);
+    expect(lineWalkable(low, 6, 6, 9.5, 6)).toBe(false);
+    expect(lineWalkable(low, 6, 4, 9.5, 4)).toBe(true);
+    expect(rayWorld(low, undefined, 6, 0.5, 6, 1, 0, 0, 50)).toBeCloseTo(1.5); // into the crate's side
+    expect(rayWorld(low, undefined, 6, 1.6, 6, 1, 0, 0, 50)).toBeCloseTo(4); // over it, to the far wall
+    const d = Math.SQRT1_2;
+    expect(rayWorld(low, undefined, 7, 2, 6, d, -d, 0, 50)).toBeCloseTo(1 / d); // down onto its top (1 m)
+    const tall = withProps({ type: 'crate_stack', x: 8, z: 6 });
+    expect(lineOfSight(tall, 6, 6, 9.5, 6)).toBe(false);
+    expect(rayWorld(tall, undefined, 6, 1.6, 6, 1, 0, 0, 50)).toBeCloseTo(1.5);
+  });
+
+  it('reports props that are misplaced', () => {
+    expect(withProps({ type: 'nope', x: 8, z: 6 }).errors.join('\n')).toMatch(/unknown type/);
+    expect(withProps({ type: 'crate', x: 8.25, z: 6 }).errors.join('\n')).toMatch(/not aligned/);
+    expect(withProps({ type: 'crate', x: 5, z: 6 }).errors.join('\n')).toMatch(/room floor/);
+    expect(withProps({ type: 'crate', x: 8, z: 6 }, { type: 'barrel', x: 8.25, z: 6.25 }).errors.join('\n')).toMatch(/overlaps another prop/);
+  });
+
+  it('the validator rejects props that pinch a lane, wall off floor, or block a window', () => {
+    // 1 m between the crate and the north wall.
+    expect(validateMap(withProps({ type: 'crate', x: 8, z: 3.5 })).errors.join('\n')).toMatch(/narrower/);
+    // A bench across the room's whole width seals the south half.
+    const sealed = validateMap(withProps({ type: 'bench', x: 6.5, z: 5.75 }, { type: 'crate', x: 8.5, z: 5.5 }, { type: 'crate', x: 9.5, z: 5.5 }));
+    expect(sealed.errors.join('\n')).toMatch(/cannot be reached|narrower/);
+    expect(validateMap(withProps({ type: 'crate', x: 5.5, z: 4.5 })).errors.join('\n')).toMatch(/blocks the floor inside/);
+    expect(validateMap(withProps({ type: 'crate', x: 9.5, z: 7.5 })).errors).toEqual([]);
+  });
+});
+
+describe('Harrow Ridge dressing', () => {
+  const map = compileMap(harrowRidge);
+  const count = (zone: string, solid: boolean) =>
+    harrowRidge.props.filter((p) => !!propDef(p.type)?.solid === solid && (map.zoneAt(p.x, p.z) ?? map.zoneAt(p.x + 0.3, p.z + 0.3) ?? map.zoneAt(p.x - 0.3, p.z - 0.3)) === zone).length;
+
+  it('the west wing is furnished', () => {
+    for (const zone of ['mess', 'bunk', 'lab']) {
+      expect(count(zone, true), zone).toBeGreaterThanOrEqual(12);
+      expect(count(zone, false), zone).toBeGreaterThanOrEqual(8);
+    }
+  });
+
+  it('every prop has a definition and every zone keeps a light that works without the mains', () => {
+    for (const p of harrowRidge.props) expect(propDef(p.type), p.type).toBeDefined();
+    for (const zone of ['mess', 'bunk', 'lab']) {
+      expect(harrowRidge.lights.some((l) => !l.needsPower && map.zoneAt(l.x, l.z) === zone), zone).toBe(true);
+      expect(harrowRidge.lights.some((l) => l.needsPower && map.zoneAt(l.x, l.z) === zone), zone).toBe(true);
+    }
+  });
+
+  it('player spawns have elbow room', () => {
+    for (const s of harrowRidge.playerSpawns) expect(circleFits(map, undefined, s.x, s.z, PLAYER_RADIUS + 0.15)).toBe(true);
   });
 });

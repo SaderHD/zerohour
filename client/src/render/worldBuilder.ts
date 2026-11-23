@@ -1,135 +1,61 @@
 import * as THREE from 'three';
-import {
-  CELL_SIZE, Cell, DOOR_HEIGHT, FLOOR_STYLES, NO_ZONE, WALL_STYLES, lineOfSight,
-  type CompiledMap, type FloorStyle, type WallStyle,
-} from '@zh/shared';
-import { PALETTE, emissiveMaterial, linear, surfaceMaterial } from './materials';
+import { CELL_SIZE, Cell, FLOOR_STYLES, WALL_STYLES, propDef, type CompiledMap, type FloorStyle, type WallStyle } from '@zh/shared';
+import { PROP_BUILDERS, Kit, fixture } from '../models/props';
+import type { PropOut } from '../models/props/kit';
+import { Baker, Bucket, type RGB, type Vert } from './bake';
+import { Doors } from './doors';
+import { glowMaterial, linear, propMaterial, setLightLevels, signMaterial, surfaceMaterial } from './materials';
+import { signTexture } from './signs';
 
-// All world lighting is baked into vertex colours here: zone ambient + light pools (with grid
-// line-of-sight so light doesn't leak through walls) + fake ambient occlusion. The scene's only
-// realtime light for the world is a white ambient that passes the baked colour through.
+// Turns the compiled map into meshes: one per surface style for the cells, three for all the
+// props (lit, glowing, lettered) and a small group per door. Lighting is baked (see bake.ts);
+// the scene's only realtime light for the world is a white ambient that passes it through.
 
 const S = CELL_SIZE;
 const TEX_METRES = 2; // one texture repeat covers 2 m
-const AMBIENT_GAIN = 2.6;
-const LIGHT_GAIN = 2.4;
-const OUTDOOR_AMBIENT = 0x1c2638;
-
-type RGB = [number, number, number];
-
-class Bucket {
-  pos: number[] = [];
-  col: number[] = [];
-  uv: number[] = [];
-
-  toGeometry(): THREE.BufferGeometry {
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(this.pos, 3));
-    g.setAttribute('color', new THREE.Float32BufferAttribute(this.col, 3));
-    g.setAttribute('uv', new THREE.Float32BufferAttribute(this.uv, 2));
-    g.computeVertexNormals();
-    return g;
-  }
-}
-
-interface Vert {
-  p: [number, number, number];
-  uv: [number, number];
-  ao: number;
-}
+/** Seconds for the lights to come up when the power is switched on. */
+const POWER_UP_SECONDS = 1.6;
 
 export interface World {
   group: THREE.Group;
-  setDoorOpen(id: string, open: boolean): void;
+  /** Set which doors are open (no animation), e.g. from a sync. */
+  setDoors(open: Iterable<string>): void;
+  /** Play a door opening. */
+  openDoor(id: string): void;
+  setPower(on: boolean, animate?: boolean): void;
+  /** Advance door animations and the flickering lights. */
+  update(dt: number, time: number): void;
   /** Baked light level at a point, for tinting dynamic models so they sit in the scene. */
   lightAt(x: number, y: number, z: number): [number, number, number];
   triangles: number;
 }
 
+const hash = (n: number): number => {
+  const s = Math.sin(n * 127.1) * 43758.5453;
+  return s - Math.floor(s);
+};
+
 export function buildWorld(map: CompiledMap): World {
   const { cols, rows } = map;
-  const lights = map.def.lights.map((l) => ({ ...l, rgb: linear(l.color) }));
-
-  // Which lights can reach each open cell.
-  const cellLights: number[][] = new Array(cols * rows);
-  for (let cz = 0; cz < rows; cz++) {
-    for (let cx = 0; cx < cols; cx++) {
-      const i = map.idx(cx, cz);
-      if (map.kind[i] === Cell.Solid) continue;
-      const x = (cx + 0.5) * S;
-      const z = (cz + 0.5) * S;
-      const list: number[] = [];
-      lights.forEach((l, li) => {
-        if (Math.hypot(l.x - x, l.z - z) < l.radius + 1 && lineOfSight(map, l.x, l.z, x, z, 'all')) list.push(li);
-      });
-      cellLights[i] = list;
-    }
-  }
-
-  const ambientOf = (i: number): RGB => {
-    const zi = map.zone[i]!;
-    const a = linear(zi === NO_ZONE ? OUTDOOR_AMBIENT : map.zones[zi]!.ambient);
-    return [a[0] * AMBIENT_GAIN, a[1] * AMBIENT_GAIN, a[2] * AMBIENT_GAIN];
-  };
-
-  /** Baked colour for a vertex at p with face normal n, belonging to cell i. */
-  const shade = (p: [number, number, number], n: [number, number, number], i: number, tint: RGB, ao: number): RGB => {
-    const amb = ambientOf(i);
-    const face = n[1] > 0.5 ? 1 : n[1] < -0.5 ? 0.7 : Math.abs(n[0]) > 0.5 ? 0.92 : 0.8;
-    let r = amb[0] * face;
-    let g = amb[1] * face;
-    let b = amb[2] * face;
-    for (const li of cellLights[i] ?? []) {
-      const l = lights[li]!;
-      const dx = l.x - p[0];
-      const dy = l.y - p[1];
-      const dz = l.z - p[2];
-      const d = Math.hypot(dx, dy, dz);
-      if (d >= l.radius) continue;
-      const att = (1 - d / l.radius) ** 2 / (1 + (d * d) / 6);
-      const ndl = d > 1e-4 ? Math.max(0, (n[0] * dx + n[1] * dy + n[2] * dz) / d) : 1;
-      const k = att * (0.3 + 0.7 * ndl) * l.intensity * LIGHT_GAIN;
-      r += l.rgb[0] * k;
-      g += l.rgb[1] * k;
-      b += l.rgb[2] * k;
-    }
-    return [r * tint[0] * ao, g * tint[1] * ao, b * tint[2] * ao];
-  };
-
+  const baker = new Baker(map);
   const buckets = new Map<string, Bucket>();
   const bucket = (key: string): Bucket => {
     let b = buckets.get(key);
     if (!b) buckets.set(key, (b = new Bucket()));
     return b;
   };
-
-  /** Emit a quad (CCW seen from the front) with baked colours. */
-  const quad = (b: Bucket, v: [Vert, Vert, Vert, Vert], n: [number, number, number], cell: number, tint: RGB) => {
-    const c = v.map((q) => shade(q.p, n, cell, tint, q.ao));
-    for (const k of [0, 1, 2, 0, 2, 3]) {
-      b.pos.push(...v[k]!.p);
-      b.col.push(...c[k]!);
-      b.uv.push(...v[k]!.uv);
-    }
-  };
-
-  /** Axis-aligned box with baked colours; used for door slabs now and props later. */
-  const box = (b: Bucket, x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, cell: number, tint: RGB) => {
-    const t = TEX_METRES;
-    const V = (x: number, y: number, z: number, u: number, w: number): Vert => ({ p: [x, y, z], uv: [u / t, w / t], ao: y <= 0.01 ? 0.7 : 1 });
-    quad(b, [V(x0, y1, z0, x0, z0), V(x0, y1, z1, x0, z1), V(x1, y1, z1, x1, z1), V(x1, y1, z0, x1, z0)], [0, 1, 0], cell, tint);
-    quad(b, [V(x0, y0, z1, x0, y0), V(x1, y0, z1, x1, y0), V(x1, y1, z1, x1, y1), V(x0, y1, z1, x0, y1)], [0, 0, 1], cell, tint);
-    quad(b, [V(x1, y0, z0, x1, y0), V(x0, y0, z0, x0, y0), V(x0, y1, z0, x0, y1), V(x1, y1, z0, x1, y1)], [0, 0, -1], cell, tint);
-    quad(b, [V(x1, y0, z1, z1, y0), V(x1, y0, z0, z0, y0), V(x1, y1, z0, z0, y1), V(x1, y1, z1, z1, y1)], [1, 0, 0], cell, tint);
-    quad(b, [V(x0, y0, z0, z0, y0), V(x0, y0, z1, z1, y0), V(x0, y1, z1, z1, y1), V(x0, y1, z0, z0, y1)], [-1, 0, 0], cell, tint);
-  };
+  const quad = (b: Bucket, v: [Vert, Vert, Vert, Vert], n: [number, number, number], cell: number, tint: RGB) => baker.quad(b, v, n, cell, tint);
 
   const open = (cx: number, cz: number): boolean => map.kindAt(cx, cz) !== Cell.Solid;
-  /** Corner AO: darker where a floor/ceiling corner touches solid. */
-  const cornerAo = (vx: number, vz: number): number => {
+  /** Corner AO: darker where a floor/ceiling corner touches solid, or (floors) furniture. */
+  const cornerAo = (vx: number, vz: number, floor = false): number => {
     let solid = 0;
-    for (const [dx, dz] of [[-1, -1], [0, -1], [-1, 0], [0, 0]] as const) if (!open(vx + dx, vz + dz)) solid++;
-    return solid === 0 ? 1 : solid === 1 ? 0.78 : 0.6;
+    let prop = 0;
+    for (const [dx, dz] of [[-1, -1], [0, -1], [-1, 0], [0, 0]] as const) {
+      if (!open(vx + dx, vz + dz)) solid++;
+      else if (floor && map.block[map.idx(vx + dx, vz + dz)]) prop++;
+    }
+    return (solid === 0 ? 1 : solid === 1 ? 0.78 : 0.6) * (prop === 0 ? 1 : prop < 4 ? 0.7 : 0.5);
   };
 
   // Neighbour directions with the shared edge listed left->right as seen from inside the cell.
@@ -160,7 +86,7 @@ export function buildWorld(map: CompiledMap): World {
 
       // Floor (a window's "floor" is the top of its sill, so it uses the wall surface)
       const floorB = kind === Cell.Window ? wallB : bucket(`floor:${floorStyle}`);
-      const F = (x: number, z: number, vx: number, vz: number): Vert => ({ p: [x, lo, z], uv: [x / t, z / t], ao: cornerAo(vx, vz) });
+      const F = (x: number, z: number, vx: number, vz: number): Vert => ({ p: [x, lo, z], uv: [x / t, z / t], ao: cornerAo(vx, vz, true) });
       quad(floorB, [F(x0, z0, cx, cz), F(x0, z1, cx, cz + 1), F(x1, z1, cx + 1, cz + 1), F(x1, z0, cx + 1, cz)], [0, 1, 0], i, tint);
 
       // Ceiling
@@ -205,84 +131,70 @@ export function buildWorld(map: CompiledMap): World {
 
   const group = new THREE.Group();
   group.name = 'world';
-  for (const [key, b] of buckets) {
-    const [kind, style] = key.split(':') as ['floor' | 'wall', FloorStyle | WallStyle];
-    const mesh = new THREE.Mesh(b.toGeometry(), surfaceMaterial(kind, style));
-    mesh.name = key;
+  const addMesh = (name: string, b: Bucket, mat: THREE.Material): void => {
+    if (!b.pos.length) return;
+    const mesh = new THREE.Mesh(b.toGeometry(), mat);
+    mesh.name = name;
     mesh.matrixAutoUpdate = false;
     group.add(mesh);
-    triangles += b.pos.length / 9;
-  }
-
-  // Lamp fixtures: small glowing boxes so each light pool has a visible source.
-  const lampPos: number[] = [];
-  const lampCol: number[] = [];
-  for (const l of lights) {
-    const geo = new THREE.BoxGeometry(0.5, 0.1, 0.5).toNonIndexed();
-    geo.translate(l.x, l.y, l.z);
-    const p = geo.getAttribute('position');
-    const glow = linear(PALETTE.lampGlow);
-    for (let v = 0; v < p.count; v++) {
-      lampPos.push(p.getX(v), p.getY(v), p.getZ(v));
-      lampCol.push(l.rgb[0] * 1.6 + glow[0] * 0.4, l.rgb[1] * 1.6 + glow[1] * 0.4, l.rgb[2] * 1.6 + glow[2] * 0.4);
-    }
-  }
-  const lampGeo = new THREE.BufferGeometry();
-  lampGeo.setAttribute('position', new THREE.Float32BufferAttribute(lampPos, 3));
-  lampGeo.setAttribute('color', new THREE.Float32BufferAttribute(lampCol, 3));
-  const lamps = new THREE.Mesh(lampGeo, emissiveMaterial);
-  lamps.name = 'lamps';
-  group.add(lamps);
-
-  // Door slabs: one mesh per door so they can be hidden when opened.
-  const doors = new Map<string, THREE.Object3D>();
-  for (const o of map.def.openings) {
-    if (o.kind !== 'door') continue;
-    const b = new Bucket();
-    const alongX = o.w > o.d;
-    const cell = map.idx(Math.floor(o.x / S), Math.floor(o.z / S));
-    const slab = linear(o.needsPower ? 0x6a5a9a : PALETTE.rust);
-    const bar = linear(PALETTE.hazard);
-    const inset = 0.15;
-    if (alongX) {
-      box(b, o.x, 0, o.z + inset, o.x + o.w, DOOR_HEIGHT, o.z + o.d - inset, cell, slab);
-      box(b, o.x, 1.0, o.z + inset - 0.04, o.x + o.w, 1.25, o.z + o.d - inset + 0.04, cell, bar);
-    } else {
-      box(b, o.x + inset, 0, o.z, o.x + o.w - inset, DOOR_HEIGHT, o.z + o.d, cell, slab);
-      box(b, o.x + inset - 0.04, 1.0, o.z, o.x + o.w - inset + 0.04, 1.25, o.z + o.d, cell, bar);
-    }
-    const mesh = new THREE.Mesh(b.toGeometry(), surfaceMaterial('wall', 'metal'));
-    mesh.name = `door:${o.id}`;
-    doors.set(o.id, mesh);
-    group.add(mesh);
-    triangles += b.pos.length / 9;
-  }
-
-  const lightAt = (x: number, y: number, z: number): RGB => {
-    const cx = Math.floor(x / S);
-    const cz = Math.floor(z / S);
-    if (map.kindAt(cx, cz) === Cell.Solid) return [0.25, 0.25, 0.3];
-    const i = map.idx(cx, cz);
-    const c = ambientOf(i);
-    for (const li of cellLights[i] ?? []) {
-      const l = lights[li]!;
-      const d = Math.hypot(l.x - x, l.y - y, l.z - z);
-      if (d >= l.radius) continue;
-      const k = ((1 - d / l.radius) ** 2 / (1 + (d * d) / 6)) * 0.8 * l.intensity * LIGHT_GAIN;
-      c[0] += l.rgb[0] * k;
-      c[1] += l.rgb[1] * k;
-      c[2] += l.rgb[2] * k;
-    }
-    return c;
+    triangles += b.triangles;
   };
+  for (const [key, b] of buckets) {
+    const [kind, style] = key.split(':') as ['floor' | 'wall', FloorStyle | WallStyle];
+    addMesh(key, b, surfaceMaterial(kind, style));
+  }
+
+  // Props and lamp fixtures, merged into three meshes for the whole map.
+  const out: PropOut = { baker, prop: new Bucket(), glow: new Bucket(), sign: new Bucket() };
+  const cellOf = (x: number, z: number): number => map.idx(Math.floor(x / S), Math.floor(z / S));
+  for (const p of map.def.props) {
+    const def = propDef(p.type);
+    const build = (PROP_BUILDERS as Record<string, (k: Kit) => void>)[p.type];
+    if (!def || !build) continue;
+    // Wall-hung props are lit as part of the cell they face into.
+    const a = ((p.rot ?? 0) * Math.PI) / 180;
+    const cell = def.wall ? cellOf(p.x - Math.sin(a) * 0.25, p.z - Math.cos(a) * 0.25) : cellOf(p.x, p.z);
+    build(Kit.at(out, p, cell, map.hi[cell] || 3));
+  }
+  for (const l of baker.lights) {
+    const cell = cellOf(l.x, l.z);
+    fixture(Kit.at(out, { type: 'light', x: l.x, z: l.z, rot: l.fixture === 'tube' ? Math.round(l.x + l.z) * 90 : 0 }, cell, map.sky[cell] ? l.y + 0.2 : map.hi[cell]!), l, l.rgb, l.mode);
+  }
+  addMesh('props', out.prop, propMaterial());
+  addMesh('glow', out.glow, glowMaterial);
+  addMesh('signs', out.sign, signMaterial(signTexture()));
+
+  const doors = new Doors(map, baker);
+  group.add(doors.group);
+  triangles += doors.triangles;
+
+  let power = false;
+  let powerT = 0;
+  setLightLevels(0, 1, 0);
 
   return {
     group,
     triangles,
-    lightAt,
-    setDoorOpen: (id, isOpen) => {
-      const d = doors.get(id);
-      if (d) d.visible = !isOpen;
+    lightAt: (x, y, z) => baker.lightAt(x, y, z),
+    setDoors: (open) => {
+      const want = new Set(open);
+      for (const o of map.def.openings) if (o.kind === 'door') doors.set(o.id, want.has(o.id));
+    },
+    openDoor: (id) => doors.set(id, true, true),
+    setPower: (on, animate = false) => {
+      power = on;
+      if (!animate || !on) powerT = on ? 1 : 0;
+    },
+    update: (dt, time) => {
+      doors.update(dt);
+      if (power && powerT < 1) powerT = Math.min(1, powerT + dt / POWER_UP_SECONDS);
+      // Coming on, the mains stutter before they hold.
+      const level = powerT >= 1 || !power ? powerT : hash(Math.floor(time * 18)) < powerT ? 0.3 + 0.7 * powerT : 0.05;
+      const fire = 0.8 + 0.1 * Math.sin(time * 9.1) + 0.07 * Math.sin(time * 23.7 + 1) + 0.05 * Math.sin(time * 3.3 + 2);
+      // A failing tube: mostly steady, with bursts of stutter.
+      const burst = Math.sin(time * 0.9) + Math.sin(time * 0.37 + 1) > 0.6;
+      const tube = level * (burst && hash(Math.floor(time * 16) + 0.5) < 0.45 ? 0.12 : 0.92 + 0.08 * Math.sin(time * 50));
+      setLightLevels(level, fire, tube);
     },
   };
 }

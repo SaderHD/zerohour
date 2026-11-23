@@ -54,7 +54,7 @@ zerohour/
     protocol.ts           all message types (client<->server)
     combat.ts             damage/falloff/fire-rate maths used by both sides
     data/                 weapons.ts perks.ts powerups.ts props.ts rounds.ts
-    map/                  types.ts  harrowRidge.ts  compile.ts  validate.ts
+    map/                  types.ts  harrowRidge.ts  dressing/*.ts (props + lights per wing)  compile.ts  validate.ts
     nav/                  grid.ts  flowfield.ts  los.ts  ray.ts (3D ray vs cell grid)  collide.ts
     math/                 vec.ts  rng.ts (seeded)
   server/src/
@@ -66,7 +66,7 @@ zerohour/
     bot.ts                headless bot client for load/soak tests
   client/src/
     main.ts  net/ (socket, interpolation)  input/
-    render/               renderer.ts (retro pipeline), worldBuilder.ts, materials.ts
+    render/               renderer.ts (retro pipeline), worldBuilder.ts, bake.ts, doors.ts, signs.ts, materials.ts
     models/               zombie.ts player.ts weapons/*.ts props/*.ts  rig.ts anim.ts
     game/                 localPlayer.ts viewmodel.ts entities.ts interact.ts fx.ts
     audio/                synth.ts sfx.ts music.ts
@@ -88,10 +88,12 @@ zerohour/
 - **Colour:** vertex colours from a fixed ~32-colour palette (`materials.ts`). No image files.
   Where surface detail is needed (floor tiles, planks, snow, signage), generate small 16–64 px
   `CanvasTexture`s procedurally with `NearestFilter`.
-- **Lighting:** hemisphere + one dim directional + distance fog do most of the work. Bake fake AO
-  and light pools into vertex colours at world-build time. At most ~6 real point lights active
-  (nearest to camera), flickering ones for mood. Emissive materials for lamps, screens, perk
-  dispensers, power-ups. Lights and emissives switch on when power is turned on.
+- **Lighting:** baked. Zone ambient, light pools (with grid line of sight) and fake AO go into
+  vertex colours at world-build time; distance fog does the rest. Lights that change are baked
+  into three extra colour attributes that the world shader scales by a uniform each: mains lights
+  (40% until the power is on), flames (always on, wavering) and failing tubes (mains, stuttering).
+  No realtime lights for the world. Emissive faces for lamps, screens, specimen tanks and embers
+  follow the same three levels.
 - **Characters:** hierarchical box rigs (`rig.ts`): pelvis, torso, head, 2-segment arms and legs.
   Animation is procedural (`anim.ts`) — sine-driven walk/run/shamble cycles keyed off movement
   speed, additive attack swing, hit flinch, vault, crawl, and a short tween-to-ground death then
@@ -326,7 +328,7 @@ interface MapDef {
   size: { w: number; d: number };
   rooms: Room[];        // {id, zone, x, z, w, d, ceil, floorStyle, wallStyle, outdoor?}  open floor rects
   openings: Opening[];  // {id, kind:'arch'|'door'|'window', x, z, w, d, cost?, needsPower?, zones:[a,b], out?, pocket?}
-  props: PropInst[];    // {type, x, z, rot, variant?}  footprint/collision come from data/props.ts
+  props: PropInst[];    // {type, x, z, rot, variant?, y?, s?, text?}  footprint/collision come from data/props.ts
   interactables: Inter[]; // wallbuy, tonic, cacheSite, powerSwitch, forge — {kind, ref, x, z, facing}
   playerSpawns: Vec2[]; lights: LightDef[];
 }
@@ -344,7 +346,15 @@ lighting baked into vertex colours (zone ambient + light pools with grid line of
 the back of the pocket, so `spawns` is generated, not authored. Pockets need solid ground behind
 the wall — the validator rejects pockets that overlap rooms or each other.
 
-`validate.ts` runs in tests and fails the build if: any zone is unreachable with all doors open;
+**Props** (`data/props.ts`: footprint, height, solid, tall) are placed per zone in
+`map/dressing/*.ts`. Solid props turn in quarter turns, sit on the 0.5 m grid and take their cells
+out of the floor (`CompiledMap.block`), so collision, flow fields and the validator need no
+separate prop pass; `tall` ones also block sight and light, and every solid prop stops shots that
+pass below its height (`propH`, used by `rayWorld`). Gaps between solid props are therefore
+nothing or at least 1.5 m. Clutter (papers, tipped chairs, pipes, signs) collides with nothing.
+A door with `style: 'debris'` is a heap to clear instead of a shutter to raise.
+
+`validate.ts` runs in tests and fails the build if: a prop blocks the floor inside a window; any zone is unreachable with all doors open;
 any window/spawn can't path to the player spawn; a prop seals a lane (<1.5 m); interactables are
 not adjacent to floor; rooms overlap. `npm run map` validates and writes an ASCII top-down dump to
 `docs/MAP.txt` — **agents must look
@@ -597,7 +607,22 @@ with no errors in client or server logs.
   (session 13); bots lie still when downed and never revive; no brief protection after a revive.
   `client/src/main.ts` is ~480 lines, over the 400 guideline — split it when session 10 adds the
   interactables.
-- [ ] 7 Map I: prop kit, doors, west wing
+- [x] 7 Map I: prop kit, doors, west wing — done. 38 prop types (kit + mess, bunkhouse/washroom,
+  lab) drawn by `client/src/models/props`, 114 placed; doors are bought with F (`d_bunk_lab` is
+  debris), zombies path through and the next zone's windows wake up (`doors.test.ts`); the tour has
+  power-off and power-on views of all three zones. Changes to the plan: flicker and power are
+  baked light channels scaled by uniforms, not realtime point lights (section 3); solid props are
+  whole cells in the collision grid (section 6.1); all props are merged map-wide into three meshes
+  (lit, glowing, lettered) rather than per zone, so the whole map still draws in 18-35 calls;
+  chairs are clutter only (tipped over) because a walkable-around 0.5 m chair cannot keep 1.5 m
+  lanes; zombies now need a clear walking line, not just sight, before they stop following the
+  flow field. Additions: `Opening.style`, `LightDef.fixture`, `lineWalkable`, `Game.power` with
+  the debug `powerOn` (opens power doors; the switch itself is session 10), `__zh.powerOn()`,
+  `emitTo` for per-player `denied` events, `DOOR_OPEN_SECONDS` (the client plays the opening and
+  only then lets the player through; the server opens at once). Deferred: the cabinet, shelf and
+  bunk models run to 130-160 triangles against the 100 guideline; yard floodlights stand on plain
+  masts and the east wing still has bare bulbs (sessions 8-9); no door or power sounds (12);
+  mounts for wall buys, tonics and the Cache (9-10).
 - [ ] 8 Map II: industrial wing
 - [ ] 9 Map III: exterior, Comms, Vault, whole-map pass
 - [ ] 10 Economy: wall buys, power, tonics, Forge
