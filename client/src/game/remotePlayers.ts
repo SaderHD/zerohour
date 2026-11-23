@@ -149,12 +149,20 @@ export class RemotePlayers {
     if (r) r.reviving = on;
   }
 
-  /** A teammate on their feet to watch while we are out of the game. */
-  spectate(): (Pose & { name: string }) | null {
-    for (const r of this.remotes.values()) {
-      if (r.pose && r.pose.state !== MoveState.Downed && r.pose.state !== MoveState.Dead) return { ...r.pose, name: r.name };
-    }
-    return null;
+  private up(): Remote[] {
+    return [...this.remotes.values()].filter((r) => r.pose && r.pose.state !== MoveState.Downed && r.pose.state !== MoveState.Dead);
+  }
+
+  /** How many teammates are on their feet. */
+  standing(): number {
+    return this.up().length;
+  }
+
+  /** A teammate on their feet to watch while we are out of the game; `index` steps through them. */
+  spectate(index = 0): (Pose & { name: string }) | null {
+    const up = this.up();
+    const r = up[((index % up.length) + up.length) % up.length];
+    return r?.pose ? { ...r.pose, name: r.name } : null;
   }
 
   /** For tests/debug. `state` is a MoveState. */

@@ -8,6 +8,8 @@ import type { GameAudio } from './audio/audio';
 import type { LocalPlayer } from './game/localPlayer';
 import type { Input } from './input/input';
 import type { RetroRenderer } from './render/renderer';
+import type { Settings } from './settings';
+import type { Screens } from './ui/screens';
 
 export interface DebugState {
   phase: string;
@@ -93,6 +95,16 @@ export interface DebugState {
   shake: number;
   damageArcs: number[];
   fx: { particles: number; tracers: number; projectiles: number; bolts: number; kinds: string[] };
+  /** Session 13: screens, chat, markers, the connection notice and the settings as applied. */
+  paused: boolean;
+  panel: string | null;
+  chatOpen: boolean;
+  chat: { who: string; text: string }[];
+  marks: { id: number; x: number; z: number }[];
+  net: string;
+  locked: boolean;
+  fov: number;
+  sensitivity: number;
 }
 
 export interface ZhDebug {
@@ -132,6 +144,12 @@ export interface ZhDebug {
   dither(on: boolean): void;
   /** Close the socket as if the network dropped; the client reconnects on its own. */
   dropConnection(): void;
+  /** Send a chat line; drop a ping marker where the view points. */
+  chat(text: string): void;
+  ping(): void;
+  /** The settings store (`settings.set({ fov: 90 })`, `settings.bind('use', 'KeyE')`) and the screens (`screens.setPaused(true)`, `screens.open('help')`). */
+  settings: Settings;
+  screens: Screens;
   /** Sound: `audio.play('shot-pike')`, `audio.names()`, `audio.render(name)` (offline), `audio.record(true|false)`, `audio.setVolume('music', 0.5)`, `audio.unlock()`. */
   audio: GameAudio;
 }
@@ -149,6 +167,7 @@ export const debugState: DebugState = {
   remotes: [], corrections: 0,
   weapon: null, weapons: [], upgraded: [], perks: [], maxHp: 100, forge: 'idle', slot: 0, mag: 0, reserve: 0, grenades: 0, reloading: false, aim: 0, shots: 0,
   entities: [], hp: 100, hurts: 0, round: 0, roundPhase: 'intermission', zombiesLeft: 0, points: 0, life: 'alive', roster: [], over: false, barricades: [], prompt: '', hits: [], kills: 0, explosions: 0, tacticals: 0, powerups: [], effects: [], powerupsTaken: [], cache: { home: '', boxes: [] }, chains: [], strikes: 0, lastStrike: null, audio: null, shake: 0, damageArcs: [], fx: { particles: 0, tracers: 0, projectiles: 0, bolts: 0, kinds: [] },
+  paused: false, panel: null, chatOpen: false, chat: [], marks: [], net: 'ok', locked: false, fov: 72, sensitivity: 0,
 };
 
 export interface DebugWiring {
@@ -159,12 +178,16 @@ export interface DebugWiring {
   renderer: RetroRenderer;
   resize(): void;
   audio: GameAudio;
+  settings: Settings;
+  screens: Screens;
+  chat(text: string): void;
+  ping(): void;
 }
 
 /** Install window.__zh. Anything that changes the game is a debug message to the server. */
-export function wireDebug({ player, input, socket: s, playing, renderer, resize, audio }: DebugWiring): void {
+export function wireDebug({ player, input, socket: s, playing, renderer, resize, audio, settings, screens, chat, ping }: DebugWiring): void {
   const api: Omit<ZhDebug, 'state'> = {
-  audio,
+  audio, settings, screens, chat, ping,
   teleport: (x, z, yaw) => {
     player.teleport(x, z, yaw);
     if (playing()) s.send({ t: 'debug', cmd: 'teleport', x, z });

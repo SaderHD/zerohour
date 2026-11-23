@@ -1,27 +1,38 @@
 import type { WebSocket } from 'ws';
-import { PROTOCOL_VERSION, decodeClient, encode, type ClientMsg, type ErrorCode, type ServerMsg } from '@zh/shared';
-import type { Lobby, Session } from './lobby';
+import { HELLO_TIMEOUT_MS, encode, type ErrorCode, type ServerMsg } from '@zh/shared';
+import { Link } from './link';
+import type { Lobby } from './lobby';
 import type { Peer } from './peer';
 
-/** One WebSocket client. Owns the handshake, then forwards messages to the lobby. */
+/** One WebSocket client: the socket end of a `Link`, with the timeouts that keep dead sockets from piling up. */
 export class Connection implements Peer {
-  private session: Session | null = null;
+  private readonly link: Link;
+  /** Set when the server pings; cleared by the pong. Still set at the next ping: the socket is dead. */
+  private waiting = false;
 
-  constructor(private readonly socket: WebSocket, private readonly lobby: Lobby) {
+  constructor(private readonly socket: WebSocket, lobby: Lobby) {
+    this.link = new Link(this, lobby);
+    const hello = setTimeout(() => {
+      if (!this.link.session) this.kick('bad_message');
+    }, HELLO_TIMEOUT_MS);
     socket.on('message', (data, isBinary) => {
       if (isBinary) return this.kick('bad_message');
-      const msg = decodeClient(data.toString());
-      if (!msg) return this.kick('bad_message');
-      try {
-        this.handle(msg);
-      } catch (err) {
-        console.error('[zerohour] error handling message', msg.t, err);
-      }
+      this.link.receive(data.toString());
     });
+    socket.on('pong', () => (this.waiting = false));
     socket.on('close', () => {
-      if (this.session) this.lobby.disconnect(this.session, this);
+      clearTimeout(hello);
+      this.link.close();
     });
     socket.on('error', () => socket.terminate());
+  }
+
+  /** Called on a timer: drop the socket if the last ping went unanswered, else ping again. */
+  heartbeat(): void {
+    if (this.waiting) return this.socket.terminate();
+    if (this.socket.readyState !== this.socket.OPEN) return;
+    this.waiting = true;
+    this.socket.ping();
   }
 
   send(msg: ServerMsg): void {
@@ -31,23 +42,5 @@ export class Connection implements Peer {
   kick(code: ErrorCode): void {
     this.send({ t: 'error', code });
     this.socket.close(1008, code);
-  }
-
-  private handle(msg: ClientMsg): void {
-    if (msg.t === 'ping') {
-      if (typeof msg.c === 'number') this.send({ t: 'pong', c: msg.c, time: performance.now() / 1000 });
-      return;
-    }
-    if (!this.session) {
-      if (msg.t !== 'hello') return this.kick('bad_message');
-      if (msg.v !== PROTOCOL_VERSION) return this.kick('version');
-      const { session, resumed } = this.lobby.connect(this, msg.name, msg.token);
-      this.session = session;
-      this.send({ t: 'welcome', v: PROTOCOL_VERSION, id: session.id, token: session.token, time: performance.now() / 1000, resumed });
-      if (resumed) this.lobby.resume(session);
-      return;
-    }
-    if (msg.t === 'hello') return;
-    this.lobby.handle(this.session, msg);
   }
 }

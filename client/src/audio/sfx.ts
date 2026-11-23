@@ -230,6 +230,17 @@ export class Sfx {
     this.s.voice({ gain: 0.6, priority: 2 }).tone({ type: 'triangle', f: 660, f1: 520, d: 0.05 }).noise({ d: 0.015, g: 0.3, filter: { type: 'highpass', f: 3000 } });
   }
 
+  /** A teammate's ping marker: two bright notes, from where it was put. */
+  mark(at?: At): void {
+    const v = this.s.voice({ gain: 0.5, priority: 2, at, range: 70, ref: 12 });
+    v.tone({ type: 'triangle', f: 1175, d: 0.09 }).tone({ t: 0.09, type: 'triangle', f: 1760, d: 0.2, g: 0.9 }).tone({ t: 0.09, f: 3520, d: 0.12, g: 0.15 });
+  }
+
+  /** A chat line from someone else. */
+  chat(): void {
+    this.s.voice({ gain: 0.35, priority: 3 }).tone({ type: 'triangle', f: 880, f1: 990, d: 0.06 }).tone({ t: 0.05, f: 1320, d: 0.08, g: 0.5 });
+  }
+
   /** The Forge's hammer on hot metal. */
   anvil(at: At, n: number): void {
     const v = this.s.voice({ gain: 0.6, priority: 1, at, range: 40, ref: 8, reverb: 0.5, delay: n * 0.62 });

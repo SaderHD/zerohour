@@ -59,24 +59,28 @@ zerohour/
     nav/                  grid.ts  flowfield.ts  los.ts  ray.ts (3D ray vs cell grid)  collide.ts
     math/                 vec.ts  rng.ts (seeded)
   server/src/
-    index.ts              http static + ws upgrade
-    lobby.ts              rooms, codes, join/leave
+    index.ts              http static + ws upgrade, heartbeat
+    connection.ts         one WebSocket: timeouts; link.ts decodes, rate limits (rateLimit.ts), shakes hands
+    lobby.ts              rooms, codes, join/leave, chat, clean-up
     game/                 Game.ts (tick loop) + one file per system:
                           players, zombies, spawner, rounds, combat, economy,
                           doors (and power), barricades, interact (the F path), perks, forge,
                           cache, powerups
     bot.ts                headless bot client for load/soak tests
   client/src/
-    main.ts  net/ (socket, interpolation)  input/
+    main.ts (builds everything, the frame loop)  settings.ts (the saved choices, key bindings)
+    net/ (socket, lobby state machine, interpolation)  input/ (keys through the bindings)
     render/               renderer.ts (retro pipeline), worldBuilder.ts, bake.ts, doors.ts, signs.ts, materials.ts,
                           exterior.ts (roofs, stacks, pines), snow.ts, sky.ts, ambient.ts, atmosphere.ts
     models/               zombie.ts player.ts weapons/*.ts props/*.ts  rig.ts anim.ts
     game/                 localPlayer.ts viewmodel.ts entities.ts interact.ts forgeView.ts fx.ts
-                          feel.ts (screen shake, recoil curves)
+                          feel.ts (screen shake, recoil curves)  match.ts (round, life, doors as the
+                          server reports them)  events.ts (sync / snap / ev applied)  marks.ts (pings)
     audio/                synth.ts (engine, 24 voices)  guns.ts sfx.ts music.ts (the library)
                           ambience.ts (zone drones, heartbeat)  audio.ts (events -> sounds)
                           catalogue.ts (every sound by name)  tools.ts (offline render, recording)
-    ui/                   hud.ts menu.ts lobby.ts scoreboard.ts settings.ts damage.ts volumes.ts
+    ui/                   hud.ts menu.ts (menu + lobby) screens.ts (panels, pause, connection notice)
+                          settings.ts help.ts chat.ts scoreboard.ts damage.ts volumes.ts
     debug.ts              window.__zh test hooks
 ```
 
@@ -304,8 +308,16 @@ aim.** This is co-op with friends, so we optimise for feel and simplicity over c
   name. Lobby shows players + ready state; host starts. Late join allowed — spawns next round
   (at once during an intermission). After a game over the room shows the results until any
   player sends `again`, which returns everyone to the lobby.
-  Disconnect: slot held 60 s for reconnect (token in `sessionStorage`), then dropped. Solo play
+  Disconnect: slot held 60 s for reconnect (token in `sessionStorage`), then dropped. A tab that
+  died can be replaced: the last seat is also noted in `localStorage`, and a new tab offers
+  "Rejoin room" once that note has gone stale (a live tab re-stamps it every 2 s). Solo play
   is just a room of one — there is no separate offline code path.
+- **Untrusted input:** every frame goes through `decodeClient` → `checkClient` (`shared/src/wire.ts`:
+  types, ranges, lengths; a bad frame closes the connection), then token buckets in `server/src/link.ts`
+  (`RATE_*` in constants: 120 msg/s overall, chat 1/s, markers 1/s, room requests 2/s; a flood is
+  dropped, a long one disconnects), then the handlers' own checks of what the values mean. Sockets
+  that never say hello (10 s) or stop answering pings are closed; rooms empty for 30 s, or sitting
+  unused in the lobby or on the results for 30 min, are closed (`idle`).
 - **Server sim:** fixed 30 Hz tick in `Game.ts`; systems run in a fixed order. Snapshots broadcast
   at 15 Hz. All randomness through a seeded RNG owned by the game.
 - **Server owns:** zombies (position, state, HP), rounds, spawning, points, ammo counts, weapons
@@ -784,7 +796,38 @@ with no errors in client or server logs.
   where the player stands, not at the muzzle; a sound's pan and occlusion are fixed when it
   starts; shake has a `scale` but no setting yet (13); bots are deaf. `client/src/main.ts` is
   ~600 lines (split due in 13).
-- [ ] 13 UX, menus, robustness
+- [x] 13 UX, menus, robustness — done. Acceptance: `server/src/fuzz.test.ts` (20,000 random frames
+  at the decoder; then a storm of garbage, hostile-but-well-formed and out-of-order messages from
+  three clients, two of them inside a running game next to two honest players, some injected past
+  the decoder straight at the handlers: no handler throws, nobody honest is dropped, nothing in the
+  world goes non-finite, the junk rooms are swept) and `npm run ux` (four browser players; one is
+  killed mid-round and comes back in a new tab as the same player in the same place while raw
+  sockets throw junk at the server; then a tab reload; then the server itself is killed and
+  restarted). Protocol v8: only new error codes (`idle`, `room_closed`, `server_full`); `chat` and
+  `mark` were already in the protocol and now work.
+  Server: field-level validation of every message (`wire.ts`), rate limits, hello and heartbeat
+  timeouts, unused-room clean-up, a cap on rooms, a game whose tick throws is shut instead of
+  taking the process down. Client: main menu with how-to-play and settings; settings saved in
+  `localStorage` (sensitivity, invert Y, field of view, 270/540/810 lines, dither, screen shake,
+  the three volumes, every key); lobby with invite link (`?room=CODE` drops you straight in), chat
+  and who-joined/left/dropped lines; pause screen (Esc, or losing the mouse) with resume, settings,
+  help and a two-click leave; in-game chat (Enter) and ping markers (Z: a diamond with name and
+  distance, seen through walls, 6 s); spectating steps through teammates with fire / aim;
+  a "connection lost" notice with the retry count, "seat taken" and "updated" notices with a
+  reload button, and a line in the menu when the seat was lost. `main.ts` is split (~400 lines:
+  `game/match.ts`, `game/events.ts`).
+  Choices the plan left open: rebinding maps the physical key to the action's default code inside
+  `Input`, so game code and `__zh.key()` still speak in defaults; binding a key that is in use
+  swaps the two; Escape cannot be bound. Pause does not stop the game, even alone (the server
+  has no pause; the screen says so). Markers are one per player and anyone not dead may place one.
+  A malformed frame disconnects at once; a rate-limited chat line gets a polite refusal.
+  Deferred: no kick or host controls in the lobby; no AFK timeout for a player standing in a
+  running game; chat has no history beyond 40 lines and no mute; the rejoin offer takes ~5 s to
+  appear after a tab dies (it waits for the old tab's stamp to go stale) and would take the seat
+  from a second live tab only if that tab were frozen; the settings screen needs scrolling at
+  540 px tall; mouse wheel and number keys cannot be rebound; bots neither chat nor ping; the
+  soak's worst tick was 119 ms once in 9,000 (7 over budget) on the shared test machine — look at
+  it in 14.
 - [ ] 14 Balance, performance, ship
 
 ## 10. Risks to watch

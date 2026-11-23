@@ -10,6 +10,7 @@
     <canvas id="game"></canvas>
     <div id="ui">
       <div id="tags"></div>
+      <div id="marks"></div>
       <div id="hud">
         <div id="hurt"></div>
         <div id="damage"></div>
@@ -37,7 +38,11 @@
           <div id="downed-sub"></div>
         </div>
         <div id="scoreboard"><div class="sub" id="scoreboard-title"></div><table></table></div>
-        <div id="hint">Click to play · WASD move · Shift sprint · LMB fire · RMB aim · R reload · Q swap · V knife · G grenade · E decoy · F buy / rebuild / revive · Tab scores</div>
+        <div id="hint"></div>
+        <div id="chat">
+          <div id="chat-log" class="chatlog"></div>
+          <input id="chat-input" placeholder="Say something — Enter sends" autocomplete="off" spellcheck="false" />
+        </div>
         <div id="stamina"><div id="stamina-fill"></div></div>
       </div>
 
@@ -50,20 +55,45 @@
           <input id="code" maxlength="4" placeholder="CODE" autocomplete="off" spellcheck="false" />
           <button id="join">Join</button>
         </div>
+        <button id="rejoin" class="on" hidden></button>
+        <div class="row">
+          <button id="menu-help" class="quiet">How to play</button>
+          <button id="menu-settings" class="quiet">Settings</button>
+        </div>
         <p id="menu-error" class="error"></p>
       </div>
 
       <div id="lobby" class="screen">
         <p class="sub">Room code</p>
         <h1 id="lobby-code"></h1>
+        <button id="copy-link" class="quiet">Copy invite link</button>
         <ul id="lobby-players"></ul>
+        <p id="lobby-note" class="sub"></p>
+        <div id="lobby-chat" class="chatlog"></div>
+        <input id="lobby-say" placeholder="Chat — Enter sends" autocomplete="off" spellcheck="false" />
         <div class="row">
           <button id="ready">Ready</button>
           <button id="start">Start</button>
         </div>
-        <button id="leave" class="quiet">Leave</button>
+        <div class="row">
+          <button id="lobby-help" class="quiet">How to play</button>
+          <button id="lobby-settings" class="quiet">Settings</button>
+          <button id="leave" class="quiet">Leave</button>
+        </div>
         <p id="lobby-error" class="error"></p>
       </div>
+
+      <div id="pause" class="screen">
+        <h1>PAUSED</h1>
+        <p class="sub" id="pause-sub"></p>
+        <button id="resume">Resume</button>
+        <button id="pause-settings">Settings</button>
+        <button id="pause-help">How to play</button>
+        <button id="pause-leave" class="quiet">Leave game</button>
+      </div>
+
+      <div id="settings" class="screen wide"></div>
+      <div id="help" class="screen wide"></div>
 
       <div id="results" class="screen">
         <h1>GAME OVER</h1>
@@ -75,7 +105,11 @@
         </div>
       </div>
 
-      <div id="volumes"></div>
+      <div id="netlost" class="screen">
+        <h1 id="netlost-title"></h1>
+        <p id="netlost-text"></p>
+        <button id="netlost-reload">Reload</button>
+      </div>
       <div id="status" data-state="connecting">connecting…</div>
     </div>
     <script type="module" src="/src/main.ts"></script>

@@ -40,6 +40,8 @@ export class Interact {
   prompt = '';
   /** 0..1 through a held revive (a local estimate; the server decides), else 0. */
   progress = 0;
+  /** The name of the key bound to "use", for the prompts. */
+  useKey = 'F';
   /** What F is held on: a window id, or `p:<player id>` for a revive. */
   private holding: string | null = null;
   private resend = 0;
@@ -93,7 +95,7 @@ export class Interact {
   private offer(it: Interactable): { text: string; go: boolean } {
     const b = this.buyer();
     const no = (text = ''): { text: string; go: boolean } => ({ text, go: false });
-    const yes = (text: string): { text: string; go: boolean } => ({ text: `Press F — ${text}`, go: true });
+    const yes = (text: string): { text: string; go: boolean } => ({ text: `Press ${this.useKey} — ${text}`, go: true });
     switch (it.kind) {
       case 'wallbuy': {
         const def = weaponDef(it.ref ?? '');
@@ -152,10 +154,10 @@ export class Interact {
     const thing = active && !mate && !win && !door ? this.thing(x, z, yaw) : null;
     this.refusalFor -= dt;
     const refused = this.refusalFor > 0 ? this.refusal : '';
-    this.prompt = mate ? `Hold F — revive ${mate.name}` : win ? 'Hold F — rebuild barricade' : '';
+    this.prompt = mate ? `Hold ${this.useKey} — revive ${mate.name}` : win ? `Hold ${this.useKey} — rebuild barricade` : '';
     if (door) {
       const what = door.style === 'debris' ? 'clear debris' : 'open door';
-      this.prompt = refused || (door.needsPower ? 'This door needs power' : `Press F — ${what} [${door.cost ?? 0}]`);
+      this.prompt = refused || (door.needsPower ? 'This door needs power' : `Press ${this.useKey} — ${what} [${door.cost ?? 0}]`);
       if (!door.needsPower && input.pressed('KeyF')) this.send({ t: 'interact', id: door.id, hold: true });
     } else if (thing) {
       const offer = this.offer(thing);

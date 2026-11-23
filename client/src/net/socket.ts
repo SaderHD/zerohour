@@ -10,8 +10,10 @@ export class Socket {
 
   connect(name: string, token?: string): void {
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const old = this.ws;
     const ws = new WebSocket(`${proto}://${location.host}/ws`);
     this.ws = ws;
+    old?.close(); // replaced on purpose: its close is not a lost connection
     ws.onopen = () => this.send({ t: 'hello', v: PROTOCOL_VERSION, name, token });
     ws.onmessage = (ev) => {
       if (ws !== this.ws || typeof ev.data !== 'string') return;

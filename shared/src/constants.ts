@@ -1,6 +1,6 @@
 // Every tunable number in the game lives here or in shared/src/data. See docs/PLAN.md section 4.
 
-export const PROTOCOL_VERSION = 7;
+export const PROTOCOL_VERSION = 8;
 
 // --- Networking ---
 export const TICK_RATE = 30; // server sim Hz
@@ -16,6 +16,20 @@ export const MAX_NAME_LENGTH = 16;
 export const MAX_CHAT_LENGTH = 120;
 export const MAX_MSG_BYTES = 8 * 1024;
 export const DEFAULT_PORT = 8080;
+export const MAX_ROOMS = 500;
+export const ROOM_UNUSED_MS = 30 * 60_000; // a lobby or results screen nobody touches is closed after this
+export const HELLO_TIMEOUT_MS = 10_000; // a connection must say hello within this
+export const HEARTBEAT_MS = 15_000; // the server pings every socket this often; one missed pong and it is dropped
+// Rate limits, as token buckets: [per second, burst]. Over the first, messages are dropped; a
+// connection that has had RATE_STRIKES dropped is closed.
+export const RATE_ALL: readonly [number, number] = [120, 240];
+export const RATE_CHAT: readonly [number, number] = [1, 4];
+export const RATE_MARK: readonly [number, number] = [1, 3];
+export const RATE_ROOM: readonly [number, number] = [2, 10]; // create, join, leave, ready, start, again
+export const RATE_PING: readonly [number, number] = [2, 10];
+export const RATE_STRIKES = 300;
+export const MARK_SECONDS = 6; // a ping marker stays up this long
+export const MARK_RANGE = 60;
 
 // --- World ---
 export const CELL_SIZE = 0.5; // metres per nav/collision cell

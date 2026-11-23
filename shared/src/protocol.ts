@@ -4,6 +4,7 @@
 // fast state travels in `snap` at 15 Hz as compact tuples.
 
 import { MAX_MSG_BYTES } from './constants';
+import { checkClient } from './wire';
 
 export type PlayerId = number;
 export type EntityId = number;
@@ -101,7 +102,13 @@ export type ErrorCode =
   | 'not_in_room'
   | 'not_ready'
   | 'rate_limited'
-  | 'kicked';
+  | 'kicked'
+  /** The room sat unused for too long and was closed. */
+  | 'idle'
+  /** The room's game failed on the server and was shut. */
+  | 'room_closed'
+  /** No more rooms can be opened right now. */
+  | 'server_full';
 
 export interface LobbyPlayer {
   id: PlayerId;
@@ -274,16 +281,11 @@ export type ServerMsgType = ServerMsg['t'];
 
 // ---------------------------------------------------------------- encode / decode
 
-const CLIENT_TYPES: ReadonlySet<string> = new Set<ClientMsgType>([
-  'hello', 'create', 'join', 'leave', 'ready', 'start', 'again', 'move', 'fire', 'reload', 'swap',
-  'melee', 'throw', 'interact', 'revive', 'chat', 'mark', 'ping', 'debug',
-]);
-
 export const encode = (msg: ClientMsg | ServerMsg): string => JSON.stringify(msg);
 
 /**
  * Parse an untrusted frame from a client. Returns null for anything that is not a JSON object
- * with a known `t`. Field-level validation is the job of each handler (see session 13).
+ * with a known `t` and fields of the right shape and range (see wire.ts).
  */
 export function decodeClient(raw: string): ClientMsg | null {
   if (raw.length > MAX_MSG_BYTES) return null;
@@ -293,10 +295,7 @@ export function decodeClient(raw: string): ClientMsg | null {
   } catch {
     return null;
   }
-  if (typeof v !== 'object' || v === null || Array.isArray(v)) return null;
-  const t = (v as { t?: unknown }).t;
-  if (typeof t !== 'string' || !CLIENT_TYPES.has(t)) return null;
-  return v as ClientMsg;
+  return checkClient(v) ? v : null;
 }
 
 /** Parse a frame from the server (trusted, but never throw on a bad frame). */

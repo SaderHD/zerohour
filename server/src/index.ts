@@ -3,7 +3,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
-import { DEFAULT_PORT, MAX_MSG_BYTES } from '@zh/shared';
+import { DEFAULT_PORT, HEARTBEAT_MS, MAX_MSG_BYTES } from '@zh/shared';
 import { Connection } from './connection';
 import { Lobby } from './lobby';
 
@@ -64,7 +64,18 @@ const http = createServer((req, res) => {
 const wss = new WebSocketServer({ server: http, path: '/ws', maxPayload: MAX_MSG_BYTES });
 const lobby = new Lobby({ debug: process.env.ZH_DEBUG === '1' });
 setInterval(() => lobby.sweep(), 5000).unref();
-wss.on('connection', (socket) => new Connection(socket, lobby));
+const connections = new Set<Connection>();
+wss.on('connection', (socket) => {
+  const c = new Connection(socket, lobby);
+  connections.add(c);
+  socket.on('close', () => connections.delete(c));
+});
+setInterval(() => {
+  for (const c of connections) c.heartbeat();
+}, HEARTBEAT_MS).unref();
+// Whatever goes wrong in one room must not take the others down with it.
+process.on('uncaughtException', (err) => console.error('[zerohour] uncaught', err));
+process.on('unhandledRejection', (err) => console.error('[zerohour] unhandled rejection', err));
 
 http.listen(PORT, () => {
   console.log(`[zerohour] listening on http://localhost:${PORT} (client: ${CLIENT_DIST})`);

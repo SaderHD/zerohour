@@ -1,4 +1,14 @@
-/** Keyboard + pointer-lock mouse state (buttons and wheel included). `setKey` lets tests and debug tools drive it. */
+/** Is the keyboard going into a text field right now? */
+const typing = (): boolean => {
+  const a = document.activeElement;
+  return a instanceof HTMLInputElement || a instanceof HTMLTextAreaElement;
+};
+
+/**
+ * Keyboard + pointer-lock mouse state (buttons and wheel included). The game asks for an action by
+ * its default code (`KeyF`, `Mouse0`); `remap` turns the physical key into that, so rebinding
+ * never touches game code. `setKey` lets tests and debug tools drive it (in default codes).
+ */
 export class Input {
   private readonly keys = new Set<string>();
   private readonly hit = new Set<string>();
@@ -8,20 +18,35 @@ export class Input {
   wheel = 0;
   locked = false;
   onLockChange: ((locked: boolean) => void) | null = null;
+  /** Physical code -> the code the game sees, or null to swallow it (see Settings.remap). */
+  remap: (code: string) => string | null = (c) => c;
+  /** While set, the next key or mouse button goes here instead of to the game (the settings screen rebinding a key). */
+  capture: ((code: string) => void) | null = null;
 
   /** `canLock` gates pointer lock (only while actually playing). */
   attach(canvas: HTMLCanvasElement, canLock: () => boolean = () => true): void {
     window.addEventListener('keydown', (e) => {
-      if (e.repeat) return;
-      this.keys.add(e.code);
-      this.hit.add(e.code);
-      if (this.locked && ['Tab', 'Space', 'ControlLeft'].includes(e.code)) e.preventDefault();
+      if (this.capture) {
+        e.preventDefault();
+        e.stopPropagation();
+        const take = this.capture;
+        this.capture = null;
+        take(e.code);
+        return;
+      }
+      if (e.repeat || typing()) return;
+      const code = this.remap(e.code);
+      if (!code) return;
+      this.keys.add(code);
+      this.hit.add(code);
+      if (this.locked && (['Tab', 'Space', 'ControlLeft', 'Enter'].includes(e.code) || ['Tab', 'Enter'].includes(code))) e.preventDefault();
+    }, true);
+    window.addEventListener('keyup', (e) => {
+      const code = this.remap(e.code);
+      if (code) this.keys.delete(code);
     });
-    window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.keys.clear());
-    canvas.addEventListener('click', () => {
-      if (!this.locked && canLock()) void canvas.requestPointerLock()?.catch?.(() => {});
-    });
+    canvas.addEventListener('click', () => this.lock(canvas, canLock));
     document.addEventListener('pointerlockchange', () => {
       this.locked = document.pointerLockElement === canvas;
       if (!this.locked) this.keys.clear();
@@ -29,9 +54,22 @@ export class Input {
     });
     // Mouse buttons read as keys 'Mouse0' (left), 'Mouse1' (middle), 'Mouse2' (right).
     document.addEventListener('mousedown', (e) => {
-      if (this.locked) this.setKey(`Mouse${e.button}`, true);
+      if (this.capture) {
+        e.preventDefault();
+        e.stopPropagation();
+        const take = this.capture;
+        this.capture = null;
+        take(`Mouse${e.button}`);
+        return;
+      }
+      if (!this.locked) return;
+      const code = this.remap(`Mouse${e.button}`);
+      if (code) this.setKey(code, true);
+    }, true);
+    document.addEventListener('mouseup', (e) => {
+      const code = this.remap(`Mouse${e.button}`);
+      if (code) this.keys.delete(code);
     });
-    document.addEventListener('mouseup', (e) => this.keys.delete(`Mouse${e.button}`));
     document.addEventListener('wheel', (e) => {
       if (this.locked) this.wheel += Math.sign(e.deltaY);
     }, { passive: true });
@@ -41,6 +79,11 @@ export class Input {
       this.dx += e.movementX;
       this.dy += e.movementY;
     });
+  }
+
+  /** Ask the browser for the mouse (it only agrees inside a click or key press). */
+  lock(canvas: HTMLCanvasElement, canLock: () => boolean = () => true): void {
+    if (!this.locked && canLock()) void canvas.requestPointerLock()?.catch?.(() => {});
   }
 
   down(code: string): boolean {
@@ -57,6 +100,12 @@ export class Input {
       this.keys.add(code);
       this.hit.add(code);
     } else this.keys.delete(code);
+  }
+
+  /** Let go of everything (a menu or the chat box has taken over). */
+  release(): void {
+    this.keys.clear();
+    this.hit.clear();
   }
 
   /** Call once at the end of every frame. */

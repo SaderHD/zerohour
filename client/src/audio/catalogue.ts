@@ -37,6 +37,8 @@ export const CATALOGUE: readonly Entry[] = [
   e('well-hum', 0.9, (l) => l.guns.wellHum(undefined)),
   e('siren-wail', 1.1, (l) => l.guns.sirenWail(undefined)),
   ...FLOOR_STYLES.map((f) => e(`step-${f}`, 0.4, (l) => l.sfx.step(f, false))),
+  e('mark', 0.4, (l) => l.sfx.mark()),
+  e('chat', 0.2, (l) => l.sfx.chat()),
   e('groan', 1.8, (l) => l.sfx.groan(undefined, 11)),
   e('groan-runner', 1.4, (l) => l.sfx.groan(undefined, 23, 1)),
   e('zombie-attack', 0.6, (l) => l.sfx.attack(undefined, 5)),

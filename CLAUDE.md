@@ -44,6 +44,10 @@ when its acceptance checks pass.
 - `npm run audio` — after a build: renders every sound offline to `test-results/audio/*.wav`, checks the
   volume sliders by measuring the output, then records a solo session through everything that makes a
   noise to `test-results/audio-session.webm` (voice limit, shake and damage arcs checked on the way).
+- `npm run ux` — after a build: four browser players through session 13 (menu, how to play, settings and
+  a rebound key surviving a reload, invite link, lobby chat, pause, in-game chat, ping marker; one
+  client killed and restarted mid-round while raw sockets throw junk at the server; the server
+  killed and restarted). Writes `test-results/ux-*.png`.
 - URL flags for quick testing: `?autostart=1` (straight into a solo game), `?room=ABCD&autostart=1`
   (shared room across tabs), `?name=X`, `?debug=1`.
 - `npm run map` — validate the map and rewrite the ASCII dump `docs/MAP.txt`.
@@ -77,9 +81,21 @@ when its acceptance checks pass.
   swing; `powered` spins wait for the mains) and marks a roof leak with `k.drip(...)`;
   `render/ambient.ts` animates them and the floor mist of rooms with `mist: true`. Keep movers
   few: each is a draw call. `ZoneDef.fog` sets a zone's air (`render/atmosphere.ts`).
-- Server: `lobby.ts` (rooms, seats, reconnect; transport-agnostic via `Peer`) and `game/Game.ts`
+- Server: `lobby.ts` (rooms, seats, reconnect, chat; transport-agnostic via `Peer`) and `game/Game.ts`
   (the match; `step(dt)` is pure so tests drive it without timers). Client: `net/net.ts` is the
-  connection/lobby state machine, `main.ts` wires everything.
+  connection/lobby state machine, `main.ts` builds everything and runs the frame loop,
+  `game/match.ts` holds the round / life / doors as the server reports them and `game/events.ts`
+  applies `sync`, `snap` and every `ev` (a new event's handling goes in its switch).
+- Untrusted input: a new client message needs a line in `shared/src/wire.ts` (`CHECKS`, or the
+  decoder turns it away) and, if it can be spammed, a bucket in `server/src/link.ts`. `Link` is the
+  per-client path (decode, rate limit, handshake) that `fuzz.test.ts` drives; `connection.ts` is only
+  the socket and its timeouts.
+- Settings and keys: `client/src/settings.ts` (saved in `localStorage`; `ACTIONS` lists what can be
+  rebound). Game code asks `Input` for an action's *default* code (`input.down('KeyF')`); `Input`
+  maps the physical key to it, so never read `KeyboardEvent`s yourself. Prompts name a key with
+  `settings.label('use')`. Screens over the game (`ui/screens.ts`: settings, help, pause, the
+  connection notice) are switched by `body[data-panel|data-paused|data-net]` in CSS; while
+  `screens.blocking` or `chat.open` the game takes no input.
 - Dynamic models: build from `models/rig.ts` boxes and tint each frame with `world.lightAt()`.
 - Combat: stats in `shared/src/data/weapons.ts`, maths in `shared/src/combat.ts`. The client
   (`game/weapons.ts`) resolves its own shots against `game/entities.ts` hit boxes and
@@ -127,7 +143,8 @@ when its acceptance checks pass.
   `__zh.powerup('reaper')`, `__zh.cacheNext('arclight')` (or `'jinx'`), `__zh.setRound(6, true)` (a howler round),
   `__zh.spawnZombies(3, { kind: 'howler' })`,
   `__zh.spawnZombies(8, { interval: 0.3 })`, `__zh.god(true)`, `__zh.killZombies()`, `__zh.setRound(10)`, `__zh.rounds(false)`,
-  `__zh.openDoor('d_mess_bunk')`, `__zh.powerOn()`.
+  `__zh.openDoor('d_mess_bunk')`, `__zh.powerOn()`, `__zh.chat('hi')`, `__zh.ping()`,
+  `__zh.settings.set({ fov: 90 })`, `__zh.settings.bind('use', 'KeyE')`, `__zh.screens.setPaused(true)`.
 - Sound (`client/src/audio`): `synth.ts` is the engine (a `Voice` of `tone`/`noise` layers; 24 at once,
   by `priority`; `at` places it in the world); the library is `guns.ts`, `sfx.ts`, `music.ts` (tunes as
   note lists) and `ambience.ts` (zone drones, heartbeat). `audio.ts` turns game events and each frame's

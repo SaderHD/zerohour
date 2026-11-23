@@ -27,7 +27,8 @@
     "horde": "node scripts/horde.cjs",
     "economy": "node scripts/economy.cjs",
     "wonders": "node scripts/wonders.cjs",
-    "audio": "node scripts/audio.cjs"
+    "audio": "node scripts/audio.cjs",
+    "ux": "node scripts/ux.cjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

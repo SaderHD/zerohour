@@ -1,5 +1,5 @@
 import {
-  MOVE_BUDGET_CAP, MOVE_SPEED_SLACK, MoveState, PLAYER_MAX_HP, PLAYER_RADIUS, SNAPSHOT_EVERY_TICKS,
+  CELL_SIZE, MARK_RANGE, MOVE_BUDGET_CAP, MOVE_SPEED_SLACK, MoveState, PLAYER_MAX_HP, PLAYER_RADIUS, SNAPSHOT_EVERY_TICKS,
   Rng, SPRINT_SPEED, START_GRENADES, START_POINTS, START_WEAPON, TICK_BUDGET_MS, TICK_DT, ZOMBIE_SPAWN_INTERVAL,
   circleFits, compileMap, harrowRidge, isFiniteNum,
   type ClientMsg, type CompiledMap, type GameEvent, type PlayerId, type PlayerPublic, type PlayerSnap,
@@ -73,6 +73,8 @@ export interface GameOpts {
   rounds?: boolean;
   /** Called once when everyone is down. */
   onOver?: () => void;
+  /** Called if a tick throws (the game has been stopped). */
+  onCrash?: () => void;
 }
 
 /** Longest we extrapolate a player's last reported position when building a snapshot. */
@@ -153,9 +155,16 @@ export class Game {
       const now = performance.now();
       acc = Math.min(acc + (now - last) / 1000, 0.25);
       last = now;
-      while (acc >= TICK_DT) {
-        this.step(TICK_DT);
-        acc -= TICK_DT;
+      try {
+        while (acc >= TICK_DT) {
+          this.step(TICK_DT);
+          acc -= TICK_DT;
+        }
+      } catch (err) {
+        // A bug in the sim: shut this game rather than throw sixty times a second.
+        console.error('[zerohour] game tick failed', err);
+        this.stop();
+        this.opts.onCrash?.();
       }
     }, 1000 / 60);
   }
@@ -268,8 +277,10 @@ export class Game {
       case 'debug':
         if (this.opts.debug) onDebug(this, p, msg);
         return;
+      case 'mark':
+        return this.onMark(p, msg);
       default:
-        return; // chat, mark etc. arrive in later sessions
+        return; // chat is the room's business (lobby.ts)
     }
   }
 
@@ -306,6 +317,14 @@ export class Game {
     p.x = m.x;
     p.z = m.z;
     p.state = m.state === MoveState.Sprint ? MoveState.Sprint : m.state === MoveState.Walk ? MoveState.Walk : MoveState.Idle;
+  }
+
+  /** A ping marker: "look here". Anyone still in the game may place one, somewhere on the map and not too far off. */
+  private onMark(p: PlayerState, m: Extract<ClientMsg, { t: 'mark' }>): void {
+    if (!isFiniteNum(m.x) || !isFiniteNum(m.z) || p.state === MoveState.Dead) return;
+    const { cols, rows } = this.map;
+    if (m.x < 0 || m.z < 0 || m.x > cols * CELL_SIZE || m.z > rows * CELL_SIZE || Math.hypot(m.x - p.x, m.z - p.z) > MARK_RANGE) return;
+    this.emit({ e: 'mark', id: p.pub.id, x: round2(m.x), z: round2(m.z) });
   }
 
   openDoor(id: string, by: PlayerId): void {

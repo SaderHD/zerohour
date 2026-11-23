@@ -1,5 +1,6 @@
 export * from './constants';
 export * from './protocol';
+export * from './wire';
 export * from './math/vec';
 export * from './math/rng';
 export * from './map/index';

@@ -156,6 +156,11 @@ export class Hud {
     this.stamina.style.opacity = f >= 0.999 ? '0' : '1';
   }
 
+  /** The line of keys shown until the mouse is taken (it follows the bindings). */
+  setHint(text: string): void {
+    this.hint.textContent = text;
+  }
+
   setLocked(locked: boolean): void {
     this.hint.style.display = locked ? 'none' : 'block';
   }

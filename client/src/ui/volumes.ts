@@ -2,9 +2,8 @@ import type { GameAudio } from '../audio/audio';
 
 const SLIDERS = [['master', 'Volume'], ['sfx', 'Effects'], ['music', 'Music']] as const;
 
-/** Three sliders (master, effects, music), shown whenever the mouse is free. Saved by the audio itself. */
-export function buildVolumes(audio: GameAudio): void {
-  const root = document.getElementById('volumes')!;
+/** Three sliders (master, effects, music) for the settings screen. Saved by the audio itself. */
+export function buildVolumes(audio: GameAudio, root: HTMLElement): void {
   for (const [key, label] of SLIDERS) {
     const row = document.createElement('label');
     const input = document.createElement('input');
@@ -16,7 +15,9 @@ export function buildVolumes(audio: GameAudio): void {
     input.oninput = () => audio.setVolume(key, Number(input.value) / 100);
     // Let go of the effects slider and hear where it now stands.
     input.onchange = () => (key === 'music' ? audio.music.effectEnd() : audio.sfx.tick('headkill'));
-    row.append(label, input);
+    const name = document.createElement('span');
+    name.textContent = label;
+    row.append(name, input);
     root.append(row);
   }
 }

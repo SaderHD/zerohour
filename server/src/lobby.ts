@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import {
-  MAX_CHAT_LENGTH, MAX_NAME_LENGTH, MAX_PLAYERS, RECONNECT_GRACE_MS, ROOM_CODE_LENGTH, ROOM_IDLE_MS, sanitizeText,
+  MAX_CHAT_LENGTH, MAX_NAME_LENGTH, MAX_PLAYERS, MAX_ROOMS, RECONNECT_GRACE_MS, ROOM_CODE_LENGTH, ROOM_IDLE_MS, ROOM_UNUSED_MS, sanitizeText,
   type ClientMsg, type ErrorCode, type PlayerId, type RoomPhase, type ServerMsg,
 } from '@zh/shared';
 import { Game } from './game/Game';
@@ -26,7 +26,8 @@ export class Room {
   game: Game | null = null;
   emptySince: number | null = null;
 
-  constructor(readonly code: string) {}
+  /** `usedAt`: when a member last did anything here (a lobby nobody touches is closed in the end). */
+  constructor(readonly code: string, public usedAt: number) {}
 
   broadcast(msg: ServerMsg): void {
     for (const m of this.members.values()) m.peer?.send(msg);
@@ -52,7 +53,8 @@ export class Lobby {
   readonly rooms = new Map<string, Room>();
   private readonly byToken = new Map<string, Session>();
   private nextId: PlayerId = 1;
-  private readonly now: () => number;
+  /** Wall clock, ms. */
+  readonly now: () => number;
 
   constructor(private readonly opts: LobbyOpts) {
     this.now = opts.now ?? Date.now;
@@ -102,15 +104,17 @@ export class Lobby {
 
   handle(s: Session, msg: ClientMsg): void {
     const fail = (code: ErrorCode) => s.peer?.send({ t: 'error', code });
+    if (s.room) s.room.usedAt = this.now();
     if ((msg.t === 'create' || msg.t === 'join') && msg.name !== undefined) {
       s.name = sanitizeText(msg.name, MAX_NAME_LENGTH) || s.name;
     }
     switch (msg.t) {
       case 'create': {
+        if (this.rooms.size >= MAX_ROOMS) return fail('server_full');
         if (s.room) this.leave(s);
         const wanted = this.opts.debug && typeof msg.code === 'string' ? msg.code.toUpperCase() : '';
         const code = /^[A-Z]{4}$/.test(wanted) && !this.rooms.has(wanted) ? wanted : this.newCode();
-        const room = new Room(code);
+        const room = new Room(code, this.now());
         this.rooms.set(code, room);
         this.enter(s, room);
         return;
@@ -170,7 +174,8 @@ export class Lobby {
       const anyone = [...room.members.values()].some((m) => m.peer);
       if (anyone) room.emptySince = null;
       else room.emptySince ??= now;
-      if (room.members.size === 0 || now - (room.emptySince ?? now) >= ROOM_IDLE_MS) this.closeRoom(room);
+      const unused = room.phase !== 'playing' && now - room.usedAt >= ROOM_UNUSED_MS;
+      if (room.members.size === 0 || now - (room.emptySince ?? now) >= ROOM_IDLE_MS || unused) this.closeRoom(room, unused ? 'idle' : undefined);
     }
   }
 
@@ -189,6 +194,7 @@ export class Lobby {
     room.members.set(s.id, s);
     if (!room.hostId) room.hostId = s.id;
     room.emptySince = null;
+    room.usedAt = this.now();
     if (room.phase === 'gameover') return this.backToLobby(room);
     room.sendState();
     // Late join: into the running game, to spawn when the next round starts.
@@ -211,12 +217,17 @@ export class Lobby {
     else room.sendState();
   }
 
-  private closeRoom(room: Room): void {
+  private closeRoom(room: Room, why?: ErrorCode): void {
     room.game?.stop();
     for (const m of room.members.values()) {
       m.room = null;
+      m.ready = false;
+      m.lostAt = null;
       if (!m.peer) this.byToken.delete(m.token);
-      else m.peer.send({ t: 'left' });
+      else {
+        if (why) m.peer.send({ t: 'error', code: why });
+        m.peer.send({ t: 'left' });
+      }
     }
     room.members.clear();
     this.rooms.delete(room.code);
@@ -243,8 +254,10 @@ export class Lobby {
         onOver: () => {
           game.stop();
           room.phase = 'gameover';
+          room.usedAt = this.now();
           room.sendState();
         },
+        onCrash: () => this.closeRoom(room, 'room_closed'),
       },
     );
     room.game = game;

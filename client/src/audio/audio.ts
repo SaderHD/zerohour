@@ -255,6 +255,9 @@ export class GameAudio {
       case 'explosion':
         guns.explosion(ev, ev.kind);
         break;
+      case 'mark':
+        sfx.mark(ev.id === this.w.selfId() ? undefined : ev);
+        break;
       case 'chain':
         ev.targets.slice(0, 4).forEach((id, n) => guns.arc(this.w.entityAt(id) ?? undefined, n));
         break;

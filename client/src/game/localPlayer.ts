@@ -6,7 +6,6 @@ import {
 import type { Input } from '../input/input';
 
 const ACCEL = 14; // how quickly velocity follows input (1/s)
-const BASE_FOV = 72;
 const SPRINT_FOV_KICK = 7;
 const PITCH_LIMIT = Math.PI / 2 - 0.02;
 const FREECAM_SPEED = 12;
@@ -33,6 +32,9 @@ export class LocalPlayer {
   staminaMax = STAMINA_SECONDS;
   sprinting = false;
   sensitivity = 0.0022;
+  /** Settings: pushing the mouse forward looks down; the resting field of view in degrees. */
+  invertY = false;
+  baseFov = 72;
   /** Debug fly camera: no collision, free vertical movement. */
   freeCam = false;
   /** Set each frame by the weapon system: speed multiplier, sprint lock-out and FOV zoom. */
@@ -54,7 +56,7 @@ export class LocalPlayer {
   private sinceSprint = STAMINA_REGEN_DELAY;
   private bob = 0;
   private bobAmount = 0;
-  private fov = BASE_FOV;
+  private fov = 72;
 
   get speed(): number {
     return Math.hypot(this.vx, this.vz);
@@ -89,7 +91,7 @@ export class LocalPlayer {
     this.lookX = mouse.dx;
     this.lookY = mouse.dy;
     this.yaw -= mouse.dx * sens;
-    this.pitch = clamp(this.pitch - mouse.dy * sens, -PITCH_LIMIT, PITCH_LIMIT);
+    this.pitch = clamp(this.pitch - mouse.dy * sens * (this.invertY ? -1 : 1), -PITCH_LIMIT, PITCH_LIMIT);
     this.recoil += (this.recoilTarget - this.recoil) * (1 - Math.exp(-30 * dt));
     const turn = this.yawKick * (1 - Math.exp(-30 * dt));
     this.yaw += turn;
@@ -159,7 +161,7 @@ export class LocalPlayer {
     const moved = Math.hypot(this.x - before.x, this.z - before.z);
     this.bob += moved * 1.9;
     this.bobAmount += (clamp(this.speed / WALK_SPEED, 0, 1.4) - this.bobAmount) * (1 - Math.exp(-8 * dt));
-    this.fov += ((BASE_FOV + (this.sprinting ? SPRINT_FOV_KICK : 0)) * this.zoom - this.fov) * (1 - Math.exp(-14 * dt));
+    this.fov += ((this.baseFov + (this.sprinting ? SPRINT_FOV_KICK : 0)) * this.zoom - this.fov) * (1 - Math.exp(-14 * dt));
   }
 
   applyTo(camera: THREE.PerspectiveCamera): void {
