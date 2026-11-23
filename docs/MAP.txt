@@ -1,0 +1,81 @@
+Harrow Ridge Station — 70 x 70 m, north is up, 1 char = 0.5 m wide x 1 m tall
+Zones: m Mess Hall · b Bunkhouse · l Laboratory · c Cold Storage · g Generator Hall · p Motor Pool · y Courtyard · k Comms Bunker · v Vault
+# wall  = door  : arch  w window  ~ zombie pocket  Z zombie spawn  P player spawn  * light
+Doors:
+  d_mess_bunk: mess <-> bunk (750)
+  d_mess_yard: mess <-> yard (750)
+  d_bunk_lab: bunk <-> lab (1000)
+  d_lab_cold: lab <-> cold (1250)
+  d_cold_gen: cold <-> gen (1000)
+  d_gen_motor: gen <-> motor (1250)
+  d_yard_motor: yard <-> motor (1000)
+  d_yard_comms: yard <-> comms (1250)
+  d_vault: comms <-> vault (power)
+
+
+
+                      #######
+                      #~~Z~~#
+                      #~~~~~#                                 #######
+           #############www##################                 #~~Z~~#
+           #llllllllllllllllllllllllllllllll#                 #~~~~~#
+           #llllllllllllllllllllllllllllllll####################www###################
+           #llllllllllllllllllllllllllllllll#cccccccccccccccccccccccccccccccccccccccc#
+           #llllllllllllllllllllllllllllllll#cccccccccccccccccccccccccccccccccccccccc#
+    ########llllllll*lllllllllllllllllllllll=cccccccccccccccccccccccccccccccccccccccc########################
+    #~Z~~~~wllllllllllllllllllllllllllllllll=ccccccccc*ccccccccccccccccccc*ccccccccccccccccccccccccccccccccc########
+    #~~~~~~wllllllllllllllllllllllllllllllll#cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccw~~~~Z~#
+    ########llllllllllllllllllllllllllllllll#ccccccccccccccccccccccccccccccccccccccccccccccccc*cccccccccccccw~~~~~~#
+           #llllllllllllllllllllllll*lllllll#ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc########
+           #llllllllllllllllllllllllllllllll########################################################cccccccc#
+           #llllllllllllllllllllllllllllllll#                                                      #cccccccc#
+           #llllllllllllllllllllllllllllllll#                                                      #cccccccc#
+           #########====#####################     #######     #######                              #cccccccc#
+               #bbbbbbbbbbbb#                     #~~Z~~#     #~~Z~~#                              #cccc*ccc#     #######
+               #bbbbbb*bbbbb#                     #~~~~~#     #~~~~~#                              #cccccccc#     #~~Z~~#
+               #bbbbbbbbbbbb#               ########www#########www#######                         #cccccccc#     #~~~~~#
+           #########::::#####################mmmmmmmmmmmmmmmmmmmmmmmmmmmm#                         #cccccccc#     #~~~~~#
+           #bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb#mmmmmmmmmmmmmmmmmmmmmmmmmmmm#                     #######====##########www######
+           #bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb#mmmmmmmmmmmmmmmmmmmmmmmmmmmm#                     #gggggggggggggggggggggggggggg#
+    ########bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb#mmmmmmm*mmmmmmmmmmmmmmmmmmmm########              #gggggggggggggggggggggggggggg#
+    #~Z~~~~wbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb=mmmmmmmmmmmPmmmmmPmmmmmmmmmmw~~~~Z~#              #gggggggggggggggggggggggggggg#
+    #~~~~~~wbbbbbbbb*bbbbbbbbbbbbbbb*bbbbbbb=mmmmmmmmmmmmmmmmmmmmmmmmmmmmw~~~~~~#              #gggggggggggggggggggggggggggg########
+    ########bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb#mmmmmmmmmmmPmmmmmPmmmmmmmmmm#############         #ggggggggggggggggggggggggggggw~~~~Z~#
+           #bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb#mmmmmmmmmmmmmmmmmmmmm*mmmmmm#    #~~~Z~~#         #gggggggg*gggggggggggggggggggw~~~~~~#
+           #bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb#mmmmmmmmmmmmmmmmmmmmmmmmmmmm#    #~~~~~~#         #gggggggggggggggggggggggggggg########
+           #########www######################mmmmmmmmmmmmmmmmmmmmmmmmmmmm#    #~~~~~~#         #gggggggggggggggggggg*ggggggg#
+                  #~~~~~#              #################====####################wwww#########  #gggggggggggggggggggggggggggg#
+                  #~~Z~~#              #yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy#  #gggggggggggggggggggggggggggg#
+                  #######              #yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy#  #gggggggggggggggggggggggggggg#
+                                       #yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy################====##############
+                                       #yyyyyyyy*yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy#pppppppppppppppppppppppppppppppp#
+                                       #yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy#pppppppppppppppppppppppppppppppp#
+                                       #yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy#pppppppppppppppppppppppppppppppp#
+                                ########yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy#pppppppppppppppppppppppppppppppp#
+                                #~~~~~~wyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy#ppppppppp*pppppppppppppppppppppp########
+                                #~Z~~~~wyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy=ppppppppppppppppppppppppppppppppw~~~~Z~#
+                                ########yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy=ppppppppppppppppppppppppppppppppw~~~~~~#
+                                       #yyyyyyyyyyyyyyyyyyyyyyyyyy*yyyyyyyyyyyyyyyyyyyyyyyyy#pppppppppppppppppppppppppppppppp########
+                                       #yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy#ppppppppppppppppppppppp*pppppppp#
+                                       #yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy#pppppppppppppppppppppppppppppppp#
+                                       #yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy#pppppppppppppppppppppppppppppppp#
+                                       #yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy#pppppppppppppppppppppppppppppppp#
+                                       #yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy################www###############
+                                       #yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyw~~~~~~#      #~~~~~#
+                                       #yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy*yyyyyyyw~~~~Z~#      #~~Z~~#
+                                       #yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyw~~~~~~#      #######
+                                       ###################====######################################
+                                               #kkkkkkkkkkkkkkkkkkkkkkkk#
+                                               #kkkkkkkkkkkkkkkkkkkkkkkk##############
+                                               #kkkkkkkkkkkkkkkkkkkkkkkk#vvvvvvvvvvvv#
+                                        ########kkkkkkkkkkkkkkkkkkkkkkkk#vvvvvvvvvvvv#
+                                        #~Z~~~~wkkkkkk*kkkkkkkkkkkkkkkkk=vvvvvvvvvvvv#
+                                        #~~~~~~wkkkkkkkkkkkkkkkkkkkkkkkk=vvvvvv*vvvvv#
+                                        ########kkkkkkkkkkkkkkkkkkkkkkkk#vvvvvvvvvvvv#
+                                               #kkkkkkkkkkkkkkkkkk*kkkkk#vvvvvvvvvvvv#
+                                               #kkkkkkkkkkkkkkkkkkkkkkkk##############
+                                               #kkkkkkkkkkkkkkkkkkkkkkkk#
+                                               ###########www############
+                                                        #~~~~~#
+                                                        #~~Z~~#
+                                                        #######

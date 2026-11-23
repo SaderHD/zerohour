@@ -36,3 +36,55 @@ body {
 #status[data-state='error'] {
   color: var(--blood);
 }
+#zone {
+  position: absolute;
+  left: 12px;
+  top: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 0 #000;
+}
+#stats {
+  position: absolute;
+  right: 12px;
+  top: 10px;
+  display: none;
+  white-space: pre;
+  text-align: right;
+  color: var(--dim);
+  text-shadow: 0 1px 0 #000;
+}
+#crosshair {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  background: var(--ink);
+  opacity: 0.7;
+}
+#hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 56px;
+  text-align: center;
+  text-shadow: 0 1px 0 #000;
+}
+#stamina {
+  position: absolute;
+  left: 50%;
+  bottom: 28px;
+  width: 160px;
+  height: 5px;
+  margin-left: -80px;
+  background: rgba(0, 0, 0, 0.55);
+  outline: 1px solid rgba(216, 210, 192, 0.35);
+  transition: opacity 0.4s;
+}
+#stamina-fill {
+  height: 100%;
+  width: 100%;
+  background: var(--ink);
+}

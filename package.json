@@ -17,7 +17,9 @@
     "test": "vitest run",
     "typecheck": "tsc -p shared && tsc -p server && tsc -p client",
     "lint": "eslint .",
-    "smoke": "node scripts/smoke.cjs"
+    "smoke": "node scripts/smoke.cjs",
+    "map": "tsx scripts/map.ts",
+    "tour": "node scripts/tour.cjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

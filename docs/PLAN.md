@@ -226,7 +226,7 @@ cycle before repeating. Float for 30 s (blink in the last 8). Team-wide.
 | Clearance | 30 s: the Cache costs 10 and appears at every site (only drops after the Cache has moved once) |
 
 ### 4.11 Map — "Harrow Ridge Station"
-A snowed-in 1970s mountain signals outpost. One walkable level, ~90 × 70 m, eight zones in a loop
+A snowed-in 1970s mountain signals outpost. One walkable level, 70 × 70 m (see `docs/MAP.txt`), eight zones in a loop
 plus one spur, so there are good "training" circuits and no dead-end deathtraps except the Vault.
 
 ```
@@ -313,23 +313,29 @@ until carved:
 interface MapDef {
   size: { w: number; d: number };
   rooms: Room[];        // {id, zone, x, z, w, d, ceil, floorStyle, wallStyle, outdoor?}  open floor rects
-  openings: Opening[];  // {id, kind:'arch'|'door'|'window', x, z, w, d, cost?, needsPower?, zones:[a,b]}
+  openings: Opening[];  // {id, kind:'arch'|'door'|'window', x, z, w, d, cost?, needsPower?, zones:[a,b], out?, pocket?}
   props: PropInst[];    // {type, x, z, rot, variant?}  footprint/collision come from data/props.ts
-  spawns: ZSpawn[];     // {id, x, z, windowId}  outside pockets behind windows
   interactables: Inter[]; // wallbuy, tonic, cacheSite, powerSwitch, forge — {kind, ref, x, z, facing}
   playerSpawns: Vec2[]; lights: LightDef[];
 }
 ```
 
-`compile.ts` (shared, pure) rasterises this to a `CompiledMap`: cell grid (solid / floor+zoneId /
-door / window), prop blockers, zone adjacency graph, and wall segment list. The **server** uses it
-for collision validation, nav and LOS. The **client** `worldBuilder.ts` turns it into merged
-meshes: floors, ceilings, greedy-merged wall quads wherever floor meets solid, door/window frames,
-props, lights.
+`compile.ts` (shared, pure) rasterises this to a `CompiledMap`: a cell grid (solid / floor / door /
+window / outside-pocket) with per-cell zone, open height interval, surface styles and tint, plus
+the zone adjacency graph and generated zombie spawns. The **server** uses it for collision
+validation, nav and LOS. The **client** `worldBuilder.ts` turns it into one mesh per surface
+style: floors, ceilings and wall quads wherever a cell's open height interval is not matched by
+its neighbour (this one rule yields walls, door lintels, window sills and jambs), with all
+lighting baked into vertex colours (zone ambient + light pools with grid line of sight + fake AO).
+
+**Windows** carve a walled, roofless pocket (3 m deep by default) behind them; zombies spawn at
+the back of the pocket, so `spawns` is generated, not authored. Pockets need solid ground behind
+the wall — the validator rejects pockets that overlap rooms or each other.
 
 `validate.ts` runs in tests and fails the build if: any zone is unreachable with all doors open;
 any window/spawn can't path to the player spawn; a prop seals a lane (<1.5 m); interactables are
-not adjacent to floor; rooms overlap. It also prints an ASCII top-down dump — **agents must look
+not adjacent to floor; rooms overlap. `npm run map` validates and writes an ASCII top-down dump to
+`docs/MAP.txt` — **agents must look
 at that dump (and a screenshot) after any map edit.**
 
 ### 6.2 Collision
@@ -527,7 +533,12 @@ with no errors in client or server logs.
 - [x] 1 Scaffold, toolchain, protocol — done. Smoke test is a plain Node + Playwright script
   (`npm run smoke`), not `@playwright/test`. Dockerfile written but not built (no Docker in the
   authoring environment).
-- [ ] 2 Map compiler, graybox, renderer, movement
+- [x] 2 Map compiler, graybox, renderer, movement — done. Deviations: map is 70 × 70 m (about
+  1,600 m² walkable); windows carve an enclosed outdoor "pocket" and zombie spawns are generated
+  from those pockets instead of being listed by hand; walls are per-cell quads with baked vertex
+  lighting rather than greedy-merged (35k triangles, 13–19 draw calls); debug hooks for doors are
+  client-local until the server owns door state in session 7. 60 fps was checked only in headless
+  software rendering (~50 fps), not on real hardware.
 - [ ] 3 Rooms, lobby, player sync
 - [ ] 4 Weapons and combat core
 - [ ] 5 Zombies

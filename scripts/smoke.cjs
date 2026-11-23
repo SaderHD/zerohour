@@ -7,7 +7,7 @@ const { chromium } = require('playwright');
 
 const root = path.resolve(__dirname, '..');
 const port = 18080 + Math.floor(Math.random() * 1000);
-const url = `http://localhost:${port}/?name=Smoke`;
+const url = `http://localhost:${port}/?name=Smoke&debug=1`;
 
 async function waitForServer() {
   for (let i = 0; i < 50; i++) {
@@ -40,6 +40,25 @@ async function waitForServer() {
     const status = await page.textContent('#status');
     if (!/connected · player \d+/.test(status)) throw new Error(`unexpected status: ${status}`);
     if (errors.length) throw new Error(`page errors:\n${errors.join('\n')}`);
+    // World: map valid, standing in the spawn zone, cheap to draw.
+    if (state.mapErrors.length) throw new Error(`map errors: ${state.mapErrors.join('; ')}`);
+    if (state.zone !== 'mess') throw new Error(`expected to spawn in mess, got ${state.zone}`);
+    if (state.drawCalls < 3 || state.drawCalls > 150) throw new Error(`draw calls out of range: ${state.drawCalls}`);
+    // Movement: walk north into the wall; must stop one player radius short of it (wall at z=22).
+    await page.evaluate(() => { window.__zh.look(0, 0); window.__zh.key('KeyW', true); });
+    await page.waitForTimeout(2500);
+    const walked = await page.evaluate(() => { window.__zh.key('KeyW', false); return window.__zh.state(); });
+    if (Math.abs(walked.z - 22.35) > 0.03) throw new Error(`expected to stop at the north wall (z=22.35), got z=${walked.z}`);
+    // Doors: closed door blocks, opened door lets us through into the courtyard.
+    await page.evaluate(() => { window.__zh.teleport(29, 30, Math.PI); window.__zh.look(Math.PI, 0); window.__zh.key('KeyW', true); window.__zh.key('ShiftLeft', true); });
+    await page.waitForTimeout(1200);
+    const blocked = await page.evaluate(() => window.__zh.state());
+    if (blocked.zone !== 'mess' || blocked.z > 31.7) throw new Error(`closed door did not block: z=${blocked.z}`);
+    await page.evaluate(() => window.__zh.openDoor('d_mess_yard'));
+    await page.waitForTimeout(1500);
+    const through = await page.evaluate(() => { window.__zh.key('KeyW', false); window.__zh.key('ShiftLeft', false); return window.__zh.state(); });
+    if (through.zone !== 'yard') throw new Error(`expected to walk into the yard, in ${through.zone} at z=${through.z}`);
+    if (through.stamina >= 4) throw new Error('sprinting did not drain stamina');
     mkdirSync(path.join(root, 'test-results'), { recursive: true });
     await page.screenshot({ path: path.join(root, 'test-results/smoke.png') });
     console.log('[smoke] ok', JSON.stringify(state));

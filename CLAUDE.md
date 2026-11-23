@@ -24,6 +24,9 @@ when its acceptance checks pass.
 - `npm start` — production: one process serves the built client and `/ws` on `PORT` (default 8080).
 - `npm test` — Vitest unit/sim tests (`*.test.ts` next to the code).
 - `npm run typecheck` / `npm run lint`.
+- `npm run map` — validate the map and rewrite the ASCII dump `docs/MAP.txt`.
+- `npm run tour [view...]` — after a build: screenshots of every zone to `test-results/tour-*.png`
+  (views are listed in `scripts/tour.cjs`; add one when you add something worth looking at).
 - `npm run smoke` — after a build: boots the server, drives headless Chromium, checks handshake
   and rendering, writes `test-results/smoke.png`. Uses the globally installed `playwright`; do not
   add it as a dependency in the cloud environment.
@@ -31,5 +34,9 @@ when its acceptance checks pass.
 ## Layout notes
 - `@zh/shared` is consumed as TypeScript source by both sides (no build step). Config files
   (`vite.config.ts`) cannot import it.
+- Coordinates: metres, x east, z south, y up, 0.5 m cells. Yaw 0 looks north (−z), positive turns
+  left.
+- World lighting is baked into vertex colours in `client/src/render/worldBuilder.ts`; the scene's
+  white ambient light only passes it through. Use its `box()` helper for static geometry.
 - Tests and visual checks go through `window.__zh` (`client/src/debug.ts`); extend it as features
   land.
