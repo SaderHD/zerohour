@@ -18,5 +18,18 @@ when its acceptance checks pass.
 - Finish every session with typecheck, tests and build green.
 
 ## Commands
-Not scaffolded yet — session 1 creates them and must update this section
-(`npm run dev | build | start | test | typecheck | lint`).
+- `npm run dev` — game server (tsx watch, port 8080, `ZH_DEBUG=1`) + Vite on http://localhost:5173
+  (proxies `/ws`).
+- `npm run build` — client to `client/dist`, server bundle to `server/dist/index.js`.
+- `npm start` — production: one process serves the built client and `/ws` on `PORT` (default 8080).
+- `npm test` — Vitest unit/sim tests (`*.test.ts` next to the code).
+- `npm run typecheck` / `npm run lint`.
+- `npm run smoke` — after a build: boots the server, drives headless Chromium, checks handshake
+  and rendering, writes `test-results/smoke.png`. Uses the globally installed `playwright`; do not
+  add it as a dependency in the cloud environment.
+
+## Layout notes
+- `@zh/shared` is consumed as TypeScript source by both sides (no build step). Config files
+  (`vite.config.ts`) cannot import it.
+- Tests and visual checks go through `window.__zh` (`client/src/debug.ts`); extend it as features
+  land.

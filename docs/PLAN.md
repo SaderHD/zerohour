@@ -524,7 +524,9 @@ with no errors in client or server logs.
 
 ## 9. Progress
 
-- [ ] 1 Scaffold, toolchain, protocol
+- [x] 1 Scaffold, toolchain, protocol — done. Smoke test is a plain Node + Playwright script
+  (`npm run smoke`), not `@playwright/test`. Dockerfile written but not built (no Docker in the
+  authoring environment).
 - [ ] 2 Map compiler, graybox, renderer, movement
 - [ ] 3 Rooms, lobby, player sync
 - [ ] 4 Weapons and combat core
