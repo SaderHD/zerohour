@@ -95,6 +95,7 @@ export function respawn(g: Game, p: PlayerState): void {
   p.pub.weapons = [newWeapon(START_WEAPON)];
   p.pub.slot = 0;
   p.pub.grenades = START_GRENADES;
+  p.pub.tactical = 0;
   award(g, p, Math.max(0, RESPAWN_MIN_POINTS - p.pub.points), 'respawn');
   g.emit({ e: 'playerSpawned', id: p.pub.id, x: p.x, z: p.z });
   g.emit({ e: 'player', player: p.pub });

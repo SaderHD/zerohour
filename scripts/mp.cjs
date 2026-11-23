@@ -77,7 +77,9 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
         if (performance.now() - t0 < 2000) requestAnimationFrame(tick);
         else resolve(pts);
       };
-      tick();
+      // Start on a frame boundary: a first sample taken between frames pairs a stale position with a
+      // short interval and reads as a jump.
+      requestAnimationFrame(tick);
     }));
     let travelled = 0;
     let worst = 0;

@@ -421,6 +421,35 @@ body[data-phase='playing'][data-over] #results {
   display: flex;
   gap: 10px;
 }
+.effect {
+  padding: 3px 10px;
+  border: 2px solid var(--glow);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--glow) 22%, #0b0b0d);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--glow) 55%, transparent);
+  color: #fff;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 0 #000;
+  white-space: nowrap;
+}
+.effect b {
+  margin-left: 8px;
+  color: var(--glow);
+}
+.effect.ending {
+  animation: effect-ending 0.5s steps(2) infinite;
+}
+@keyframes effect-ending {
+  50% {
+    opacity: 0.35;
+  }
+}
+#ammo-tacticals {
+  color: #ff5038;
+  letter-spacing: 2px;
+}
 #banner {
   position: absolute;
   left: 0;

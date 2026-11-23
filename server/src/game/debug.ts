@@ -1,12 +1,14 @@
 import {
-  MOVE_BUDGET_CAP, PLAYER_RADIUS, ZOMBIE_BASE_HP, ZOMBIE_SPEED_RUN, ZOMBIE_SPEED_SHAMBLE, ZOMBIE_SPEED_WALK, circleFits, isFiniteNum,
+  HOWLER_SPEED, MOVE_BUDGET_CAP, PLAYER_RADIUS, SIREN, ZOMBIE_BASE_HP, ZOMBIE_SPEED_RUN, ZOMBIE_SPEED_SHAMBLE, ZOMBIE_SPEED_WALK, circleFits, isFiniteNum,
   type ClientMsg,
 } from '@zh/shared';
+import { giveCacheItem } from './cache';
 import { giveWeapon } from './combat';
 import { powerOn } from './doors';
 import { award } from './economy';
 import { killZombie, spawnDummy } from './entities';
 import { givePerk } from './perks';
+import { dropPowerup } from './powerups';
 import type { Game, PlayerState } from './Game';
 import { setPaused, setRound } from './rounds';
 import { zombieCount } from './spawner';
@@ -33,11 +35,19 @@ export function onDebug(g: Game, p: PlayerState, m: Debug): void {
     case 'killZombies':
       for (const z of [...g.zombies.values()]) if (z.kind !== 'dummy') killZombie(g, z, undefined, undefined, 'debug');
       g.spawnQueue.length = 0;
+      g.arrivals.length = 0;
       return;
     case 'give':
       if (typeof m.weapon === 'string') giveWeapon(g, p, m.weapon, m.upgraded === true);
       if (typeof m.perk === 'string') givePerk(g, p, m.perk);
       if (isFiniteNum(m.points)) award(g, p, m.points, 'debug');
+      if (m.tactical === true) giveCacheItem(g, p, SIREN);
+      return;
+    case 'powerup':
+      if (typeof m.kind === 'string') dropPowerup(g, m.kind, isFiniteNum(m.x) ? m.x : p.x, isFiniteNum(m.z) ? m.z : p.z);
+      return;
+    case 'cache':
+      g.cache.force = { weapon: typeof m.weapon === 'string' ? m.weapon : undefined, jinx: m.jinx === true };
       return;
     case 'dummy':
       if ([m.x, m.z, m.yaw].every(isFiniteNum) && g.zombies.size < 32 && circleFits(g.map, g.openDoors, m.x, m.z, PLAYER_RADIUS)) {
@@ -53,7 +63,7 @@ export function onDebug(g: Game, p: PlayerState, m: Debug): void {
     case 'powerOn':
       return powerOn(g, p.pub.id);
     case 'setRound':
-      if (isFiniteNum(m.round)) setRound(g, m.round);
+      if (isFiniteNum(m.round)) setRound(g, m.round, m.special === true);
       return;
     case 'rounds':
       setPaused(g, m.on !== true);
@@ -69,8 +79,12 @@ function spawn(g: Game, m: Extract<Debug, { cmd: 'spawnZombies' }>): void {
   const speedOf = (): number =>
     isFiniteNum(m.speed) && m.speed > 0 ? Math.min(m.speed, 8) : g.rng.pick([ZOMBIE_SPEED_SHAMBLE, ZOMBIE_SPEED_WALK, ZOMBIE_SPEED_RUN]);
   if (isFiniteNum(m.interval)) g.spawnInterval = Math.max(0.05, m.interval);
+  const howler = m.kind === 'howler';
+  const howlerSpeed = isFiniteNum(m.speed) && m.speed > 0 ? Math.min(m.speed, 8) : HOWLER_SPEED;
   for (let i = 0; i < count; i++) {
-    if (!isFiniteNum(m.x) || !isFiniteNum(m.z)) g.spawnQueue.push({ hp, speed: speedOf() });
-    else if (zombieCount(g) < 64 && circleFits(g.map, g.openDoors, m.x, m.z, PLAYER_RADIUS)) spawnZombie(g, null, m.x, m.z, hp, speedOf());
+    if (!isFiniteNum(m.x) || !isFiniteNum(m.z)) g.spawnQueue.push(howler ? { hp, speed: howlerSpeed, kind: 'howler' } : { hp, speed: speedOf() });
+    else if (zombieCount(g) < 64 && circleFits(g.map, g.openDoors, m.x, m.z, PLAYER_RADIUS)) {
+      spawnZombie(g, null, m.x, m.z, hp, howler ? howlerSpeed : speedOf(), howler ? 'howler' : 'zombie');
+    }
   }
 }

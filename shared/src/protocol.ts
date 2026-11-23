@@ -48,12 +48,17 @@ export interface FireHit {
 }
 
 export type DebugCmd =
-  | { cmd: 'give'; weapon?: WeaponId; upgraded?: boolean; perk?: PerkId; points?: number }
-  | { cmd: 'setRound'; round: number }
+  | { cmd: 'give'; weapon?: WeaponId; upgraded?: boolean; perk?: PerkId; points?: number; tactical?: boolean }
+  /** `special` makes that round a howler round. */
+  | { cmd: 'setRound'; round: number; special?: boolean }
   /** Stop (clearing every zombie) or resume the round loop. */
   | { cmd: 'rounds'; on: boolean }
   /** Queue zombies at the windows; with x/z they appear at that spot instead. `interval` sets the spawn spacing. */
-  | { cmd: 'spawnZombies'; count: number; hp?: number; speed?: number; interval?: number; x?: number; z?: number }
+  | { cmd: 'spawnZombies'; count: number; hp?: number; speed?: number; interval?: number; x?: number; z?: number; kind?: ZombieKind }
+  /** Drop a power-up at the player's feet (or at x/z). */
+  | { cmd: 'powerup'; kind: PowerupId; x?: number; z?: number }
+  /** Fix what the Cache's next roll gives: a weapon id, or the Jinx. */
+  | { cmd: 'cache'; weapon?: WeaponId; jinx?: boolean }
   | { cmd: 'killZombies' }
   | { cmd: 'god'; on: boolean }
   | { cmd: 'openAllDoors' }
@@ -148,12 +153,15 @@ export interface PowerupDrop {
   expiresAt: number; // server time, seconds
 }
 
+/** The Cache as it stands at one site (during Clearance there is one at every site). */
 export interface CacheState {
   site: InteractableId;
-  /** idle -> rolling -> offering (weapon floats for `by`) -> idle; or jinx -> moving. */
+  /** idle -> rolling -> offering (`weapon` floats for `by`) -> idle; or rolling -> jinx -> moving (it leaves). */
   phase: 'idle' | 'rolling' | 'offering' | 'jinx' | 'moving';
   by?: PlayerId;
+  /** A weapon id, or 'siren'. Only known once it is offered. */
   weapon?: WeaponId;
+  /** Game time the phase ends. */
   until?: number;
 }
 
@@ -183,7 +191,8 @@ export interface SyncState {
   zombies: { id: EntityId; kind: ZombieKind; seed: number; x: number; z: number }[];
   powerups: PowerupDrop[];
   activeEffects: { kind: PowerupId; until: number }[];
-  cache: CacheState;
+  /** The site the Cache stands at, and every site where it is doing something. */
+  cache: { home: InteractableId; boxes: CacheState[] };
   forge: ForgeState;
   /** Where the receiving player is standing (spawn point, or last position on reconnect). */
   self: { x: number; z: number; yaw: number };
@@ -235,12 +244,17 @@ export type GameEvent =
   | { e: 'purchase'; id: PlayerId; what: 'weapon' | 'ammo' | 'perk' | 'door' | 'cache' | 'forge'; ref: string }
   | { e: 'denied'; reason: 'points' | 'power' | 'limit' | 'busy' | 'range' | 'invalid' | 'owned' | 'full' | 'upgraded' }
   | { e: 'cache'; state: CacheState }
+  /** The Cache has arrived at another site. */
+  | { e: 'cacheHome'; site: InteractableId }
   | { e: 'forge'; state: ForgeState }
   | { e: 'powerupDrop'; drop: PowerupDrop }
   | { e: 'powerupTaken'; id: EntityId; kind: PowerupId; by: PlayerId; until?: number }
   | { e: 'powerupExpired'; id: EntityId }
   | { e: 'explosion'; x: number; y: number; z: number; radius: number; kind: string }
-  | { e: 'chain'; from: [number, number, number]; targets: EntityId[] }
+  /** An Arclight bolt: from `by`'s gun to the first target, then on down the list. */
+  | { e: 'chain'; by: PlayerId; targets: EntityId[] }
+  /** Lightning at a spot where a howler is about to appear. */
+  | { e: 'strike'; x: number; z: number }
   | { e: 'mark'; id: PlayerId; x: number; z: number }
   | { e: 'gameOver'; round: number; players: PlayerPublic[] };
 

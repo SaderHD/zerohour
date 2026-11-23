@@ -1,5 +1,6 @@
 import { DIR_VEC, INTERACT_RANGE, INTERACT_SLACK, ammoCost, weaponDef, weaponStats, type ClientMsg, type Interactable } from '@zh/shared';
 import { onInteract as onBarricade } from './barricades';
+import { useCache } from './cache';
 import { giveWeapon } from './combat';
 import { buyDoor, powerOn } from './doors';
 import { award } from './economy';
@@ -9,7 +10,7 @@ import { buyTonic, type Deny } from './perks';
 import { standing } from './players';
 
 // The one path every F press takes (PLAN 6.5): a door, something on the map's list of
-// interactables (wall buy, tonic, master switch, Forge), or else the barricade being rebuilt.
+// interactables (wall buy, tonic, master switch, Forge, Cache), or else the barricade being rebuilt.
 // Each is checked here for reach and by its own code for cost, power and state.
 
 /** A weapon on the wall: the gun itself, or ammunition for it if you already carry one. */
@@ -48,7 +49,8 @@ export function onInteract(g: Game, p: PlayerState, m: Extract<ClientMsg, { t: '
       if (it.kind === 'tonic') return buyTonic(g, p, it, deny);
       if (it.kind === 'forge') return useForge(g, p, deny);
       if (it.kind === 'powerSwitch') return g.power ? undefined : powerOn(g, p.pub.id);
-      return; // Cache sites: session 11
+      if (it.kind === 'cacheSite') return useCache(g, p, it, deny);
+      return;
     }
   }
   onBarricade(g, p, m);

@@ -1,7 +1,7 @@
 import {
-  DIR_VEC, FORGE_COST, INTERACT_RANGE, MAX_PERKS, ammoCost, openingDistance, perkCost, perkDef, perkNeedsPower, reviveSecondsWith,
+  DIR_VEC, FORGE_COST, cacheItemName, INTERACT_RANGE, MAX_PERKS, ammoCost, openingDistance, perkCost, perkDef, perkNeedsPower, reviveSecondsWith,
   weaponDef, weaponStats,
-  type ClientMsg, type CompiledMap, type ForgeState, type Interactable, type Opening, type PerkId, type WeaponId,
+  type CacheState, type ClientMsg, type CompiledMap, type ForgeState, type Interactable, type Opening, type PerkId, type WeaponId,
 } from '@zh/shared';
 import type { Input } from '../input/input';
 import type { Barricades } from './barricades';
@@ -21,6 +21,8 @@ export interface BuyerState {
   /** Alone in the room (Second Wind's own rules). */
   solo: boolean;
   forge: ForgeState;
+  /** The Cache at a site: whether one stands there, what it is doing, what a roll costs. */
+  cache(site: string): { present: boolean; state: CacheState | null; cost: number };
 }
 
 const REFUSALS: Record<string, string> = {
@@ -31,7 +33,7 @@ const REFUSALS: Record<string, string> = {
 /**
  * F interactions (PLAN 6.5): reviving a downed teammate and rebuilding the barricade you are
  * standing at (both held); and, with one press, the door in front of you or the nearest thing on
- * the map's list - a wall buy, a tonic dispenser, the master switch, the Forge.
+ * the map's list - a wall buy, a tonic dispenser, the master switch, the Forge, the Cache.
  */
 export class Interact {
   /** Text for the HUD prompt, or '' when there is nothing in reach. */
@@ -79,6 +81,7 @@ export class Interact {
       const d = Math.hypot(dx, dz);
       const v = DIR_VEC[it.facing];
       if (d >= bestD || -dx * v.x - dz * v.z < 0) continue;
+      if (it.kind === 'cacheSite' && !this.buyer().cache(it.id).present) continue;
       if ((-Math.sin(yaw) * dx - Math.cos(yaw) * dz) / (d || 1) < 0.3) continue;
       best = it;
       bestD = d;
@@ -119,8 +122,16 @@ export class Interact {
         if (!held || !def) return no();
         return held.upgraded ? no('This weapon is already upgraded') : yes(`forge the ${def.name} [${FORGE_COST}]`);
       }
+      case 'cacheSite': {
+        const c = b.cache(it.id);
+        const s = c.state;
+        if (!c.present || !s) return no();
+        if (s.phase === 'offering') return s.by === b.id ? yes(`take the ${cacheItemName(s.weapon ?? '')}`) : no('The Cache is in use');
+        if (s.phase === 'rolling') return no(s.by === b.id ? '' : 'The Cache is in use');
+        return s.phase === 'idle' ? yes(`open the Cache [${c.cost}]`) : no();
+      }
       default:
-        return no(); // Cache sites: session 11
+        return no();
     }
   }
 

@@ -32,6 +32,7 @@ interface Slot {
 /** Seconds after a local reload before server ammo counts are trusted again (covers the round trip). */
 const RECONCILE_QUIET = 0.5;
 const WALL_COLOUR = 0x8a8478;
+export const ARC_COLOUR = 0x9adfff;
 
 /**
  * The local player's guns: trigger, spread, recoil, reload, swap, knife and grenades. Shots are
@@ -44,6 +45,8 @@ export class LocalWeapons {
   /** Tonics held: some change how the guns handle. */
   perks: readonly PerkId[] = [];
   grenades = 0;
+  /** Siren decoys held (E throws one). */
+  tacticals = 0;
   /** 0 = hip, 1 = sights. */
   aim = 0;
   /** Shots fired this session (for tests). */
@@ -79,6 +82,7 @@ export class LocalWeapons {
     // Reserves only ever grow by the server's doing (ammo bought): take its word for those.
     pub.weapons.forEach((w, i) => (this.slots[i]!.reserve = Math.max(this.slots[i]!.reserve, w.reserve)));
     this.grenades = pub.grenades;
+    this.tacticals = pub.tactical;
     this.perks = pub.perks;
     if (changed) {
       this.slot = pub.slot;
@@ -175,7 +179,7 @@ export class LocalWeapons {
     this.finish(player, def, held('Mouse0'));
   }
 
-  /** Knife and grenades, gun or no gun. */
+  /** Knife, grenades and decoys, gun or no gun. */
   private handTools(able: (code: string) => boolean): void {
     const { player, vm, send } = this.ctx;
     if (able('KeyV') && this.meleeT <= 0) this.knife();
@@ -184,6 +188,12 @@ export class LocalWeapons {
       this.grenades--;
       vm.throwGrenade();
       send({ t: 'throw', kind: 'frag', yaw: player.yaw, pitch: player.viewPitch });
+    }
+    if (able('KeyE') && this.throwT <= 0 && this.tacticals > 0) {
+      this.throwT = GRENADE_COOLDOWN;
+      this.tacticals--;
+      vm.throwGrenade();
+      send({ t: 'throw', kind: 'tactical', yaw: player.yaw, pitch: player.viewPitch });
     }
   }
 
@@ -234,7 +244,10 @@ export class LocalWeapons {
         }
         if (struck.length > def.pierce) reach = struck[struck.length - 1]!.dist; // the bullet stopped in a body
         else if (wall < def.range) fx.puff(eye.x + dx * (wall - 0.03), eye.y + dy * (wall - 0.03), eye.z + dz * (wall - 0.03), WALL_COLOUR, 3, 1.2);
-        fx.tracer(this.muzzle, this.end.set(eye.x + dx * reach, eye.y + dy * reach, eye.z + dz * reach));
+        this.end.set(eye.x + dx * reach, eye.y + dy * reach, eye.z + dz * reach);
+        // The Arclight throws a bolt, not a bullet (the server says where it jumps from there).
+        if (def.wonder?.kind === 'arclight') fx.bolts.arc(this.muzzle, this.end, ARC_COLOUR, 0.07, 0.4);
+        else fx.tracer(this.muzzle, this.end);
       }
     }
 

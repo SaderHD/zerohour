@@ -1,6 +1,6 @@
 // Round tables (PLAN 4.3): how many zombies, how tough, how fast, how quickly they arrive.
 import {
-  PLANK_POINTS_BASE, PLANK_POINTS_PER_ROUND, SPAWN_INTERVAL_DECAY, SPAWN_INTERVAL_MIN, ZOMBIE_BASE_HP, ZOMBIE_SPAWN_INTERVAL,
+  HOWLER_HP_FRAC, PLANK_POINTS_BASE, PLANK_POINTS_PER_ROUND, SPAWN_INTERVAL_DECAY, SPAWN_INTERVAL_MIN, ZOMBIE_BASE_HP, ZOMBIE_SPAWN_INTERVAL,
   ZOMBIE_SPEED_RUN, ZOMBIE_SPEED_SHAMBLE, ZOMBIE_SPEED_WALK,
 } from '../constants';
 
@@ -58,3 +58,8 @@ export const spawnIntervalForRound = (round: number): number =>
 
 /** Most points one player can earn from rebuilding planks in a round. */
 export const plankPointsCap = (round: number): number => PLANK_POINTS_BASE + PLANK_POINTS_PER_ROUND * Math.max(1, round);
+
+/** Howlers in a howler round (PLAN 4.3). */
+export const howlersForRound = (round: number, players = 1): number => 8 * Math.max(1, players) + 2 * Math.max(1, round);
+
+export const howlerHpForRound = (round: number): number => Math.round(zombieHpForRound(round) * HOWLER_HP_FRAC);

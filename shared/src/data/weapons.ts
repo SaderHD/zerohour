@@ -2,7 +2,7 @@
 import { UPGRADED_AMMO_COST } from '../constants';
 import type { WeaponId } from '../protocol';
 
-export type WeaponClass = 'pistol' | 'revolver' | 'rifle' | 'shotgun' | 'smg' | 'ar' | 'lmg' | 'sniper' | 'launcher';
+export type WeaponClass = 'pistol' | 'revolver' | 'rifle' | 'shotgun' | 'smg' | 'ar' | 'lmg' | 'sniper' | 'launcher' | 'wonder';
 
 export interface WeaponDef {
   id: WeaponId;
@@ -35,10 +35,18 @@ export interface WeaponDef {
   /** FOV multiplier while aiming. */
   zoom: number;
   /** Fires a server-simulated projectile instead of hitscan. */
-  projectile?: { kind: 'thumper'; speed: number; radius: number };
-  /** What the Forge turns it into: a new name, harder hits, a deeper magazine and reserve. */
-  forged: { name: string; damage: number; magSize: number; reserve: number };
+  projectile?: { kind: 'thumper' | 'orb'; speed: number; radius: number };
+  /** A wonder weapon's effect (PLAN 4.5); only one of each exists in a game at a time. */
+  wonder?: WonderSpec;
+  /** What the Forge turns it into: a new name, harder hits, a deeper magazine and reserve (and a stronger effect). */
+  forged: { name: string; damage: number; magSize: number; reserve: number; wonder?: WonderSpec; projectile?: WeaponDef['projectile'] };
 }
+
+export type WonderSpec =
+  /** The bolt jumps from the zombie it hits to the nearest one within `radius`, and on, `chain` bodies in all. */
+  | { kind: 'arclight'; chain: number; radius: number }
+  /** The orb opens a singularity for `seconds` that drags in zombies within `radius` at `pull` m/s, then implodes. */
+  | { kind: 'gravewell'; seconds: number; radius: number; pull: number };
 
 type Base = Pick<WeaponDef, 'pellets' | 'pierce' | 'moveSpeedMult' | 'zoom' | 'falloff'>;
 const base: Base = { pellets: 1, pierce: 0, moveSpeedMult: 1, zoom: 0.75, falloff: 0.5 };
@@ -93,6 +101,18 @@ const list: WeaponDef[] = [
     damage: 700, headMult: 1, rpm: 60, auto: false, magSize: 1, reserve: 18, reloadTime: 2.4,
     spreadHip: 0.01, spreadAim: 0.004, range: 60, falloffStart: 60, falloff: 1, recoil: 0.1, zoom: 0.85,
     projectile: { kind: 'thumper', speed: 26, radius: 4 } },
+  // The wonder weapons: their damage is what each body caught takes, enough to kill past round 30.
+  { ...base, id: 'arclight', name: '"Arclight"', cls: 'wonder', source: 'box',
+    forged: { name: '"Stormglass"', damage: 36000, magSize: 8, reserve: 40, wonder: { kind: 'arclight', chain: 14, radius: 7 } },
+    damage: 12000, headMult: 1, rpm: 75, auto: false, magSize: 4, reserve: 20, reloadTime: 3.0,
+    spreadHip: 0.012, spreadAim: 0.004, range: 40, falloffStart: 40, falloff: 1, recoil: 0.06, zoom: 0.8,
+    wonder: { kind: 'arclight', chain: 8, radius: 5 } },
+  { ...base, id: 'gravewell', name: '"Gravewell"', cls: 'wonder', source: 'box',
+    forged: { name: '"Deepwell"', damage: 45000, magSize: 2, reserve: 14, wonder: { kind: 'gravewell', seconds: 4, radius: 8, pull: 7 },
+      projectile: { kind: 'orb', speed: 9, radius: 8 } },
+    damage: 15000, headMult: 1, rpm: 40, auto: false, magSize: 1, reserve: 8, reloadTime: 3.2,
+    spreadHip: 0.01, spreadAim: 0.004, range: 60, falloffStart: 60, falloff: 1, recoil: 0.09, zoom: 0.85,
+    projectile: { kind: 'orb', speed: 9, radius: 6 }, wonder: { kind: 'gravewell', seconds: 3, radius: 6, pull: 5 } },
 ];
 
 export const WEAPONS: ReadonlyMap<WeaponId, WeaponDef> = new Map(list.map((w) => [w.id, w]));

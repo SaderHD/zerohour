@@ -3,19 +3,21 @@ import {
   Rng, SPRINT_SPEED, START_GRENADES, START_POINTS, START_WEAPON, TICK_BUDGET_MS, TICK_DT, ZOMBIE_SPAWN_INTERVAL,
   circleFits, compileMap, harrowRidge, isFiniteNum,
   type ClientMsg, type CompiledMap, type GameEvent, type PlayerId, type PlayerPublic, type PlayerSnap,
-  type ForgeState, type Interactable, type ServerMsg, type Snapshot, type WeaponState,
+  type ForgeState, type Interactable, type PowerupId, type ServerMsg, type Snapshot, type WeaponState,
 } from '@zh/shared';
 import { newWeapon, onFire, onMelee, onReload, onSwap, onThrow, settleReload } from './combat';
 import { barricadeStates, createBarricades, updateBarricades } from './barricades';
+import { cacheStates, createCache, updateCache } from './cache';
 import { onDebug } from './debug';
 import { createForge, updateForge } from './forge';
 import { onInteract } from './interact';
 import { updateEntities, zombieSnap, type Zombie } from './entities';
 import { Nav } from './nav';
 import { everyoneDown, onRevive, sitOut, standing, updatePlayers } from './players';
+import { activeEffects, createPowerups, updatePowerups } from './powerups';
 import { projectileSnap, updateProjectiles, type Projectile } from './projectiles';
 import { createRounds, updateRounds } from './rounds';
-import { updateSpawner, type SpawnOrder } from './spawner';
+import { updateSpawner, type Arrival, type SpawnOrder } from './spawner';
 import { updateZombies } from './zombies';
 
 let sharedMap: CompiledMap | null = null;
@@ -103,10 +105,17 @@ export class Game {
   readonly projectiles: Projectile[] = [];
   readonly dummyResets: { at: number; x: number; z: number; yaw: number }[] = [];
   readonly rng: Rng;
+  /** A second stream for the things of chance added later (the Cache, drops, howler rounds), so they do not shift the first. */
+  readonly luck: Rng;
   nextEntityId = 1;
   readonly barricades = createBarricades(this);
   readonly nav = new Nav();
   readonly spawnQueue: SpawnOrder[] = [];
+  /** Howlers whose lightning has struck and who are about to appear. */
+  readonly arrivals: Arrival[] = [];
+  /** Timed power-ups: when each one ends (game time). */
+  readonly effects = new Map<PowerupId, number>();
+  readonly powerups = createPowerups();
   spawnInterval = ZOMBIE_SPAWN_INTERVAL;
   nextSpawnAt = 0;
   /** How long `step` takes, in ms: a moving average, the worst seen, and how many went over TICK_BUDGET_MS. */
@@ -118,13 +127,21 @@ export class Game {
   readonly now: () => number;
 
   readonly rounds: ReturnType<typeof createRounds>;
+  readonly cache: ReturnType<typeof createCache>;
   /** Set when everyone is down: the sim stops and the results stay up until the room moves on. */
   over = false;
 
   constructor(private readonly out: GameOut, readonly opts: GameOpts) {
     this.now = opts.now ?? (() => performance.now() / 1000);
     this.rng = new Rng(opts.seed);
+    this.luck = new Rng((opts.seed ^ 0x5eed1e55) >>> 0);
     this.rounds = createRounds(opts.rounds === false);
+    this.cache = createCache(this);
+  }
+
+  /** Is this timed power-up running? */
+  effectOn(kind: PowerupId): boolean {
+    return (this.effects.get(kind) ?? 0) > this.time;
   }
 
   // ------------------------------------------------------------ lifecycle
@@ -210,7 +227,7 @@ export class Game {
       seed: this.opts.seed,
       time: this.time,
       round: this.rounds.round,
-      roundPhase: this.rounds.phase,
+      roundPhase: this.rounds.phase === 'active' && this.rounds.special ? 'special' : this.rounds.phase,
       zombiesLeft: this.rounds.left,
       over: this.over,
       power: this.power,
@@ -218,9 +235,9 @@ export class Game {
       barricades: barricadeStates(this),
       players: [...this.players.values()].map((q) => q.pub),
       zombies: [...this.zombies.values()].map((z) => ({ id: z.id, kind: z.kind, seed: z.seed, x: z.x, z: z.z })),
-      powerups: [],
-      activeEffects: [],
-      cache: { site: '', phase: 'idle' },
+      powerups: this.powerups.drops,
+      activeEffects: activeEffects(this),
+      cache: { home: this.cache.home, boxes: cacheStates(this) },
       forge: this.forge,
       self: { x: p.x, z: p.z, yaw: p.yaw },
     };
@@ -325,7 +342,9 @@ export class Game {
     updateProjectiles(this, dt);
     updateEntities(this);
     updateBarricades(this, dt);
+    updatePowerups(this);
     updateForge(this);
+    updateCache(this);
     updateRounds(this);
     if (everyoneDown(this)) {
       this.over = true;

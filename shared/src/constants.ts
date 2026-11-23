@@ -1,6 +1,6 @@
 // Every tunable number in the game lives here or in shared/src/data. See docs/PLAN.md section 4.
 
-export const PROTOCOL_VERSION = 6;
+export const PROTOCOL_VERSION = 7;
 
 // --- Networking ---
 export const TICK_RATE = 30; // server sim Hz
@@ -135,3 +135,34 @@ export const POWERUP_DROP_CHANCE = 0.02;
 export const POWERUP_MAX_PER_ROUND = 4;
 export const POWERUP_LIFETIME = 30;
 export const POWERUP_DURATION = 30;
+export const POWERUP_BLINK_SECONDS = 8; // a drop blinks for this long before it goes
+export const POWERUP_PICKUP_RANGE = 1.1;
+export const FIRESTORM_POINTS = 400;
+export const REBUILD_POINTS = 200;
+
+// --- The Cache
+export const CACHE_ROLL_SECONDS = 4;
+export const CACHE_OFFER_SECONDS = 10;
+export const CACHE_JINX_SECONDS = 3; // the skull hangs there
+export const CACHE_MOVE_SECONDS = 2.5; // then the Cache leaves for another site
+export const CACHE_JINX_MIN_USES = 4; // the Jinx comes on a use picked between these
+export const CACHE_JINX_MAX_USES = 8;
+
+// --- Howlers
+export const HOWLER_SPEED = 5.6;
+export const HOWLER_DAMAGE = 30;
+export const HOWLER_HP_FRAC = 0.35; // of a zombie's health that round
+export const HOWLER_TELL_SECONDS = 1.2; // lightning strikes, then the howler is there
+export const HOWLER_SPAWN_INTERVAL = 0.7;
+export const HOWLER_MIN_DIST = 6; // metres of walking from the player it arrives near
+export const HOWLER_MAX_DIST = 22;
+export const HOWLER_ROUND_MIN_GAP = 5; // a howler round comes every 5 to 7 rounds
+export const HOWLER_ROUND_MAX_GAP = 7;
+
+// --- The Siren decoy
+export const MAX_TACTICALS = 3;
+export const SIREN_SECONDS = 6;
+export const SIREN_DAMAGE = 1500;
+export const SIREN_RADIUS = 5;
+export const SIREN_LURE_RANGE = 30; // metres of walking: zombies nearer than this come to it
+export const SIREN_STANDOFF = 1.2; // they crowd round it this close

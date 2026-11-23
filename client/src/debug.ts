@@ -3,7 +3,7 @@
 // Commands that change authoritative state are sent to the server, which only honours them
 // when started with ZH_DEBUG=1.
 
-import { PLAYER_EYE_HEIGHT, aimDir, harrowRidge, perkDef, type ClientMsg } from '@zh/shared';
+import { PLAYER_EYE_HEIGHT, SIREN, aimDir, harrowRidge, perkDef, type ClientMsg, type ZombieKind } from '@zh/shared';
 import type { LocalPlayer } from './game/localPlayer';
 import type { Input } from './input/input';
 import type { RetroRenderer } from './render/renderer';
@@ -74,7 +74,19 @@ export interface DebugState {
   hits: { id: number; by: number; zone: string; dmg: number }[];
   kills: number;
   explosions: number;
-  fx: { particles: number; tracers: number; projectiles: number };
+  /** Siren decoys held. */
+  tacticals: number;
+  /** Power-ups lying about, the timed ones running, and every one taken so far. */
+  powerups: { id: number; kind: string; x: number; z: number }[];
+  effects: string[];
+  powerupsTaken: string[];
+  /** The Cache: where it stands and what each site's crate is doing. */
+  cache: { home: string; boxes: { site: string; phase: string; weapon: string | null; shown: string; visible: boolean }[] };
+  /** Bodies struck by each of the last few Arclight bolts, and howler lightning strikes seen. */
+  chains: number[];
+  strikes: number;
+  lastStrike: { x: number; z: number } | null;
+  fx: { particles: number; tracers: number; projectiles: number; bolts: number; kinds: string[] };
 }
 
 export interface ZhDebug {
@@ -85,13 +97,17 @@ export interface ZhDebug {
   look(yaw: number, pitch?: number): void;
   /** Aim the view at a world point. */
   lookAt(x: number, y: number, z: number): void;
-  /** `give('pike')` hands over a weapon (`give('pike', true)` its Forge upgrade), `give('ironhide')` a tonic, `give(500)` points (debug servers only). */
+  /** `give('pike')` hands over a weapon (`give('pike', true)` its Forge upgrade), `give('ironhide')` a tonic, `give('siren')` decoys, `give(500)` points (debug servers only). */
   give(what: string | number, upgraded?: boolean): void;
   /** Queue zombies at the windows; `opts.x/z` drops them at a spot instead (debug servers only). */
-  spawnZombies(count: number, opts?: { hp?: number; speed?: number; interval?: number; x?: number; z?: number }): void;
+  spawnZombies(count: number, opts?: { hp?: number; speed?: number; interval?: number; x?: number; z?: number; kind?: ZombieKind }): void;
+  /** Drop a power-up at our feet, or at (x, z). */
+  powerup(kind: string, x?: number, z?: number): void;
+  /** Fix the Cache's next roll: a weapon id, 'siren', or 'jinx'. */
+  cacheNext(what: string): void;
   killZombies(): void;
-  /** Jump to a round (it starts a second later). */
-  setRound(round: number): void;
+  /** Jump to a round (it starts a second later); `special` makes it a howler round. */
+  setRound(round: number, special?: boolean): void;
   /** Stop the round loop and clear the map (`false`), or resume it. */
   rounds(on: boolean): void;
   god(on: boolean): void;
@@ -124,7 +140,7 @@ export const debugState: DebugState = {
   drawCalls: 0, triangles: 0, worldTriangles: 0, movers: 0, resolution: [0, 0], openDoors: [], power: false, mapErrors: [],
   remotes: [], corrections: 0,
   weapon: null, weapons: [], upgraded: [], perks: [], maxHp: 100, forge: 'idle', slot: 0, mag: 0, reserve: 0, grenades: 0, reloading: false, aim: 0, shots: 0,
-  entities: [], hp: 100, hurts: 0, round: 0, roundPhase: 'intermission', zombiesLeft: 0, points: 0, life: 'alive', roster: [], over: false, barricades: [], prompt: '', hits: [], kills: 0, explosions: 0, fx: { particles: 0, tracers: 0, projectiles: 0 },
+  entities: [], hp: 100, hurts: 0, round: 0, roundPhase: 'intermission', zombiesLeft: 0, points: 0, life: 'alive', roster: [], over: false, barricades: [], prompt: '', hits: [], kills: 0, explosions: 0, tacticals: 0, powerups: [], effects: [], powerupsTaken: [], cache: { home: '', boxes: [] }, chains: [], strikes: 0, lastStrike: null, fx: { particles: 0, tracers: 0, projectiles: 0, bolts: 0, kinds: [] },
 };
 
 export interface DebugWiring {
@@ -159,10 +175,13 @@ export function wireDebug({ player, input, socket: s, playing, renderer, resize 
   },
   give: (what, upgraded = false) =>
     s.send(typeof what === 'number' ? { t: 'debug', cmd: 'give', points: what }
+      : what === SIREN ? { t: 'debug', cmd: 'give', tactical: true }
       : perkDef(what) ? { t: 'debug', cmd: 'give', perk: what } : { t: 'debug', cmd: 'give', weapon: what, upgraded }),
   spawnZombies: (count, opts = {}) => s.send({ t: 'debug', cmd: 'spawnZombies', count, ...opts }),
   killZombies: () => s.send({ t: 'debug', cmd: 'killZombies' }),
-  setRound: (n) => s.send({ t: 'debug', cmd: 'setRound', round: n }),
+  setRound: (n, special = false) => s.send({ t: 'debug', cmd: 'setRound', round: n, special }),
+  powerup: (kind, x, z) => s.send({ t: 'debug', cmd: 'powerup', kind, x, z }),
+  cacheNext: (what) => s.send({ t: 'debug', cmd: 'cache', ...(what === 'jinx' ? { jinx: true } : { weapon: what }) }),
   rounds: (on) => s.send({ t: 'debug', cmd: 'rounds', on }),
   god: (on) => s.send({ t: 'debug', cmd: 'god', on }),
   dummy: (x, z) => {

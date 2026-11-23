@@ -9,7 +9,7 @@ import { cripple } from './zombies';
 
 export interface Projectile {
   id: EntityId;
-  kind: 'frag' | 'thumper';
+  kind: 'frag' | 'thumper' | 'siren' | 'orb' | 'well';
   owner: PlayerId;
   x: number;
   y: number;
@@ -23,6 +23,10 @@ export interface Projectile {
   impact: boolean;
   damage: number;
   radius: number;
+  /** Flies straight: gravity does not touch it (the Gravewell's orb). */
+  float?: boolean;
+  /** An orb opens this singularity where it lands; a `well` is that singularity (see zombies.ts for the pull). */
+  well?: { seconds: number; radius: number; pull: number };
 }
 
 const SIZE = 0.08;
@@ -52,10 +56,12 @@ export function explode(g: Game, pr: Projectile): void {
   for (const z of [...g.zombies.values()]) {
     const d = Math.max(0, Math.hypot(z.x - pr.x, z.z - pr.z) - ZOMBIE_RADIUS);
     if (d >= pr.radius || !lineOfSight(g.map, pr.x, pr.z, z.x, z.z, g.openDoors)) continue;
-    const dmg = explosionDamage(pr.damage, pr.radius, d);
+    // An implosion takes everything it caught whole; a blast weakens towards its edge.
+    const dmg = pr.kind === 'well' ? pr.damage : explosionDamage(pr.damage, pr.radius, d);
     // A blast that fails to kill takes the legs: the zombie crawls from here on.
     if (!damageZombie(g, z, dmg, pr.owner, 'torso', pr.kind) && dmg >= z.maxHp * CRAWLER_MIN_BLAST_FRAC) cripple(z);
   }
+  if (pr.kind === 'well') return; // it only wants the dead
   for (const p of g.players.values()) {
     const d = Math.max(0, Math.hypot(p.x - pr.x, p.z - pr.z) - PLAYER_RADIUS);
     if (d >= pr.radius || !lineOfSight(g.map, pr.x, pr.z, p.x, p.z, g.openDoors)) continue;
@@ -67,10 +73,17 @@ export function updateProjectiles(g: Game, dt: number): void {
   for (let i = g.projectiles.length - 1; i >= 0; i--) {
     const pr = g.projectiles[i]!;
     let boom = (pr.fuse -= dt) <= 0;
+    if (pr.kind === 'well') {
+      if (boom) {
+        g.projectiles.splice(i, 1);
+        explode(g, pr);
+      }
+      continue;
+    }
     const steps = Math.max(1, Math.ceil((Math.hypot(pr.vx, pr.vy, pr.vz) * dt) / MAX_STEP));
     const h = dt / steps;
     for (let s = 0; s < steps && !boom; s++) {
-      pr.vy -= PROJECTILE_GRAVITY * h;
+      if (!pr.float) pr.vy -= PROJECTILE_GRAVITY * h;
       let hit = false;
       if (blocked(g, pr.x + pr.vx * h, pr.y, pr.z)) {
         pr.vx *= -WALL_BOUNCE;
@@ -94,7 +107,14 @@ export function updateProjectiles(g: Game, dt: number): void {
         boom = hit;
       }
     }
-    if (boom) {
+    if (boom && pr.kind === 'orb' && pr.well) {
+      // The orb has landed: it hangs there as a singularity until its time is up.
+      pr.kind = 'well';
+      pr.vx = pr.vy = pr.vz = 0;
+      pr.y = Math.max(pr.y, 0.9);
+      pr.fuse = pr.well.seconds;
+      pr.radius = pr.well.radius;
+    } else if (boom) {
       g.projectiles.splice(i, 1);
       explode(g, pr);
     }

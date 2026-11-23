@@ -1,4 +1,5 @@
 import { FLOWFIELD_INTERVAL_MS, FlowField, type PlayerId } from '@zh/shared';
+import type { Projectile } from './projectiles';
 import type { Game } from './Game';
 
 interface Entry {
@@ -10,6 +11,9 @@ interface Entry {
 /** One flow field per targetable player, refreshed on a staggered timer and whenever a door opens. */
 export class Nav {
   private readonly fields = new Map<PlayerId, Entry>();
+  private lureEntry: Entry | null = null;
+  /** The Siren zombies are drawn to right now, with the way to it; null when none is out (or it lies out of reach). */
+  lure: { x: number; z: number; field: FlowField } | null = null;
 
   /** The field leading to this player, if they can be chased right now. */
   fieldTo(id: PlayerId): FlowField | null {
@@ -44,5 +48,16 @@ export class Nav {
       slot++;
     }
     for (const id of this.fields.keys()) if (!g.players.has(id)) this.fields.delete(id);
+    // The oldest Siren out is the one they hear.
+    let siren: Projectile | undefined;
+    for (const pr of g.projectiles) if (pr.kind === 'siren' && (!siren || pr.id < siren.id)) siren = pr;
+    this.lure = null;
+    if (!siren) return;
+    const l = (this.lureEntry ??= { field: new FlowField(g.map), nextAt: 0, valid: false });
+    if (g.time >= l.nextAt || Math.hypot(l.field.goalX - siren.x, l.field.goalZ - siren.z) > 1) {
+      l.valid = l.field.compute(g.openDoors, siren.x, siren.z);
+      l.nextAt = g.time + interval;
+    }
+    if (l.valid) this.lure = { x: siren.x, z: siren.z, field: l.field };
   }
 }

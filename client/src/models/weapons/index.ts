@@ -1,22 +1,17 @@
 import type { WeaponId } from '@zh/shared';
 import { farrow } from './farrow';
-import { longGun } from './generic';
-import { C, type WeaponModel } from './kit';
+import { coachman, ferrier, halberd, thumper } from './heavy';
+import { type WeaponModel } from './kit';
+import { brakeman, kestrel, longwatch } from './longarms';
 import { pike } from './pike';
 import { dockhand, warden } from './pistols';
 import { stitch } from './stitch';
+import { arclight, gravewell } from './wonder';
 
 export type { WeaponModel } from './kit';
 
 const BUILDERS: Record<WeaponId, (hands: boolean, upgraded: boolean) => WeaponModel> = {
-  warden, dockhand, farrow, pike, stitch,
-  coachman: (h, u) => longGun(h, u, { barrel: 0.42, body: C.metal, furniture: C.wood, mag: 'none', barrels: 2, bore: 0.014, action: 'none' }),
-  kestrel: (h, u) => longGun(h, u, { barrel: 0.4, body: C.dark, furniture: C.olive, mag: 'curved' }),
-  brakeman: (h, u) => longGun(h, u, { barrel: 0.2, body: C.metal, furniture: C.dark, mag: 'box', stock: 'wire' }),
-  halberd: (h, u) => longGun(h, u, { barrel: 0.52, body: C.metal, furniture: C.olive, mag: 'belt', bore: 0.014, bipod: true }),
-  longwatch: (h, u) => longGun(h, u, { barrel: 0.62, body: C.metal, furniture: C.woodDark, mag: 'box', scope: true, action: 'pump' }),
-  ferrier: (h, u) => longGun(h, u, { barrel: 0.4, body: C.dark, furniture: C.dark, mag: 'drum', bore: 0.015 }),
-  thumper: (h, u) => longGun(h, u, { barrel: 0.26, body: C.olive, furniture: C.wood, mag: 'none', bore: 0.034, action: 'none' }),
+  warden, dockhand, farrow, pike, stitch, coachman, kestrel, brakeman, halberd, longwatch, ferrier, thumper, arclight, gravewell,
 };
 
 /** Build a weapon model. First-person models include gloves and sleeves. */

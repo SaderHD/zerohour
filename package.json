@@ -25,7 +25,8 @@
     "e2e": "node scripts/mp.cjs",
     "soak": "tsx scripts/soak.ts",
     "horde": "node scripts/horde.cjs",
-    "economy": "node scripts/economy.cjs"
+    "economy": "node scripts/economy.cjs",
+    "wonders": "node scripts/wonders.cjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -38,6 +38,9 @@ when its acceptance checks pass.
   `test-results/economy-*.png`.
 - `npm run horde` — after a build: browser walk-through of the zombie features (tear, vault,
   attack, damage, rebuild, hit zones, crawler, full horde). Writes `test-results/horde-*.png`.
+- `npm run wonders` — after a build: one browser player through session 11 (Cache roll, take, Jinx and move;
+  the six power-ups; every Cache gun in the hand; Arclight and Gravewell against 24 zombies; the Siren;
+  a howler round). Writes `test-results/wonders-*.png`.
 - URL flags for quick testing: `?autostart=1` (straight into a solo game), `?room=ABCD&autostart=1`
   (shared room across tabs), `?name=X`, `?debug=1`.
 - `npm run map` — validate the map and rewrite the ASCII dump `docs/MAP.txt`.
@@ -97,6 +100,16 @@ when its acceptance checks pass.
   `weaponStats(id, upgraded)`, never `weaponDef` (that is the unforged table entry).
 - Buying (client): `game/interact.ts` picks the prompt and sends the press; `game/forgeView.ts`
   shows the weapon in the Forge; upgraded gun models come from `buildWeapon(id, hands, true)`.
+- Cache, drops, wonder weapons (server): `game/cache.ts` (a box per site, `home`, the Jinx; table and
+  weights in `shared/src/data/cache.ts`), `game/powerups.ts` (drops, pick-up, effects; timed ones are
+  `Game.effects`, read with `g.effectOn(kind)`; list in `shared/src/data/powerups.ts`). Chance for
+  these comes from `g.luck`, not `g.rng`. The Arclight is `arc()` in `combat.ts` (`chainTargets` in
+  shared); the Gravewell's orb becomes a `well` projectile that `zombies.ts` drags bodies to; a Siren
+  is a `siren` projectile that `nav.ts` turns into `nav.lure`. Howlers are `ZombieKind 'howler'`
+  through the same brain: `spawner.ts` picks a spot inside, sends `strike`, and they arrive a moment later.
+- Cache, drops, wonder weapons (client): `game/cacheView.ts`, `game/pickups.ts` (models in
+  `models/pickups.ts`), `game/bolts.ts` (all lightning, one instanced mesh), `models/howler.ts`. A gun's
+  glowing parts are `Kit.glow(...)` in `models/weapons/kit.ts`.
 - Client HUD: `ui/hud.ts` (numeral, banner, downed overlay), `ui/scoreboard.ts` (points list,
   Tab table, results). Scripts that are not about rounds call `__zh.rounds(false)` first.
 - Zombies (client): `models/zombie.ts` poses a box rig in code; `models/zombieHorde.ts` draws all
@@ -107,7 +120,9 @@ when its acceptance checks pass.
   depth clear. Gun models come from `models/weapons/` (`Kit` boxes, muzzle at -z, origin at the
   grip); add new guns to the table in `models/weapons/index.ts`.
 - Try things in a debug game from the console: `__zh.give('pike')` (`give('pike', true)` upgraded,
-  `give('ironhide')` a tonic, `give(5000)` points), `__zh.dummy()`,
+  `give('ironhide')` a tonic, `give('siren')` decoys, `give(5000)` points), `__zh.dummy()`,
+  `__zh.powerup('reaper')`, `__zh.cacheNext('arclight')` (or `'jinx'`), `__zh.setRound(6, true)` (a howler round),
+  `__zh.spawnZombies(3, { kind: 'howler' })`,
   `__zh.spawnZombies(8, { interval: 0.3 })`, `__zh.god(true)`, `__zh.killZombies()`, `__zh.setRound(10)`, `__zh.rounds(false)`,
   `__zh.openDoor('d_mess_bunk')`, `__zh.powerOn()`.
 - Tests and visual checks go through `window.__zh` (`client/src/debug.ts`); extend it as features

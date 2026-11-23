@@ -7,7 +7,11 @@ import type { Game, PlayerState } from './Game';
 
 // Points (PLAN 4.2). Every change goes through `award`, which tells the clients why.
 
+/** What Double Up doubles: points earned by fighting and building, not refunds or bonuses. */
+const DOUBLED: ReadonlySet<string> = new Set(['hit', 'kill', 'headshot', 'melee', 'plank']);
+
 export function award(g: Game, p: PlayerState, amount: number, reason: string): void {
+  if (amount > 0 && DOUBLED.has(reason) && g.effectOn('double')) amount *= 2;
   const total = Math.max(0, p.pub.points + Math.round(amount));
   const delta = total - p.pub.points;
   if (delta === 0) return;

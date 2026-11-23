@@ -1,6 +1,7 @@
 import type * as THREE from 'three';
 import { ZombieState, type EntityId, type HitZone, type ZombieKind, type ZombieSnap } from '@zh/shared';
 import { DummyModel, type EntityModel } from '../models/dummy';
+import { HowlerActor } from '../models/howler';
 import { ZombieActor } from '../models/zombie';
 import { ZombieHorde } from '../models/zombieHorde';
 import { InterpBuffer, type Pose } from '../net/interp';
@@ -57,8 +58,8 @@ export class Entities {
       const dummy = new DummyModel();
       this.scene.add(dummy.root);
       model = dummy;
-    } else model = new ZombieActor(seed, this.horde);
-    const state = (kind === 'dummy' ? ZombieState.Idle : ZombieState.Approach) as never;
+    } else model = kind === 'howler' ? new HowlerActor(seed, this.horde) : new ZombieActor(seed, this.horde);
+    const state = (kind === 'dummy' ? ZombieState.Idle : kind === 'howler' ? ZombieState.Chase : ZombieState.Approach) as never;
     this.live.set(id, { id, kind, model, buffer: new InterpBuffer(), hp: 1, gait: 1, dying: 0, pose: { x, z, yaw: 0, pitch: 0, state, speed: 0 } });
   }
 

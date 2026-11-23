@@ -14,6 +14,11 @@ export class ServerClock {
     else this.offset -= 0.0005;
   }
 
+  /** Our best estimate of the server's game time right now. */
+  get now(): number {
+    return performance.now() / 1000 + (this.offset ?? 0);
+  }
+
   get renderTime(): number {
     return performance.now() / 1000 + (this.offset ?? 0) - INTERP_DELAY_MS / 1000;
   }

@@ -128,7 +128,7 @@ All numbers live in `shared/src/data` and `constants.ts` so balance never requir
   without damage. Red vignette + heartbeat when hurt.
 - Two weapon slots, knife melee (150 dmg, 0.6 s), 2 frag grenades (refill +1/round, max 4).
 - Controls: WASD, mouse look (pointer lock), LMB fire, RMB aim (FOV zoom + tighter spread),
-  R reload, Shift sprint, F interact/revive (hold), V melee, G grenade, Q/1/2/wheel swap,
+  R reload, Shift sprint, F interact/revive (hold), V melee, G grenade, E decoy, Q/1/2/wheel swap,
   Tab scoreboard, Esc menu.
 - **Downed:** crawl-speed 0, pistol only, 45 s bleed-out; teammate holds F for 3 s to revive.
   Going down loses all perks. Bled-out players spectate and respawn at the start of the next round
@@ -193,7 +193,7 @@ Start with 500.
 | "Thumper" | grenade launcher | box | — | splash, self-damage |
 | **"Arclight"** | wonder weapon | box only | — | bolt chains to up to 8 zombies within 5 m; kills through R30+ |
 | **"Gravewell"** | wonder weapon | box only | — | slow orb; on impact a 3 s singularity pulls zombies in, then implodes |
-| "Siren" decoy | tactical (replaces grenades slot 2) | box only | — | thrown lure; zombies chase it 6 s, then it explodes |
+| "Siren" decoy | tactical (its own slot beside the grenades: 3 from a roll, E throws) | box only | — | thrown lure; zombies within 30 m of walking chase it 6 s, then it explodes |
 
 Wall buys also sell ammo (half price; upgraded ammo 4,500). Weapon stats schema:
 `damage, headMult, rpm, auto, magSize, reserve, reloadTime, spreadHip, spreadAim, pellets, range,
@@ -218,9 +218,11 @@ power. Max 4 per player. Lost on down.
 ### 4.7 The Cache (random weapon crate)
 950 points. Lid opens, weapons cycle for 4 s, result floats for 10 s for the buyer to take (F).
 Weighted table excluding weapons the buyer holds; wonder weapons ~4% each, max one of each in the
-game at a time. After 4–8 uses the roll can produce a **Jinx** (a cackling skull): points are
-refunded and the Cache relocates to another of its 5 possible sites, marked by a sky beam. Works
-without power.
+game at a time (carried, set aside while downed, in the Forge or mid-roll all count). On a use
+picked between the 4th and the 8th at a site the roll produces a **Jinx** (a cackling skull):
+points are refunded and the Cache relocates to another of its 5 possible sites, marked by a sky
+beam. Works without power. The table (`shared/src/data/cache.ts`) holds every weapon but the
+starting pistol - Cache-only ones weighted above the wall guns - and the Siren.
 
 ### 4.8 The Forge (weapon upgrade)
 In the Vault behind the Comms Bunker; the vault door only opens when power is on. 5,000 points
@@ -243,7 +245,7 @@ cycle before repeating. Float for 30 s (blink in the last 8). Team-wide.
 | Double Up | 30 s: double points |
 | Firestorm | Kills all live zombies, +400 each player |
 | Rebuild | All barricades restored, +200 each player |
-| Clearance | 30 s: the Cache costs 10 and appears at every site (only drops after the Cache has moved once) |
+| Clearance | 30 s: the Cache costs 10 and appears at every site, each with its own roll; no Jinx meanwhile (only drops after the Cache has moved once) |
 
 ### 4.11 Map — "Harrow Ridge Station"
 A snowed-in 1970s mountain signals outpost. One walkable level, 70 × 70 m (see `docs/MAP.txt`), eight zones in a loop
@@ -416,7 +418,8 @@ wall buys, tonics, Cache, Forge, power switch, barricade rebuild and revive.
 ### 6.6 Testing & debug hooks (required — this is how agents verify work)
 - `window.__zh` in dev: `state()`, `teleport(x,z)`, `give(weapon|perk|points)` (`give(weapon, true)`
   for the Forge upgrade), `setRound(n)`,
-  `rounds(bool)` (stop/resume the round loop), `spawnZombies(n, opts)`, `killZombies()`, `god(bool)`, `freeCam()`, `openAllDoors()`, `powerOn()`, `dummy(x,z)` (target
+  `setRound(n, true)` for a howler round, `give('siren')`, `powerup(kind)`, `cacheNext(weapon|'siren'|'jinx')`,
+  `rounds(bool)` (stop/resume the round loop), `spawnZombies(n, opts)` (`opts.kind: 'howler'`), `killZombies()`, `god(bool)`, `freeCam()`, `openAllDoors()`, `powerOn()`, `dummy(x,z)` (target
   dummy), `lookAt(x,y,z)`, `press(code)` (mouse buttons are `Mouse0`/`Mouse2`). Matching server-side
   `debug` messages, enabled only when `ZH_DEBUG=1`.
 - URL flags: `?name=X`, `?room=CODE` (join; with `autostart` the room is created if missing —
@@ -710,7 +713,33 @@ with no errors in client or server logs.
   not blocked while drinking; purchases are not checked for line of sight, only reach and side;
   bots buy nothing; no purchase sounds or tonic stings (12); `client/src/main.ts` is still ~500
   lines (the debug hooks moved to `debug.ts`; the event switch is what is left to split, 13).
-- [ ] 11 Cache, power-ups, wonder weapons, Howlers
+- [x] 11 Cache, power-ups, wonder weapons, Howlers — done. `npm run wonders` plays it alone in a
+  browser (a roll, the take, a Jinx and the move; all six power-ups and their timers; every Cache
+  gun in the hand; one Arclight bolt through 8 of a 24-zombie horde, 14 forged; one Gravewell orb
+  taking all 24; the Siren; a howler round). Unit tests: `shared/src/data/cache.test.ts` (weights,
+  uniqueness, the drop cycle, chain targeting) and `cache`, `powerups`, `wonder`, `howlers` tests
+  beside the server code. Protocol v7 (`sync.cache` is `{home, boxes}`, `cacheHome`, `strike`,
+  `chain {by, targets}`, debug `powerup` / `cache` / `give {tactical}` / `setRound {special}` /
+  `spawnZombies {kind}`). Choices the plan left open: the Cache is a state per site, so during
+  Clearance every site rolls on its own; the Jinx falls on one use picked from the 4th to the 8th
+  at a site (not a chance per roll) and never during Clearance; what a roll will give is fixed when
+  it is paid for and kept from clients until it lands; the Siren is a third throwable (3 per roll,
+  E) rather than replacing a grenade slot; Arclight and Gravewell do a flat 12,000 / 15,000 per body
+  (zombie health passes that around round 36) and their upgrades add reach (14 bodies at 7 m; a
+  4 s, 8 m singularity) on top of x3 damage; a singularity holds whatever is in reach and in sight
+  and its implosion does not hurt players; Double Up doubles hits, kills and planks only; Reaper
+  does not apply to the target dummy; Firestorm kills pay nothing but the 400; drops need a kill by
+  a player inside the walls and come from a second RNG stream (`Game.luck`) so the first is
+  undisturbed; howlers have 35% of the round's zombie health, bite for 30, arrive 1.2 s after their
+  lightning 6-22 m of walking from a player, and are not crippled by blasts. The seven placeholder
+  guns have their own models (`models/weapons/longarms.ts`, `heavy.ts`), as do the two wonder
+  weapons (`wonder.ts`, with glowing parts). Howlers are the zombie rig on all fours through the
+  same instanced meshes (no new draw calls); worst view in the walk-through is 53 calls.
+  Deferred: no sounds for any of it (12); bots neither use the Cache nor pick up drops on purpose;
+  the Cache's roll shows any weapon, including ones the buyer holds; the "10" on the Clearance
+  pick-up reads mirrored from behind; a Siren thrown where zombies cannot walk (out of a window) is
+  ignored; `client/src/main.ts` is now ~565 lines (split due in 13). `npm run e2e` sampled its
+  first position between frames and could read that as a jump; it now starts on a frame.
 - [ ] 12 Audio and feel
 - [ ] 13 UX, menus, robustness
 - [ ] 14 Balance, performance, ship

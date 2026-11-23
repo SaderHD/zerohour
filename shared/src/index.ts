@@ -11,4 +11,6 @@ export * from './combat';
 export * from './data/weapons';
 export * from './data/perks';
 export * from './data/rounds';
+export * from './data/cache';
+export * from './data/powerups';
 export * from './data/props';

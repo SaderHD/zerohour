@@ -1,10 +1,11 @@
 import {
+  SIREN_DAMAGE, SIREN_RADIUS, SIREN_SECONDS, chainTargets,
   FIRE_RATE_SLACK, GRENADE_COOLDOWN, GRENADE_DAMAGE, GRENADE_FUSE, GRENADE_LOFT, GRENADE_RADIUS, GRENADE_SPEED,
   HIT_DIST_SLACK, KNIFE_COOLDOWN, MoveState, KNIFE_DAMAGE, KNIFE_RANGE, KNIFE_RANGE_SLACK, PLAYER_EYE_HEIGHT, SWAP_SECONDS,
   aimDir, fireInterval, fireRateMultWith, hitDamage, isFiniteNum, lineOfSight, maxHitsPerShot, reloadMultWith, weaponSlotsWith, weaponStats,
   type ClientMsg, type HitZone, type WeaponDef, type WeaponId, type WeaponState,
 } from '@zh/shared';
-import { damageZombie } from './entities';
+import { damageZombie, type Zombie } from './entities';
 import type { Game, PlayerState } from './Game';
 import { standing } from './players';
 import { spawnProjectile } from './projectiles';
@@ -67,6 +68,7 @@ export function onFire(g: Game, p: PlayerState, m: Msg<'fire'>): void {
     spawnProjectile(g, {
       kind: def.projectile.kind, owner: p.pub.id, x: p.x + dx * 0.5, y: PLAYER_EYE_HEIGHT - 0.1 + dy * 0.5, z: p.z + dz * 0.5,
       vx: dx * s, vy: dy * s, vz: dz * s, fuse: 6, impact: true, damage: def.damage, radius: def.projectile.radius,
+      float: def.projectile.kind === 'orb', well: def.wonder?.kind === 'gravewell' ? def.wonder : undefined,
     });
     return;
   }
@@ -83,8 +85,18 @@ export function onFire(g: Game, p: PlayerState, m: Msg<'fire'>): void {
     const actual = Math.hypot(z.x - p.x, z.z - p.z);
     if (Math.abs(h.dist - actual) > HIT_DIST_SLACK || actual > def.range + HIT_DIST_SLACK) continue;
     if (!lineOfSight(g.map, p.x, p.z, z.x, z.z, g.openDoors)) continue;
+    if (def.wonder?.kind === 'arclight') return arc(g, p, z, def);
     damageZombie(g, z, hitDamage(def, h.zone, Math.min(h.dist, def.range)), p.pub.id, h.zone, 'bullet');
   }
+}
+
+/** An Arclight bolt has struck `first`: it jumps on from body to body (PLAN 4.5). */
+function arc(g: Game, p: PlayerState, first: Zombie, def: WeaponDef): void {
+  if (def.wonder?.kind !== 'arclight') return;
+  const sees = (a: Zombie, b: Zombie): boolean => lineOfSight(g.map, a.x, a.z, b.x, b.z, g.openDoors);
+  const struck = chainTargets(first, g.zombies.values(), def.wonder.chain, def.wonder.radius, sees);
+  g.emit({ e: 'chain', by: p.pub.id, targets: struck.map((z) => z.id) });
+  for (const z of struck) damageZombie(g, z, def.damage, p.pub.id, 'torso', 'arclight');
 }
 
 export function onReload(g: Game, p: PlayerState): void {
@@ -117,16 +129,19 @@ export function onMelee(g: Game, p: PlayerState, m: Msg<'melee'>): void {
 }
 
 export function onThrow(g: Game, p: PlayerState, m: Msg<'throw'>): void {
-  if (!standing(p) || m.kind !== 'frag' || !isFiniteNum(m.yaw) || !isFiniteNum(m.pitch)) return; // tactical: session 11
+  const siren = m.kind === 'tactical';
+  if (!standing(p) || (m.kind !== 'frag' && !siren) || !isFiniteNum(m.yaw) || !isFiniteNum(m.pitch)) return;
   const now = g.now();
-  if (p.pub.grenades <= 0 || now < p.nextThrowAt - FIRE_RATE_SLACK) return;
+  if ((siren ? p.pub.tactical : p.pub.grenades) <= 0 || now < p.nextThrowAt - FIRE_RATE_SLACK) return;
   p.nextThrowAt = now + GRENADE_COOLDOWN;
-  p.pub.grenades--;
+  if (siren) p.pub.tactical--;
+  else p.pub.grenades--;
   g.emit({ e: 'player', player: p.pub });
   const [dx, dy, dz] = aimDir(m.yaw, Math.max(-1.5, Math.min(1.5, m.pitch)));
   spawnProjectile(g, {
-    kind: 'frag', owner: p.pub.id, x: p.x + dx * 0.4, y: PLAYER_EYE_HEIGHT - 0.15, z: p.z + dz * 0.4,
+    kind: siren ? 'siren' : 'frag', owner: p.pub.id, x: p.x + dx * 0.4, y: PLAYER_EYE_HEIGHT - 0.15, z: p.z + dz * 0.4,
     vx: dx * GRENADE_SPEED, vy: dy * GRENADE_SPEED + GRENADE_LOFT, vz: dz * GRENADE_SPEED,
-    fuse: GRENADE_FUSE, impact: false, damage: GRENADE_DAMAGE, radius: GRENADE_RADIUS,
+    // A Siren calls zombies to it for a while (nav.ts, zombies.ts) before it goes off.
+    fuse: siren ? SIREN_SECONDS : GRENADE_FUSE, impact: false, damage: siren ? SIREN_DAMAGE : GRENADE_DAMAGE, radius: siren ? SIREN_RADIUS : GRENADE_RADIUS,
   });
 }

@@ -1,19 +1,21 @@
 import * as THREE from 'three';
 import {
   BLEEDOUT_SECONDS, CLIENT_MOVE_SEND_HZ, DOOR_OPEN_SECONDS, MoveState, PLAYER_EYE_HEIGHT, PLAYER_MAX_HP, TONICS, aimDir, compileMap, harrowRidge,
-  maxHpWith, perkDef, rayWorld, staminaWith, validateMap, weaponDef,
-  type ForgeState, type PerkId, type PlayerPublic,
+  maxHpWith, perkDef, powerupDef, rayWorld, staminaWith, validateMap, weaponDef,
+  type ForgeState, type PerkId, type PlayerPublic, type PowerupId,
 } from '@zh/shared';
 import { debugState, wireDebug } from './debug';
 import { Barricades } from './game/barricades';
+import { CacheView } from './game/cacheView';
 import { Entities } from './game/entities';
 import { ForgeView } from './game/forgeView';
 import { Fx } from './game/fx';
 import { Interact } from './game/interact';
 import { LocalPlayer } from './game/localPlayer';
+import { Pickups } from './game/pickups';
 import { RemotePlayers } from './game/remotePlayers';
 import { Viewmodel } from './game/viewmodel';
-import { LocalWeapons } from './game/weapons';
+import { ARC_COLOUR, LocalWeapons } from './game/weapons';
 import { Input } from './input/input';
 import { ServerClock } from './net/interp';
 import { Net } from './net/net';
@@ -133,9 +135,14 @@ let power = false;
 let perks: readonly PerkId[] = [];
 let forge: ForgeState = { phase: 'idle' };
 const forgeView = new ForgeView(scene, map, world.lightAt, fx);
+const cacheView = new CacheView(scene, map, world.lightAt, fx);
+const pickups = new Pickups(scene, fx);
+/** Timed power-ups that are running: the game time each one ends. */
+const effects = new Map<PowerupId, number>();
 const interact = new Interact(barricades, remotes, map, soldDoors, () => ({
   id: net.id, points: scores.players.get(net.id)?.points ?? 0, perks, weapons: weapons.slots, slot: weapons.slot, power, forge,
   solo: [...scores.players.values()].filter((p) => p.connected).length <= 1,
+  cache: (site) => cacheView.at(site),
 }), (m) => net.socket.send(m));
 
 /** Our own slow state changed: guns, grenades, tonics. */
@@ -224,6 +231,10 @@ s.on('sync', (m) => {
   const me = m.players.find((p) => p.id === net.id);
   if (me) onSelf(me);
   setForge(m.forge);
+  cacheView.reset(m.cache.home, m.cache.boxes);
+  pickups.reset(m.powerups);
+  effects.clear();
+  for (const e of m.activeEffects) effects.set(e.kind, e.until);
   round = scores.round = m.round;
   roundPhase = m.roundPhase;
   zombiesLeft = m.zombiesLeft;
@@ -261,10 +272,10 @@ s.on('ev', (m) => {
         break;
       case 'roundStart':
         round = scores.round = ev.round;
-        roundPhase = 'active';
+        roundPhase = ev.special ? 'special' : 'active';
         zombiesLeft = ev.total;
         hud.setRound(round);
-        hud.banner(`Round ${round}`);
+        hud.banner(`Round ${round}`, ev.special ? 'Something is howling out there' : '');
         break;
       case 'roundEnd':
         roundPhase = 'intermission';
@@ -334,7 +345,7 @@ s.on('ev', (m) => {
         if (ev.id !== net.id) remotes.melee(ev.id);
         break;
       case 'explosion':
-        fx.explosion(ev.x, ev.y, ev.z, ev.radius);
+        fx.explosion(ev.x, ev.y, ev.z, ev.radius, ev.kind);
         debugState.explosions++;
         break;
       case 'playerLeft':
@@ -354,6 +365,49 @@ s.on('ev', (m) => {
         break;
       case 'forge':
         setForge(ev.state);
+        break;
+      case 'cache':
+        cacheView.set(ev.state);
+        if (ev.state.phase === 'jinx') hud.banner('', ev.state.by === net.id ? 'Jinx! Your points are back \u2014 the Cache is leaving' : 'Jinx! The Cache is leaving');
+        break;
+      case 'cacheHome':
+        cacheView.setHome(ev.site);
+        hud.banner('', 'The Cache has come down somewhere else \u2014 follow the light');
+        break;
+      case 'powerupDrop':
+        pickups.add(ev.drop);
+        break;
+      case 'powerupExpired':
+        pickups.remove(ev.id, false);
+        break;
+      case 'powerupTaken':
+        pickups.remove(ev.id, true);
+        if (ev.until !== undefined) effects.set(ev.kind, ev.until);
+        hud.banner(powerupDef(ev.kind)?.name ?? ev.kind, powerupDef(ev.kind)?.blurb ?? '');
+        debugState.powerupsTaken = [...debugState.powerupsTaken, ev.kind];
+        break;
+      case 'chain': {
+        // An Arclight bolt jumping on from the body it struck (the first leg is drawn with the shot).
+        let prev: THREE.Vector3 | null = null;
+        for (const id of ev.targets) {
+          const at = entities.chest(id);
+          if (!at) continue;
+          const here = new THREE.Vector3(at.x, at.y, at.z);
+          if (prev) fx.bolts.arc(prev, here, ARC_COLOUR, 0.06, 0.45);
+          fx.puff(at.x, at.y, at.z, ARC_COLOUR, 4, 2.2, 0.04, 0.3);
+          prev = here;
+        }
+        if (prev) fx.flash(prev.x, prev.y, prev.z, 20);
+        debugState.chains = [...debugState.chains.slice(-7), ev.targets.length];
+        break;
+      }
+      case 'strike':
+        // Lightning: a howler is a moment behind it.
+        fx.bolts.strike(ev.x, ev.z);
+        fx.flash(ev.x, 1.5, ev.z, 50);
+        fx.puff(ev.x, 0.1, ev.z, 0xbfe8ff, 10, 3, 0.05, 0.5);
+        debugState.strikes++;
+        debugState.lastStrike = { x: ev.x, z: ev.z };
         break;
       case 'purchase':
         // Our own tonic: knock it back.
@@ -382,7 +436,9 @@ function remoteShot(id: number, weapon: string, yaw: number, pitch: number): voi
     const wall = rayWorld(map, openDoors, from.x, PLAYER_EYE_HEIGHT, from.z, dx, dy, dz, def.range);
     const body = entities.raycast(from.x, PLAYER_EYE_HEIGHT, from.z, dx, dy, dz, wall)[def.pierce];
     const reach = body?.dist ?? wall;
-    fx.tracer(from, shotTo.set(from.x + dx * reach, PLAYER_EYE_HEIGHT + dy * reach, from.z + dz * reach));
+    shotTo.set(from.x + dx * reach, PLAYER_EYE_HEIGHT + dy * reach, from.z + dz * reach);
+    if (def.wonder?.kind === 'arclight') fx.bolts.arc(from, shotTo, ARC_COLOUR, 0.07, 0.4);
+    else fx.tracer(from, shotTo);
   }
 }
 
@@ -440,6 +496,12 @@ renderer.gl.setAnimationLoop((now) => {
   entities.update(dt, clock.renderTime);
   fx.update(dt);
   forgeView.update(dt, now / 1000);
+  const gameTime = clock.now;
+  for (const [kind, until] of effects) if (until <= gameTime) effects.delete(kind);
+  cacheView.setClearance(effects.has('clearance'));
+  cacheView.update(dt, gameTime);
+  pickups.update(dt, gameTime);
+  hud.setEffects(live() ? [...effects].map(([kind, until]) => ({ kind, left: until - gameTime })) : []);
   world.update(dt, now / 1000);
   atmosphere.update(dt, camera.position.x, camera.position.z);
   sky.position.set(camera.position.x, 0, camera.position.z);
@@ -450,7 +512,7 @@ renderer.gl.setAnimationLoop((now) => {
   hud.setScope(scoped);
 
   const cur = weapons.current;
-  hud.setAmmo(weapons.def?.name ?? '', cur?.mag ?? 0, cur?.reserve ?? 0, weapons.grenades, weapons.reloading);
+  hud.setAmmo(weapons.def?.name ?? '', cur?.mag ?? 0, cur?.reserve ?? 0, weapons.grenades, weapons.reloading, weapons.tacticals);
   const gapPx = (Math.tan(weapons.spread()) / Math.tan((camera.fov * Math.PI) / 360)) * (window.innerHeight / 2);
   hud.setCrosshair(gapPx, weapons.aim < 0.5);
 
@@ -494,6 +556,7 @@ renderer.gl.setAnimationLoop((now) => {
     forge: forge.phase, slot: weapons.slot, mag: cur?.mag ?? 0,
     reserve: cur?.reserve ?? 0, grenades: weapons.grenades, reloading: weapons.reloading, aim: weapons.aim,
     shots: weapons.shots, entities: entities.list(), fx: fx.counts, hp, barricades: barricades.list(), prompt: interact.prompt,
+    tacticals: weapons.tacticals, powerups: pickups.list(), effects: [...effects.keys()], cache: cacheView.list(),
     round, roundPhase, zombiesLeft, life, over, points: scores.players.get(net.id)?.points ?? 0, roster: scores.list(),
   });
 });

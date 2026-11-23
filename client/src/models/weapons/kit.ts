@@ -46,6 +46,9 @@ export class Kit {
   private readonly body: THREE.BufferGeometry[] = [];
   private readonly magG: THREE.BufferGeometry[] = [];
   private readonly slideG: THREE.BufferGeometry[] = [];
+  /** Parts that shine by themselves (a wonder weapon's workings), all in one colour. */
+  private readonly glowG: THREE.BufferGeometry[] = [];
+  private glowHex = 0xffffff;
   /** Every box of the gun itself as [half width from the centre line, y, half height, z, half depth]. */
   private readonly extents: [number, number, number, number, number][] = [];
 
@@ -88,6 +91,15 @@ export class Kit {
     return this;
   }
 
+  /** A box that glows whatever the light. One colour per gun: the last one given. */
+  glow(w: number, h: number, d: number, hex: number, x: number, y: number, z: number, rot?: Rot): this {
+    const g = new THREE.BoxGeometry(w, h, d);
+    if (rot) g.rotateX(rot[0]).rotateY(rot[1]).rotateZ(rot[2]);
+    this.glowG.push(g.translate(x, y, z));
+    this.glowHex = hex;
+    return this;
+  }
+
   /**
    * Glowing strips down both flanks at barrel height, each stretch standing just proud of
    * whatever part of the gun is widest there.
@@ -125,6 +137,12 @@ export class Kit {
     }
     group.add(part(material, ...this.body));
     if (trim) group.add(trim);
+    if (this.glowG.length) {
+      // Named like the Forge's trim so a third-person model keeps it glowing too.
+      const glow = new THREE.Mesh(mergeGeometries(this.glowG), new THREE.MeshBasicMaterial({ color: this.upgraded ? SCRATCH.set(this.glowHex).lerp(TRIM_MATERIAL.color, 0.45).getHex() : this.glowHex }));
+      glow.name = 'trim';
+      group.add(glow);
+    }
     const sub = (geos: THREE.BufferGeometry[]): THREE.Object3D | null => {
       if (!geos.length) return null;
       const m = part(material, ...geos);

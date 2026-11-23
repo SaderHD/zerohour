@@ -1,11 +1,11 @@
-import { TONICS, perkDef, type PerkId } from '@zh/shared';
+import { TONICS, perkDef, powerupDef, type PerkId, type PowerupId } from '@zh/shared';
 
 const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 /**
  * HUD: zone name, stamina bar, crosshair, hit marker, ammo, hurt vignette, interaction prompt and
  * its progress bar, round numeral and banner, downed / spectating overlay, debug readout.
- * and the tray of tonics held. (#effects stays empty until session 11.)
+ * the tray of tonics held and the row of running power-ups with their seconds left.
  */
 export class Hud {
   private readonly zone = el('zone');
@@ -39,6 +39,8 @@ export class Hud {
   private lastDowned = '';
   private readonly perks = el('perks');
   private lastPerks = '';
+  private readonly effects = el('effects');
+  private lastEffects = '';
 
   /** The round numeral; it flashes when the round changes. */
   setRound(n: number, flash = true): void {
@@ -117,6 +119,24 @@ export class Hud {
     }));
   }
 
+  /** Timed power-ups that are running, each with the seconds it has left; one about to end pulses. */
+  setEffects(list: { kind: PowerupId; left: number }[]): void {
+    const key = list.map((e) => `${e.kind}:${Math.ceil(e.left)}`).join(',');
+    if (key === this.lastEffects) return;
+    this.lastEffects = key;
+    this.effects.replaceChildren(...list.map((e) => {
+      const def = powerupDef(e.kind);
+      const tab = document.createElement('div');
+      tab.className = e.left <= 5 ? 'effect ending' : 'effect';
+      tab.dataset.kind = e.kind;
+      tab.style.setProperty('--glow', `#${(def?.colour ?? 0xffffff).toString(16).padStart(6, '0')}`);
+      const secs = document.createElement('b');
+      secs.textContent = String(Math.ceil(e.left));
+      tab.append(def?.name ?? e.kind, secs);
+      return tab;
+    }));
+  }
+
   setPrompt(text: string): void {
     if (text === this.lastPrompt) return;
     this.lastPrompt = text;
@@ -167,8 +187,8 @@ export class Hud {
     this.hitmarker.className = `show ${kind}`;
   }
 
-  setAmmo(name: string, mag: number, reserve: number, grenades: number, reloading: boolean): void {
-    const key = `${name}|${mag}|${reserve}|${grenades}|${reloading}`;
+  setAmmo(name: string, mag: number, reserve: number, grenades: number, reloading: boolean, tacticals = 0): void {
+    const key = `${name}|${mag}|${reserve}|${grenades}|${reloading}|${tacticals}`;
     if (key === this.lastAmmo) return;
     this.lastAmmo = key;
     this.ammo.style.display = name ? 'block' : 'none';
@@ -177,5 +197,6 @@ export class Hud {
     this.ammoMag.classList.toggle('empty', mag === 0);
     this.ammoReserve.textContent = ` / ${reserve}`;
     this.nades.textContent = '\u25c6'.repeat(grenades);
+    el('ammo-tacticals').textContent = '\u25c9'.repeat(tacticals);
   }
 }
