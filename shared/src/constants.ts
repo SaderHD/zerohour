@@ -1,10 +1,11 @@
 // Every tunable number in the game lives here or in shared/src/data. See docs/PLAN.md section 4.
 
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 // --- Networking ---
 export const TICK_RATE = 30; // server sim Hz
 export const TICK_DT = 1 / TICK_RATE;
+export const TICK_BUDGET_MS = 5; // a server tick should cost less than this with a full horde
 export const SNAPSHOT_EVERY_TICKS = 2; // 15 Hz
 export const CLIENT_MOVE_SEND_HZ = 20;
 export const INTERP_DELAY_MS = 120;
@@ -32,6 +33,7 @@ export const MOVE_BUDGET_CAP = 3; // metres of movement a client can bank (absor
 export const ROOM_IDLE_MS = 30_000; // empty rooms are deleted after this
 export const PLAYER_MAX_HP = 100;
 export const PLAYER_REGEN_DELAY = 4;
+export const PLAYER_REGEN_RATE = 60; // hp per second once regen starts
 export const BLEEDOUT_SECONDS = 45;
 export const REVIVE_SECONDS = 3;
 export const MAX_PERKS = 4;
@@ -58,6 +60,7 @@ export const GRENADE_DAMAGE = 600;
 export const GRENADE_RADIUS = 5;
 export const GRENADE_COOLDOWN = 0.8;
 export const EXPLOSION_MIN_FRAC = 0.25; // damage fraction at the edge of a blast
+export const EXPLOSION_PLAYER_MULT = 0.2; // players take this share of a blast
 export const PROJECTILE_GRAVITY = 14;
 export const DUMMY_HP = 1000;
 export const DUMMY_RESET_SECONDS = 3;
@@ -91,6 +94,18 @@ export const PLANK_TEAR_SECONDS = 1.5;
 export const PLANK_REBUILD_SECONDS = 1.0;
 export const FLOWFIELD_INTERVAL_MS = 250;
 export const ZOMBIE_RETARGET_SECONDS = 1;
+export const ZOMBIE_BASE_HP = 150; // round 1; the round table scales it (session 6)
+export const ZOMBIE_ATTACK_COOLDOWN = 0.7; // recovery after a swing before moving again
+export const ZOMBIE_SEPARATION = 0.75; // zombies closer than this push apart
+export const ZOMBIE_QUEUE_GAP = 0.8; // spacing while queueing outside a window
+export const ZOMBIE_VAULT_SECONDS = 1.1;
+export const ZOMBIE_SPAWN_INTERVAL = 2;
+export const ZOMBIE_TURN_RATE = 7; // rad/s
+export const ZOMBIE_DIRECT_CHASE_RANGE = 3; // within this and in sight, run straight at the target
+export const WINDOW_STANDOFF = 0.7; // from a window's centre to where a zombie tears / lands
+export const CRAWLER_SPEED = 0.8;
+export const CRAWLER_DAMAGE = 25;
+export const CRAWLER_MIN_BLAST_FRAC = 0.3; // a blast this share of max HP that fails to kill takes the legs
 
 // --- Rounds ---
 export const INTERMISSION_SECONDS = 10;

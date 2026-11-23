@@ -163,6 +163,29 @@ body {
   letter-spacing: 0.2em;
   color: #8fa05a;
 }
+#hurt {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: radial-gradient(ellipse at center, rgba(120, 0, 0, 0) 38%, rgba(150, 8, 4, 0.55) 78%, rgba(90, 0, 0, 0.9) 100%);
+  transition: opacity 0.25s linear;
+}
+#hurt.flash {
+  transition: none;
+}
+#prompt {
+  position: absolute;
+  left: 50%;
+  top: 62%;
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #f0e6c8;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  text-shadow: 0 1px 0 #000;
+  display: none;
+}
 #hint {
   position: absolute;
   left: 0;

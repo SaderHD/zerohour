@@ -1,12 +1,18 @@
 import {
   MOVE_BUDGET_CAP, MOVE_SPEED_SLACK, MoveState, PLAYER_MAX_HP, PLAYER_RADIUS, SNAPSHOT_EVERY_TICKS,
-  Rng, SPRINT_SPEED, START_GRENADES, START_POINTS, START_WEAPON, TICK_DT, circleFits, compileMap, harrowRidge, isFiniteNum,
+  Rng, SPRINT_SPEED, START_GRENADES, START_POINTS, START_WEAPON, TICK_BUDGET_MS, TICK_DT, ZOMBIE_BASE_HP, ZOMBIE_SPAWN_INTERVAL,
+  ZOMBIE_SPEED_RUN, ZOMBIE_SPEED_SHAMBLE, ZOMBIE_SPEED_WALK, circleFits, compileMap, harrowRidge, isFiniteNum,
   type ClientMsg, type CompiledMap, type GameEvent, type PlayerId, type PlayerPublic, type PlayerSnap,
   type ServerMsg, type Snapshot,
 } from '@zh/shared';
 import { giveWeapon, newWeapon, onFire, onMelee, onReload, onSwap, onThrow, settleReload } from './combat';
-import { spawnDummy, updateEntities, zombieSnap, type Zombie } from './entities';
+import { barricadeStates, createBarricades, onInteract, updateBarricades } from './barricades';
+import { killZombie, spawnDummy, updateEntities, zombieSnap, type Zombie } from './entities';
+import { Nav } from './nav';
+import { updatePlayers } from './players';
 import { projectileSnap, updateProjectiles, type Projectile } from './projectiles';
+import { updateSpawner, zombieCount, type SpawnOrder } from './spawner';
+import { spawnZombie, updateZombies } from './zombies';
 
 let sharedMap: CompiledMap | null = null;
 export const gameMap = (): CompiledMap => (sharedMap ??= compileMap(harrowRidge));
@@ -33,6 +39,12 @@ export interface PlayerState {
   nextMeleeAt: number;
   nextThrowAt: number;
   reloadUntil: number;
+  /** Game time of the last damage taken (health regenerates after a quiet spell). */
+  hurtAt: number;
+  /** Debug: takes no damage. */
+  god: boolean;
+  /** The barricade being rebuilt while F is held, and progress towards the next plank. */
+  rebuild: { id: string; t: number } | null;
 }
 
 /** Longest we extrapolate a player's last reported position when building a snapshot. */
@@ -62,6 +74,13 @@ export class Game {
   readonly dummyResets: { at: number; x: number; z: number; yaw: number }[] = [];
   readonly rng: Rng;
   nextEntityId = 1;
+  readonly barricades = createBarricades(this);
+  readonly nav = new Nav();
+  readonly spawnQueue: SpawnOrder[] = [];
+  spawnInterval = ZOMBIE_SPAWN_INTERVAL;
+  nextSpawnAt = 0;
+  /** How long `step` takes, in ms: a moving average, the worst seen, and how many went over TICK_BUDGET_MS. */
+  readonly stats = { ticks: 0, tickMs: 0, tickMsMax: 0, overBudget: 0 };
   /**
    * Wall clock in seconds, for timing client messages (which arrive between ticks): movement
    * velocity, fire rate, reloads. Tests inject a fake one.
@@ -97,8 +116,7 @@ export class Game {
   // ------------------------------------------------------------ players
 
   addPlayer(id: PlayerId, name: string): PlayerState {
-    const spawns = this.map.def.playerSpawns;
-    const s = spawns[this.spawnCursor++ % spawns.length]!;
+    const s = this.nextSpawn();
     const p: PlayerState = {
       pub: {
         id, name, points: START_POINTS, kills: 0, headshots: 0, downs: 0, revives: 0,
@@ -107,11 +125,27 @@ export class Game {
       x: s.x, z: s.z, yaw: s.yaw, pitch: 0, state: MoveState.Idle, hp: PLAYER_MAX_HP, ack: 0, budget: MOVE_BUDGET_CAP,
       vx: 0, vz: 0, movedAt: this.now(),
       fireAck: 0, nextFireAt: 0, nextMeleeAt: 0, nextThrowAt: 0, reloadUntil: 0,
+      hurtAt: -100, god: false, rebuild: null,
     };
     this.players.set(id, p);
     this.emit({ e: 'player', player: p.pub });
     this.emit({ e: 'playerSpawned', id, x: p.x, z: p.z });
     return p;
+  }
+
+  nextSpawn(): { x: number; z: number; yaw: number } {
+    const spawns = this.map.def.playerSpawns;
+    return spawns[this.spawnCursor++ % spawns.length]!;
+  }
+
+  /** Can zombies chase and hurt this player right now? */
+  targetable(p: PlayerState): boolean {
+    return p.pub.connected;
+  }
+
+  /** Snap a client back to where the server has it. */
+  correct(p: PlayerState): void {
+    this.out.send(p.pub.id, { t: 'correct', x: p.x, z: p.z, seq: p.ack });
   }
 
   removePlayer(id: PlayerId): void {
@@ -142,7 +176,7 @@ export class Game {
       zombiesLeft: 0,
       power: false,
       openDoors: [...this.openDoors],
-      barricades: [],
+      barricades: barricadeStates(this),
       players: [...this.players.values()].map((q) => q.pub),
       zombies: [...this.zombies.values()].map((z) => ({ id: z.id, kind: z.kind, seed: z.seed, x: z.x, z: z.z })),
       powerups: [],
@@ -171,11 +205,13 @@ export class Game {
         return onMelee(this, p, msg);
       case 'throw':
         return onThrow(this, p, msg);
+      case 'interact':
+        return onInteract(this, p, msg);
       case 'debug':
         if (this.opts.debug) this.onDebug(p, msg);
         return;
       default:
-        return; // interaction etc. arrive in later sessions
+        return; // revive, chat etc. arrive in later sessions
     }
   }
 
@@ -217,7 +253,16 @@ export class Game {
         p.z = m.z;
         p.budget = MOVE_BUDGET_CAP;
         p.vx = p.vz = 0;
-        this.out.send(p.pub.id, { t: 'correct', x: p.x, z: p.z, seq: p.ack });
+        this.correct(p);
+        return;
+      case 'god':
+        p.god = m.on === true;
+        return;
+      case 'spawnZombies':
+        return this.debugSpawn(m);
+      case 'killZombies':
+        for (const z of [...this.zombies.values()]) if (z.kind !== 'dummy') killZombie(this, z, undefined, undefined, 'debug');
+        this.spawnQueue.length = 0;
         return;
       case 'give':
         if (typeof m.weapon === 'string') giveWeapon(this, p, m.weapon);
@@ -242,9 +287,22 @@ export class Game {
     }
   }
 
+  private debugSpawn(m: Extract<ClientMsg, { t: 'debug'; cmd: 'spawnZombies' }>): void {
+    const count = Number.isInteger(m.count) ? Math.max(0, Math.min(64, m.count)) : 0;
+    const hp = isFiniteNum(m.hp) && m.hp > 0 ? m.hp : ZOMBIE_BASE_HP;
+    const speedOf = (): number =>
+      isFiniteNum(m.speed) && m.speed > 0 ? Math.min(m.speed, 8) : this.rng.pick([ZOMBIE_SPEED_SHAMBLE, ZOMBIE_SPEED_WALK, ZOMBIE_SPEED_RUN]);
+    if (isFiniteNum(m.interval)) this.spawnInterval = Math.max(0.05, m.interval);
+    for (let i = 0; i < count; i++) {
+      if (!isFiniteNum(m.x) || !isFiniteNum(m.z)) this.spawnQueue.push({ hp, speed: speedOf() });
+      else if (zombieCount(this) < 64 && circleFits(this.map, this.openDoors, m.x, m.z, PLAYER_RADIUS)) spawnZombie(this, null, m.x, m.z, hp, speedOf());
+    }
+  }
+
   openDoor(id: string, by: PlayerId): void {
     if (this.openDoors.has(id)) return;
     this.openDoors.add(id);
+    this.nav.invalidate();
     this.emit({ e: 'doorOpened', id, by });
   }
 
@@ -255,19 +313,30 @@ export class Game {
   }
 
   step(dt: number): void {
+    const began = performance.now();
     this.time += dt;
     this.tick++;
     for (const p of this.players.values()) {
       p.budget = Math.min(MOVE_BUDGET_CAP, p.budget + SPRINT_SPEED * MOVE_SPEED_SLACK * dt);
       settleReload(this, p);
     }
+    updatePlayers(this, dt);
+    this.nav.update(this);
+    updateSpawner(this);
+    updateZombies(this, dt);
     updateProjectiles(this, dt);
     updateEntities(this);
+    updateBarricades(this, dt);
     if (this.events.length) {
       this.out.broadcast({ t: 'ev', tick: this.tick, events: this.events });
       this.events = [];
     }
     if (this.tick % SNAPSHOT_EVERY_TICKS === 0) this.sendSnapshots();
+    const ms = performance.now() - began;
+    this.stats.tickMs += (ms - this.stats.tickMs) * 0.02;
+    this.stats.tickMsMax = Math.max(this.stats.tickMsMax, ms);
+    this.stats.ticks++;
+    if (ms > TICK_BUDGET_MS) this.stats.overBudget++;
   }
 
   private sendSnapshots(): void {
@@ -284,7 +353,7 @@ export class Game {
           z = ez;
         }
       }
-      players.push([p.pub.id, round2(x), round2(z), round2(p.yaw), round2(p.pitch), p.state, p.hp, p.pub.slot]);
+      players.push([p.pub.id, round2(x), round2(z), round2(p.yaw), round2(p.pitch), p.state, Math.round(p.hp), p.pub.slot]);
     }
     const base: Omit<Snapshot, 'ack' | 'ammo'> = { t: 'snap', tick: this.tick, time: Math.round(this.time * 1000) / 1000, players,
       zombies: [...this.zombies.values()].map(zombieSnap),

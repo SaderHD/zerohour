@@ -1,9 +1,11 @@
 import {
-  CELL_SIZE, Cell, PROJECTILE_GRAVITY, ZOMBIE_RADIUS, explosionDamage, lineOfSight,
+  CELL_SIZE, CRAWLER_MIN_BLAST_FRAC, Cell, EXPLOSION_PLAYER_MULT, PLAYER_RADIUS, PROJECTILE_GRAVITY, ZOMBIE_RADIUS, explosionDamage, lineOfSight,
   type EntityId, type PlayerId, type ProjectileSnap,
 } from '@zh/shared';
 import { damageZombie } from './entities';
 import type { Game } from './Game';
+import { damagePlayer } from './players';
+import { cripple } from './zombies';
 
 export interface Projectile {
   id: EntityId;
@@ -50,9 +52,15 @@ export function explode(g: Game, pr: Projectile): void {
   for (const z of [...g.zombies.values()]) {
     const d = Math.max(0, Math.hypot(z.x - pr.x, z.z - pr.z) - ZOMBIE_RADIUS);
     if (d >= pr.radius || !lineOfSight(g.map, pr.x, pr.z, z.x, z.z, g.openDoors)) continue;
-    damageZombie(g, z, explosionDamage(pr.damage, pr.radius, d), pr.owner, 'torso', pr.kind);
+    const dmg = explosionDamage(pr.damage, pr.radius, d);
+    // A blast that fails to kill takes the legs: the zombie crawls from here on.
+    if (!damageZombie(g, z, dmg, pr.owner, 'torso', pr.kind) && dmg >= z.maxHp * CRAWLER_MIN_BLAST_FRAC) cripple(z);
   }
-  // Damage to players (including the thrower) arrives with player health in session 5.
+  for (const p of g.players.values()) {
+    const d = Math.max(0, Math.hypot(p.x - pr.x, p.z - pr.z) - PLAYER_RADIUS);
+    if (d >= pr.radius || !lineOfSight(g.map, pr.x, pr.z, p.x, p.z, g.openDoors)) continue;
+    damagePlayer(g, p, explosionDamage(pr.damage, pr.radius, d) * EXPLOSION_PLAYER_MULT, pr.x, pr.z);
+  }
 }
 
 export function updateProjectiles(g: Game, dt: number): void {

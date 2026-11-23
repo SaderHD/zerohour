@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import {
-  CLIENT_MOVE_SEND_HZ, MoveState, PLAYER_EYE_HEIGHT, aimDir, compileMap, harrowRidge, rayWorld, validateMap, weaponDef,
+  CLIENT_MOVE_SEND_HZ, MoveState, PLAYER_EYE_HEIGHT, PLAYER_MAX_HP, aimDir, compileMap, harrowRidge, rayWorld, validateMap, weaponDef,
 } from '@zh/shared';
 import { debugState, installDebug } from './debug';
+import { Barricades } from './game/barricades';
 import { Entities } from './game/entities';
 import { Fx } from './game/fx';
+import { Interact } from './game/interact';
 import { LocalPlayer } from './game/localPlayer';
 import { RemotePlayers } from './game/remotePlayers';
 import { Viewmodel } from './game/viewmodel';
@@ -56,6 +58,9 @@ const clock = new ServerClock();
 const entities = new Entities(scene, world);
 const fx = new Fx(scene);
 const vm = new Viewmodel();
+const barricades = new Barricades(scene, map, world, fx);
+const interact = new Interact(barricades, (m) => net.socket.send(m));
+let hp = PLAYER_MAX_HP;
 
 /** Doors the server has opened. Also used for local collision. */
 const openDoors = new Set<string>();
@@ -133,12 +138,14 @@ s.on('sync', (m) => {
   setDoors(m.openDoors);
   remotes.reset(m.players);
   entities.reset(m.zombies);
+  barricades.reset(m.barricades);
   const me = m.players.find((p) => p.id === net.id);
   if (me) weapons.onPlayer(me);
 });
 s.on('snap', (m) => {
   clock.observe(m.time);
   remotes.onSnapshot(m.time, m.players);
+  hp = m.players.find((p) => p[0] === net.id)?.[6] ?? hp;
   entities.onSnapshot(m.time, m.zombies);
   fx.setProjectiles(m.projectiles);
   weapons.onAmmo(m.ammo);
@@ -159,13 +166,34 @@ s.on('ev', (m) => {
         break;
       case 'zombieHit':
         if (ev.by === net.id) hud.hit(ev.zone === 'head' ? 'head' : 'hit');
-        else entities.flinch(ev.id, 0.6);
+        else {
+          // Someone else's hit (or a blast): we did not draw it when the trigger was pulled.
+          entities.flinch(ev.id, 0.6);
+          const at = entities.chest(ev.id);
+          if (at) fx.puff(at.x, at.y, at.z, at.colour, 3, 1.4);
+        }
         debugState.hits = [...debugState.hits.slice(-31), { id: ev.id, by: ev.by, zone: ev.zone, dmg: ev.dmg }];
         break;
-      case 'zombieDied':
+      case 'zombieDied': {
+        const at = entities.chest(ev.id);
+        if (at) fx.puff(at.x, at.y, at.z, at.colour, 10, 2.4, 0.05, 0.6);
         entities.die(ev.id);
         if (ev.by === net.id) hud.hit('kill');
         debugState.kills++;
+        break;
+      }
+      case 'barricade':
+        barricades.set(ev.id, ev.planks);
+        break;
+      case 'playerHurt':
+        if (ev.id !== net.id) break;
+        hp = ev.hp;
+        hud.hurt();
+        player.kick(0.05);
+        debugState.hurts++;
+        break;
+      case 'playerDied':
+        if (ev.id === net.id) debugState.deaths++;
         break;
       case 'fired':
         if (ev.id !== net.id) remoteShot(ev.id, ev.weapon, ev.yaw, ev.pitch);
@@ -228,6 +256,9 @@ installDebug({
     player.pitch = Math.atan2(y - PLAYER_EYE_HEIGHT, Math.hypot(dx, dz));
   },
   give: (what) => s.send(typeof what === 'number' ? { t: 'debug', cmd: 'give', points: what } : { t: 'debug', cmd: 'give', weapon: what }),
+  spawnZombies: (count, opts = {}) => s.send({ t: 'debug', cmd: 'spawnZombies', count, ...opts }),
+  killZombies: () => s.send({ t: 'debug', cmd: 'killZombies' }),
+  god: (on) => s.send({ t: 'debug', cmd: 'god', on }),
   dummy: (x, z) => {
     const [dx, , dz] = aimDir(player.yaw, 0);
     const px = x ?? player.x + dx * 3;
@@ -264,7 +295,8 @@ renderer.gl.setAnimationLoop((now) => {
 
   if (playing()) {
     weapons.update(dt, input, !player.freeCam);
-    player.update(dt, input, map, openDoors);
+    interact.update(dt, input, player.x, player.z, !player.freeCam);
+    player.update(dt, input, map, openDoors, player.freeCam ? [] : entities.blockers());
     player.applyTo(camera);
     camera.updateMatrixWorld();
     vm.update(dt, {
@@ -302,6 +334,8 @@ renderer.gl.setAnimationLoop((now) => {
   const zoneId = map.zoneAt(player.x, player.z);
   hud.setZone(map.zones.find((z) => z.id === zoneId)?.name ?? '');
   hud.setStamina(player.stamina);
+  hud.setHealth(playing() ? hp : PLAYER_MAX_HP, dt);
+  hud.setPrompt(playing() ? interact.prompt : '');
 
   fpsFrames++;
   fpsTime += dt;
@@ -323,7 +357,7 @@ renderer.gl.setAnimationLoop((now) => {
     pingMs: net.pingMs, remotes: remotes.list(),
     weapon: cur?.id ?? null, weapons: weapons.slots.map((w) => w.id), slot: weapons.slot, mag: cur?.mag ?? 0,
     reserve: cur?.reserve ?? 0, grenades: weapons.grenades, reloading: weapons.reloading, aim: weapons.aim,
-    shots: weapons.shots, entities: entities.list(), fx: fx.counts,
+    shots: weapons.shots, entities: entities.list(), fx: fx.counts, hp, barricades: barricades.list(), prompt: interact.prompt,
   });
 });
 

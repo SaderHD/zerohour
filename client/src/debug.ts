@@ -40,8 +40,14 @@ export interface DebugState {
   aim: number;
   /** Shots we have fired. */
   shots: number;
-  /** Enemies as drawn; hp is a 0..1 fraction. */
-  entities: { id: number; kind: string; x: number; z: number; hp: number }[];
+  /** Enemies as drawn; hp is a 0..1 fraction, state a ZombieState. */
+  entities: { id: number; kind: string; x: number; z: number; hp: number; state: number }[];
+  /** Our health, and how many times we have been hit or killed. */
+  hp: number;
+  hurts: number;
+  deaths: number;
+  barricades: { id: string; planks: number }[];
+  prompt: string;
   /** Server-confirmed hits by anyone, newest last (capped). */
   hits: { id: number; by: number; zone: string; dmg: number }[];
   kills: number;
@@ -59,6 +65,10 @@ export interface ZhDebug {
   lookAt(x: number, y: number, z: number): void;
   /** `give('pike')` hands over a weapon, `give(500)` points (debug servers only). */
   give(what: string | number): void;
+  /** Queue zombies at the windows; `opts.x/z` drops them at a spot instead (debug servers only). */
+  spawnZombies(count: number, opts?: { hp?: number; speed?: number; interval?: number; x?: number; z?: number }): void;
+  killZombies(): void;
+  god(on: boolean): void;
   /** Stand a target dummy at (x, z), or 3 m in front of the player. */
   dummy(x?: number, z?: number): void;
   /** Tap a key for one frame, e.g. press('Mouse0') to fire once. */
@@ -86,7 +96,7 @@ export const debugState: DebugState = {
   drawCalls: 0, triangles: 0, worldTriangles: 0, resolution: [0, 0], openDoors: [], mapErrors: [],
   remotes: [], corrections: 0,
   weapon: null, weapons: [], slot: 0, mag: 0, reserve: 0, grenades: 0, reloading: false, aim: 0, shots: 0,
-  entities: [], hits: [], kills: 0, explosions: 0, fx: { particles: 0, tracers: 0, projectiles: 0 },
+  entities: [], hp: 100, hurts: 0, deaths: 0, barricades: [], prompt: '', hits: [], kills: 0, explosions: 0, fx: { particles: 0, tracers: 0, projectiles: 0 },
 };
 
 export function installDebug(api: Omit<ZhDebug, 'state'>): void {

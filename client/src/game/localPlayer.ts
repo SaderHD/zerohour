@@ -10,6 +10,8 @@ const BASE_FOV = 72;
 const SPRINT_FOV_KICK = 7;
 const PITCH_LIMIT = Math.PI / 2 - 0.02;
 const FREECAM_SPEED = 12;
+/** Closest the player's centre can get to a zombie's: bodies block, with a little give. */
+const BODY_GAP = 0.6;
 
 /**
  * The player's own body. Movement is simulated locally with the shared collision code and (from
@@ -65,7 +67,7 @@ export class LocalPlayer {
     this.vx = this.vz = 0;
   }
 
-  update(dt: number, input: Input, map: CompiledMap, open: DoorSet): void {
+  update(dt: number, input: Input, map: CompiledMap, open: DoorSet, blockers: readonly { x: number; z: number }[] = []): void {
     const mouse = input.consumeMouse();
     const sens = this.sensitivity * this.zoom;
     this.lookX = mouse.dx;
@@ -114,7 +116,15 @@ export class LocalPlayer {
     this.vz += (wz * target - this.vz) * k;
 
     const before = { x: this.x, z: this.z };
-    const p = moveCircle(map, open, this.x, this.z, this.vx * dt, this.vz * dt, PLAYER_RADIUS);
+    let p = moveCircle(map, open, this.x, this.z, this.vx * dt, this.vz * dt, PLAYER_RADIUS);
+    // Zombies are in the way: slide out of any we overlap (walls still win).
+    for (const b of blockers) {
+      const ox = p.x - b.x;
+      const oz = p.z - b.z;
+      const d = Math.hypot(ox, oz);
+      if (d >= BODY_GAP || d < 1e-4) continue;
+      p = moveCircle(map, open, p.x, p.z, (ox / d) * (BODY_GAP - d), (oz / d) * (BODY_GAP - d), PLAYER_RADIUS);
+    }
     this.x = p.x;
     this.z = p.z;
     // Kill velocity into walls so we don't "stick" when turning away.

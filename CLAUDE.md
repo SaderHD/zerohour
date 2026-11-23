@@ -27,7 +27,12 @@ when its acceptance checks pass.
 - `npm run e2e` — after a build: two browser players + two bots in one room; checks lobby flow,
   smooth remote motion, shooting (exact dummy damage, remote shots, ammo), reconnect and room-full
   handling. Writes `test-results/mp-*.png`.
-- `npm run bot -- <ROOM> [count]` — headless bot players that join a room and wander.
+- `npm run bot -- <ROOM> [count]` — headless bot players that join a room, roam and shoot zombies.
+- `npm run soak -- [seconds] [--shut]` — in-process server + 4 WebSocket bots + 32 zombies; fails if
+  a zombie stops making progress for 10 s or the tick goes over budget. (`npm test` runs the same
+  soak on a fake clock.)
+- `npm run horde` — after a build: browser walk-through of the zombie features (tear, vault,
+  attack, damage, rebuild, hit zones, crawler, full horde). Writes `test-results/horde-*.png`.
 - URL flags for quick testing: `?autostart=1` (straight into a solo game), `?room=ABCD&autostart=1`
   (shared room across tabs), `?name=X`, `?debug=1`.
 - `npm run map` — validate the map and rewrite the ASCII dump `docs/MAP.txt`.
@@ -51,11 +56,20 @@ when its acceptance checks pass.
 - Combat: stats in `shared/src/data/weapons.ts`, maths in `shared/src/combat.ts`. The client
   (`game/weapons.ts`) resolves its own shots against `game/entities.ts` hit boxes and
   `rayWorld`, predicts ammo and sends `fire`; `server/src/game/combat.ts` validates rate, ammo,
-  distance and line of sight. Server enemies live in `game/entities.ts` (only the target dummy so
-  far), thrown/launched things in `game/projectiles.ts`.
+  distance and line of sight. Server enemies live in `game/entities.ts` (types, damage, the
+  dummy), thrown/launched things in `game/projectiles.ts`.
+- Zombies (server): `game/zombies.ts` (brain and movement), `spawner.ts` (queue → windows of
+  active zones), `barricades.ts` (planks, rebuild), `nav.ts` (a `FlowField` per player),
+  `players.ts` (damage, regen). Window geometry for both sides comes from `mapWindows()`.
+  Sim tests use `game/testkit.ts`.
+- Zombies (client): `models/zombie.ts` poses a box rig in code; `models/zombieHorde.ts` draws all
+  of them with one instanced mesh per body part — never give a zombie its own meshes.
+  `game/entities.ts` owns the actors and their hit boxes, `game/barricades.ts` the planks,
+  `game/interact.ts` the "Hold F" prompt.
 - The first-person weapon (`game/viewmodel.ts`) is its own scene drawn over the world after a
   depth clear. Gun models come from `models/weapons/` (`Kit` boxes, muzzle at -z, origin at the
   grip); add new guns to the table in `models/weapons/index.ts`.
-- Try weapons in a debug game from the console: `__zh.give('pike')`, `__zh.dummy()`.
+- Try things in a debug game from the console: `__zh.give('pike')`, `__zh.dummy()`,
+  `__zh.spawnZombies(8, { interval: 0.3 })`, `__zh.god(true)`, `__zh.killZombies()`.
 - Tests and visual checks go through `window.__zh` (`client/src/debug.ts`); extend it as features
   land.

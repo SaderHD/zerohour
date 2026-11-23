@@ -1,17 +1,20 @@
 import type * as THREE from 'three';
-import type { EntityId, HitZone, ZombieKind, ZombieSnap } from '@zh/shared';
-import { DUMMY_HITBOXES, DummyModel, type HitBox } from '../models/dummy';
+import { ZombieState, type EntityId, type HitZone, type ZombieKind, type ZombieSnap } from '@zh/shared';
+import { DummyModel, type EntityModel } from '../models/dummy';
+import { ZombieActor } from '../models/zombie';
+import { ZombieHorde } from '../models/zombieHorde';
 import { InterpBuffer, type Pose } from '../net/interp';
 import type { World } from '../render/worldBuilder';
 
 interface Entity {
   id: EntityId;
   kind: ZombieKind;
-  model: DummyModel;
-  boxes: HitBox[];
+  model: EntityModel;
   buffer: InterpBuffer;
   pose: Pose;
   hp: number;
+  /** Nominal move speed from the server (picks the gait). */
+  gait: number;
   /** Seconds left of the death animation; 0 while alive. */
   dying: number;
 }
@@ -23,19 +26,22 @@ export interface EntityHit {
   x: number;
   y: number;
   z: number;
+  /** Colour for the impact puff. */
+  colour: number;
 }
-
-const DEATH_SECONDS = 1.2;
 
 /**
  * Server-owned enemies as drawn on this client: interpolated models plus the hit boxes our own
- * shots are tested against. Session 4 only has the target dummy; zombies plug in here in session 5.
+ * shots are tested against.
  */
 export class Entities {
   private readonly live = new Map<EntityId, Entity>();
   private readonly dead: Entity[] = [];
+  private readonly horde: ZombieHorde;
 
-  constructor(private readonly scene: THREE.Scene, private readonly world: World) {}
+  constructor(private readonly scene: THREE.Scene, private readonly world: World) {
+    this.horde = new ZombieHorde(scene);
+  }
 
   reset(list: { id: EntityId; kind: ZombieKind; seed: number; x: number; z: number }[]): void {
     for (const e of [...this.live.values(), ...this.dead]) this.discard(e);
@@ -44,23 +50,25 @@ export class Entities {
     for (const z of list) this.spawn(z.id, z.kind, z.seed, z.x, z.z);
   }
 
-  spawn(id: EntityId, kind: ZombieKind, _seed: number, x: number, z: number): void {
+  spawn(id: EntityId, kind: ZombieKind, seed: number, x: number, z: number): void {
     if (this.live.has(id)) return;
-    const model = new DummyModel();
-    model.root.position.set(x, 0, z);
-    this.scene.add(model.root);
-    this.live.set(id, {
-      id, kind, model, boxes: DUMMY_HITBOXES, buffer: new InterpBuffer(), hp: 1, dying: 0,
-      pose: { x, z, yaw: 0, pitch: 0, state: 0, speed: 0 },
-    });
+    let model: EntityModel;
+    if (kind === 'dummy') {
+      const dummy = new DummyModel();
+      this.scene.add(dummy.root);
+      model = dummy;
+    } else model = new ZombieActor(seed, this.horde);
+    const state = (kind === 'dummy' ? ZombieState.Idle : ZombieState.Approach) as never;
+    this.live.set(id, { id, kind, model, buffer: new InterpBuffer(), hp: 1, gait: 1, dying: 0, pose: { x, z, yaw: 0, pitch: 0, state, speed: 0 } });
   }
 
   onSnapshot(time: number, zombies: ZombieSnap[]): void {
-    for (const [id, x, z, yaw, state, hp] of zombies) {
+    for (const [id, x, z, yaw, state, hp, gait] of zombies) {
       const e = this.live.get(id);
       if (!e) continue;
       e.buffer.push(time, x, z, yaw, 0, state as never);
       e.hp = hp;
+      e.gait = gait;
     }
   }
 
@@ -72,13 +80,32 @@ export class Entities {
     const e = this.live.get(id);
     if (!e) return;
     this.live.delete(id);
-    e.dying = DEATH_SECONDS;
+    e.dying = e.model.deathSeconds;
     e.hp = 0;
     e.model.die();
     this.dead.push(e);
   }
 
+  /** Where to splash blood for a hit we did not resolve ourselves (another player's, a blast). */
+  chest(id: EntityId): { x: number; y: number; z: number; colour: number } | null {
+    const e = this.live.get(id);
+    if (!e) return null;
+    const torso = e.model.boxes().find((b) => b.zone === 'torso');
+    return { x: e.pose.x, y: torso?.c[1] ?? 1, z: e.pose.z, colour: e.model.blood };
+  }
+
+  /** Zombies that are inside and in the way: the local player cannot walk through them. */
+  blockers(): { x: number; z: number }[] {
+    const list: { x: number; z: number }[] = [];
+    for (const e of this.live.values()) {
+      const s = e.pose.state as number;
+      if (e.kind !== 'dummy' && s !== ZombieState.Approach && s !== ZombieState.Tear && s !== ZombieState.Vault) list.push(e.pose);
+    }
+    return list;
+  }
+
   update(dt: number, renderTime: number): void {
+    this.horde.begin();
     for (const e of this.live.values()) {
       e.pose = e.buffer.sample(renderTime) ?? e.pose;
       this.draw(e, dt);
@@ -91,17 +118,17 @@ export class Entities {
         this.dead.splice(i, 1);
       }
     }
+    this.horde.end();
   }
 
   private draw(e: Entity, dt: number): void {
-    e.model.root.position.set(e.pose.x, 0, e.pose.z);
-    e.model.root.rotation.y = e.pose.yaw;
-    e.model.update(dt);
+    e.model.place(e.pose.x, e.pose.z, e.pose.yaw, e.pose.state, e.pose.speed, e.gait);
     e.model.setLight(this.world.lightAt(e.pose.x, 1, e.pose.z));
+    e.model.update(dt);
   }
 
   private discard(e: Entity): void {
-    this.scene.remove(e.model.root);
+    if (e.model instanceof DummyModel) this.scene.remove(e.model.root);
     e.model.dispose();
   }
 
@@ -121,7 +148,7 @@ export class Entities {
       const ld = [dx * c - dz * s, dy, dx * s + dz * c] as const;
       let best = Infinity;
       let zone: HitZone = 'torso';
-      for (const b of e.boxes) {
+      for (const b of e.model.boxes()) {
         let t0 = 0;
         let t1 = max;
         for (let a = 0; a < 3 && t0 <= t1; a++) {
@@ -141,13 +168,13 @@ export class Entities {
           zone = b.zone;
         }
       }
-      if (best < Infinity) hits.push({ id: e.id, zone, dist: best, x: ox + dx * best, y: oy + dy * best, z: oz + dz * best });
+      if (best < Infinity) hits.push({ id: e.id, zone, dist: best, x: ox + dx * best, y: oy + dy * best, z: oz + dz * best, colour: e.model.blood });
     }
     return hits.sort((a, b) => a.dist - b.dist);
   }
 
   /** For tests/debug. */
-  list(): { id: EntityId; kind: ZombieKind; x: number; z: number; hp: number }[] {
-    return [...this.live.values()].map((e) => ({ id: e.id, kind: e.kind, x: e.pose.x, z: e.pose.z, hp: e.hp }));
+  list(): { id: EntityId; kind: ZombieKind; x: number; z: number; hp: number; state: number }[] {
+    return [...this.live.values()].map((e) => ({ id: e.id, kind: e.kind, x: e.pose.x, z: e.pose.z, hp: e.hp, state: e.pose.state }));
   }
 }

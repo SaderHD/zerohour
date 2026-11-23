@@ -29,7 +29,6 @@ interface Slot {
 
 /** Seconds after a local reload before server ammo counts are trusted again (covers the round trip). */
 const RECONCILE_QUIET = 0.5;
-const HIT_COLOUR = 0xb8a468;
 const WALL_COLOUR = 0x8a8478;
 
 /**
@@ -206,7 +205,7 @@ export class LocalWeapons {
         const struck = entities.raycast(eye.x, eye.y, eye.z, dx, dy, dz, wall).slice(0, def.pierce + 1);
         for (const h of struck) {
           hits.push({ id: h.id, zone: h.zone, dist: Math.round(h.dist * 100) / 100 });
-          fx.puff(h.x, h.y, h.z, HIT_COLOUR, 3, 1.4);
+          fx.puff(h.x, h.y, h.z, h.colour, 3, 1.4);
           entities.flinch(h.id, 1 / def.pellets);
         }
         if (struck.length > def.pierce) reach = struck[struck.length - 1]!.dist; // the bullet stopped in a body
@@ -236,7 +235,7 @@ export class LocalWeapons {
     // Forgiving: also try slightly lower so a level swing catches a torso.
     const target = entities.raycast(eye.x, eye.y, eye.z, dx, dy, dz, reach)[0] ?? entities.raycast(eye.x, eye.y - 0.35, eye.z, dx, dy, dz, reach)[0];
     if (target) {
-      fx.puff(target.x, target.y, target.z, HIT_COLOUR, 5, 1.8);
+      fx.puff(target.x, target.y, target.z, target.colour, 5, 1.8);
       entities.flinch(target.id, 1.5);
     }
     send({ t: 'melee', hit: target?.id });

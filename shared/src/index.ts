@@ -6,5 +6,6 @@ export * from './map/index';
 export * from './nav/los';
 export * from './nav/collide';
 export * from './nav/ray';
+export * from './nav/flowfield';
 export * from './combat';
 export * from './data/weapons';

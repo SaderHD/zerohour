@@ -3,7 +3,28 @@ import {
 } from '@zh/shared';
 import type { Game } from './Game';
 
-/** A server-owned enemy. Session 4 only has the stationary target dummy; zombies arrive in session 5. */
+/** What a walking zombie is up to (see zombies.ts). Dummies have none. */
+export interface ZombieAI {
+  /** The window it enters through; null once inside (or when debug-spawned inside). */
+  windowId: string | null;
+  target: PlayerId;
+  retargetAt: number;
+  /** Game time the current swing lands; 0 when not swinging. */
+  swingAt: number;
+  /** Game time it may act again (plank timer, attack recovery). */
+  readyAt: number;
+  /** Progress through a vault, 0..1. */
+  vault: number;
+  crawler: boolean;
+  /** Phase of its sideways weave. */
+  weave: number;
+  /** Last spot and time it made progress, for the stuck check. */
+  ax: number;
+  az: number;
+  progressAt: number;
+}
+
+/** A server-owned enemy: a zombie, or the stationary target dummy. */
 export interface Zombie {
   id: EntityId;
   kind: ZombieKind;
@@ -14,7 +35,9 @@ export interface Zombie {
   state: ZombieState;
   hp: number;
   maxHp: number;
+  /** Nominal move speed in m/s (also tells clients which gait to play). */
   speed: number;
+  ai?: ZombieAI;
 }
 
 export function spawnDummy(g: Game, x: number, z: number, yaw: number): Zombie {
@@ -33,11 +56,16 @@ export function damageZombie(g: Game, z: Zombie, dmg: number, by: PlayerId, zone
   z.hp -= dmg;
   g.emit({ e: 'zombieHit', id: z.id, by, zone, dmg });
   if (z.hp > 0) return false;
+  killZombie(g, z, by, zone, cause);
+  return true;
+}
+
+export function killZombie(g: Game, z: Zombie, by: PlayerId | undefined, zone: HitZone | undefined, cause: string): void {
+  z.hp = 0;
   g.zombies.delete(z.id);
   g.emit({ e: 'zombieDied', id: z.id, by, zone, cause });
   // A destroyed dummy stands back up so damage tests can continue.
   if (z.kind === 'dummy') g.dummyResets.push({ at: g.time + DUMMY_RESET_SECONDS, x: z.x, z: z.z, yaw: z.yaw });
-  return true;
 }
 
 export function updateEntities(g: Game): void {

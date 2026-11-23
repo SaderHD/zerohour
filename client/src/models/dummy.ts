@@ -14,6 +14,23 @@ export interface HitBox {
   h: [number, number, number];
 }
 
+/** What the entity system needs from anything it draws (the dummy, a zombie). */
+export interface EntityModel {
+  /** How long the corpse stays after `die()`. */
+  readonly deathSeconds: number;
+  /** Colour of the bits that fly off when it is hit. */
+  readonly blood: number;
+  /** Hit boxes for its current posture. */
+  boxes(): HitBox[];
+  /** `speed` is how fast it is actually moving, `gait` its nominal speed. */
+  place(x: number, z: number, yaw: number, state: number, speed: number, gait: number): void;
+  update(dt: number): void;
+  hit(strength?: number): void;
+  die(): void;
+  setLight(rgb: [number, number, number]): void;
+  dispose(): void;
+}
+
 export const DUMMY_HITBOXES: HitBox[] = [
   { zone: 'head', c: [0, 1.6, 0], h: [0.13, 0.14, 0.13] },
   { zone: 'torso', c: [0, 1.1, 0], h: [0.24, 0.34, 0.13] },
@@ -22,7 +39,9 @@ export const DUMMY_HITBOXES: HitBox[] = [
 ];
 
 /** Practice target: a burlap torso and head on a post, with painted aiming marks on the front. */
-export class DummyModel {
+export class DummyModel implements EntityModel {
+  readonly deathSeconds = 1.2;
+  readonly blood = 0xb8a468;
   readonly root = new THREE.Group();
   readonly material = modelMaterial();
   private readonly body: THREE.Group;
@@ -44,6 +63,15 @@ export class DummyModel {
       shadedBox(0.5, 0.04, 0.26, 0x7a6a40, 0, 0.72, 0),
     ));
     this.root.add(part(m, shadedBox(0.5, 0.06, 0.5, 0x2a2c30, 0, 0.03, 0)), this.body);
+  }
+
+  boxes(): HitBox[] {
+    return DUMMY_HITBOXES;
+  }
+
+  place(x: number, z: number, yaw: number): void {
+    this.root.position.set(x, 0, z);
+    this.root.rotation.y = yaw;
   }
 
   /** Rock back from a hit. */

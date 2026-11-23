@@ -33,6 +33,8 @@ export const enum ZombieState {
   Dying = 6,
   /** Stationary (target dummies). */
   Idle = 7,
+  /** A crawler mid-swing (Crawl is its moving state). */
+  CrawlAttack = 8,
 }
 
 export type ZombieKind = 'zombie' | 'howler' | 'dummy';
@@ -48,7 +50,9 @@ export interface FireHit {
 export type DebugCmd =
   | { cmd: 'give'; weapon?: WeaponId; perk?: PerkId; points?: number }
   | { cmd: 'setRound'; round: number }
-  | { cmd: 'spawnZombies'; count: number }
+  /** Queue zombies at the windows; with x/z they appear at that spot instead. `interval` sets the spawn spacing. */
+  | { cmd: 'spawnZombies'; count: number; hp?: number; speed?: number; interval?: number; x?: number; z?: number }
+  | { cmd: 'killZombies' }
   | { cmd: 'god'; on: boolean }
   | { cmd: 'openAllDoors' }
   | { cmd: 'openDoor'; id: InteractableId }
@@ -107,6 +111,9 @@ export interface WeaponState {
   mag: number;
   reserve: number;
 }
+
+/** Crawlers have two states: moving and swinging. */
+export const isCrawlState = (s: ZombieState): boolean => s === ZombieState.Crawl || s === ZombieState.CrawlAttack;
 
 /** Slow-changing per-player state. Sent in `sync` and re-sent via `ev: player` when it changes. */
 export interface PlayerPublic {

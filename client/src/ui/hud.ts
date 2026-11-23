@@ -1,8 +1,8 @@
-import { STAMINA_SECONDS } from '@zh/shared';
+import { PLAYER_MAX_HP, STAMINA_SECONDS } from '@zh/shared';
 
 const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
-/** HUD: zone name, stamina bar, crosshair, hit marker, ammo, click-to-play hint, debug readout. */
+/** HUD: zone name, stamina bar, crosshair, hit marker, ammo, hurt vignette, interaction prompt, debug readout. */
 export class Hud {
   private readonly zone = el('zone');
   private readonly stamina = el('stamina');
@@ -21,6 +21,33 @@ export class Hud {
   private lastGap = -1;
   private readonly scope = el('scope');
   private scoped = false;
+  private readonly hurtEl = el('hurt');
+  private readonly prompt = el('prompt');
+  private lastPrompt = '';
+  private lastHurt = -1;
+  private flash = 0;
+
+  /** Red closes in from the edges as health drops; a fresh hit flashes it. */
+  setHealth(hp: number, dt: number): void {
+    this.flash = Math.max(0, this.flash - dt * 2.5);
+    const level = Math.round(Math.min(1, (1 - hp / PLAYER_MAX_HP) * 1.1 + this.flash * 0.5) * 50) / 50;
+    if (level === this.lastHurt) return;
+    this.lastHurt = level;
+    this.hurtEl.classList.toggle('flash', this.flash > 0);
+    this.hurtEl.style.opacity = String(level);
+  }
+
+  /** We were just hit. */
+  hurt(): void {
+    this.flash = 1;
+  }
+
+  setPrompt(text: string): void {
+    if (text === this.lastPrompt) return;
+    this.lastPrompt = text;
+    this.prompt.textContent = text;
+    this.prompt.style.display = text ? 'block' : 'none';
+  }
 
   setZone(name: string): void {
     if (name === this.lastZone) return;

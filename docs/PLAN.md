@@ -154,9 +154,12 @@ Start with 500.
   with a player in it or adjacent through an open door). Walk to window → tear planks (1 per
   1.5 s, 6 planks) → vault → chase.
 - Chase nearest reachable player by flow field (section 6.3), with separation steering. Attack
-  when within 1.0 m: 0.5 s wind-up, hit if still within 1.3 m.
+  when within 1.0 m: 0.5 s wind-up, hit if still within 1.3 m, then 0.7 s recovery. A chaser
+  that gets nowhere for 3 s tries another player for a while.
+- One zombie works a window at a time; the rest queue in the pocket behind it.
 - Hit zones: head ×4 (weapon-specific), torso ×1, limbs ×0.75. Legs destroyed by explosives ⇒
-  crawler (slow, low attack).
+  crawler (slow, low attack): a blast worth ≥30% of max HP that does not kill. Players take 20%
+  of blast damage.
 - Players in the same window area can hold F to rebuild planks (1 per 1.0 s) when no zombie is
   attacking it.
 
@@ -351,10 +354,12 @@ Hitscan: client rays against zombie hit boxes (head/torso/limb boxes on the rig)
 server LOS is a grid DDA (`los.ts`). Closed doors and unbroken windows are solid cells.
 
 ### 6.3 Navigation
-`flowfield.ts`: BFS/Dijkstra over walkable cells from each living player's cell, recomputed every
-250 ms (staggered across ticks) and immediately when a door opens. Each zombie samples the field of
-its target player, adds separation from neighbours (spatial hash) and a little per-zombie lateral
-noise so hordes don't single-file. Zombies re-pick target every 1 s (nearest by field distance;
+`flowfield.ts`: Dijkstra over walkable cells from each living player's cell (cells touching a wall
+cost more, so paths keep to the middle of lanes), recomputed every 250 ms (staggered across ticks)
+and immediately when a door opens. Each zombie samples the field of its target player a few cells
+ahead, adds separation from neighbours (a plain pair loop — 32 bodies need no spatial hash) and a
+little per-zombie lateral noise so hordes don't single-file. Within 3 m and in sight it runs
+straight at the player. Zombies re-pick target every 1 s (nearest by field distance;
 Siren decoys override). Outside the map, a zombie walks a straight line spawn → window.
 
 ### 6.4 Server system order (per tick)
@@ -373,13 +378,14 @@ wall buys, tonics, Cache, Forge, power switch, barricade rebuild and revive.
 
 ### 6.6 Testing & debug hooks (required — this is how agents verify work)
 - `window.__zh` in dev: `state()`, `teleport(x,z)`, `give(weapon|perk|points)`, `setRound(n)`,
-  `spawnZombies(n)`, `god(bool)`, `freeCam()`, `openAllDoors()`, `powerOn()`, `dummy(x,z)` (target
+  `spawnZombies(n, opts)`, `killZombies()`, `god(bool)`, `freeCam()`, `openAllDoors()`, `powerOn()`, `dummy(x,z)` (target
   dummy), `lookAt(x,y,z)`, `press(code)` (mouse buttons are `Mouse0`/`Mouse2`). Matching server-side
   `debug` messages, enabled only when `ZH_DEBUG=1`.
 - URL flags: `?name=X`, `?room=CODE` (join; with `autostart` the room is created if missing —
   debug servers only), `?autostart=1` (skip menu and lobby), `?debug=1` (stats overlay).
-- `server/src/bot.ts`: headless WS client that joins a room, walks the flow field away from
-  zombies and shoots — used for 4-player soak tests and perf checks.
+- `server/src/bot.ts`: headless WS client that joins a room, walks to random spots along a flow
+  field and shoots the zombies it sees — used for 4-player soak tests and perf checks. Its brain
+  (`botBrain.ts`) has no networking, so sim tests drive it directly.
 - Vitest for sim (rounds maths, points, damage, flow field, map validation, cache weights).
 - Playwright smoke test: boot server, load client, start solo, assert canvas renders and HUD shows
   round 1; save a screenshot. Agents should also take and *look at* screenshots when changing
@@ -562,7 +568,18 @@ with no errors in client or server logs.
   only obtainable through the debug `give` until wall buys (session 10); shotgun reloads are
   whole-magazine, not shell-by-shell; no sounds (session 12). Four armed players cost ~50 draw
   calls in software rendering — still fine, but zombies must not copy that pattern.
-- [ ] 5 Zombies
+- [x] 5 Zombies — done. Soak (`npm run soak`, 4 WebSocket bots, 32 zombies, 5 min): worst zombie
+  idle 2.2 s, server tick 0.73 ms average (7 of 9,003 ticks over 5 ms, worst 23 ms); the same soak runs on a fake clock in `npm test`
+  (doors open and shut). "Idle" means no progress: not moving 0.5 m, tearing a plank or
+  swinging; queueing outside a window and crowding within 2.5 m of the target do not count.
+  Client: 32 zombies are 8 draw calls (one instanced mesh per body part, ~150 tris a body); fps was
+  only measured in headless software rendering (~35 with the full horde against ~45 empty).
+  Additions to the plan: `ZombieState.CrawlAttack`, debug `spawnZombies {hp, speed, interval, x, z}`
+  and `killZombies`, `npm run horde` (browser walk-through with screenshots), the local player
+  cannot walk through zombies (client-side push-out only). Interim until session 6: a player at
+  0 HP is put straight back at a spawn point; the spawner is fed by the debug hook (rounds will
+  feed the same queue); no points for kills or planks. Zombies do not swipe through windows, and
+  a barricade cannot be rebuilt while a zombie is at it (as section 4.4 says).
 - [ ] 6 Round loop, points, downs
 - [ ] 7 Map I: prop kit, doors, west wing
 - [ ] 8 Map II: industrial wing
