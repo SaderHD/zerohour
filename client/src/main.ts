@@ -1,8 +1,14 @@
 import * as THREE from 'three';
-import { CLIENT_MOVE_SEND_HZ, MoveState, compileMap, harrowRidge, validateMap } from '@zh/shared';
+import {
+  CLIENT_MOVE_SEND_HZ, MoveState, PLAYER_EYE_HEIGHT, aimDir, compileMap, harrowRidge, rayWorld, validateMap, weaponDef,
+} from '@zh/shared';
 import { debugState, installDebug } from './debug';
+import { Entities } from './game/entities';
+import { Fx } from './game/fx';
 import { LocalPlayer } from './game/localPlayer';
 import { RemotePlayers } from './game/remotePlayers';
+import { Viewmodel } from './game/viewmodel';
+import { LocalWeapons } from './game/weapons';
 import { Input } from './input/input';
 import { ServerClock } from './net/interp';
 import { Net } from './net/net';
@@ -47,6 +53,9 @@ const hud = new Hud();
 const player = new LocalPlayer();
 const remotes = new RemotePlayers(scene, world, map);
 const clock = new ServerClock();
+const entities = new Entities(scene, world);
+const fx = new Fx(scene);
+const vm = new Viewmodel();
 
 /** Doors the server has opened. Also used for local collision. */
 const openDoors = new Set<string>();
@@ -60,8 +69,11 @@ function setDoors(ids: Iterable<string>): void {
   for (const id of want) openDoors.add(id);
 }
 
+const weapons = new LocalWeapons({ player, camera, map, openDoors, entities, fx, vm, send: (m) => net.socket.send(m) });
+
 function resize(): void {
   camera.aspect = renderer.resize(window.innerWidth, window.innerHeight);
+  vm.setAspect(camera.aspect);
   camera.updateProjectionMatrix();
 }
 window.addEventListener('resize', resize);
@@ -120,10 +132,16 @@ s.on('sync', (m) => {
   player.pitch = 0;
   setDoors(m.openDoors);
   remotes.reset(m.players);
+  entities.reset(m.zombies);
+  const me = m.players.find((p) => p.id === net.id);
+  if (me) weapons.onPlayer(me);
 });
 s.on('snap', (m) => {
   clock.observe(m.time);
   remotes.onSnapshot(m.time, m.players);
+  entities.onSnapshot(m.time, m.zombies);
+  fx.setProjectiles(m.projectiles);
+  weapons.onAmmo(m.ammo);
 });
 s.on('correct', (m) => {
   player.teleport(m.x, m.z);
@@ -133,7 +151,31 @@ s.on('ev', (m) => {
   for (const ev of m.events) {
     switch (ev.e) {
       case 'player':
-        remotes.upsert(ev.player);
+        if (ev.player.id === net.id) weapons.onPlayer(ev.player);
+        else remotes.upsert(ev.player);
+        break;
+      case 'zombieSpawn':
+        entities.spawn(ev.id, ev.kind, ev.seed, ev.x, ev.z);
+        break;
+      case 'zombieHit':
+        if (ev.by === net.id) hud.hit(ev.zone === 'head' ? 'head' : 'hit');
+        else entities.flinch(ev.id, 0.6);
+        debugState.hits = [...debugState.hits.slice(-31), { id: ev.id, by: ev.by, zone: ev.zone, dmg: ev.dmg }];
+        break;
+      case 'zombieDied':
+        entities.die(ev.id);
+        if (ev.by === net.id) hud.hit('kill');
+        debugState.kills++;
+        break;
+      case 'fired':
+        if (ev.id !== net.id) remoteShot(ev.id, ev.weapon, ev.yaw, ev.pitch);
+        break;
+      case 'melee':
+        if (ev.id !== net.id) remotes.melee(ev.id);
+        break;
+      case 'explosion':
+        fx.explosion(ev.x, ev.y, ev.z, ev.radius);
+        debugState.explosions++;
         break;
       case 'playerLeft':
         remotes.remove(ev.id);
@@ -146,6 +188,26 @@ s.on('ev', (m) => {
     }
   }
 });
+
+/** Another player's shot: flash their gun and draw tracers along their aim. */
+const shotFrom = new THREE.Vector3();
+const shotTo = new THREE.Vector3();
+function remoteShot(id: number, weapon: string, yaw: number, pitch: number): void {
+  const from = remotes.fired(id, shotFrom);
+  const def = weaponDef(weapon);
+  if (!from || !def) return;
+  fx.flash(from.x, from.y, from.z, 6);
+  if (def.projectile) return;
+  for (let i = 0; i < def.pellets; i++) {
+    const jitter = def.pellets > 1 ? def.spreadHip : 0;
+    const [dx, dy, dz] = aimDir(yaw + (Math.random() - 0.5) * 2 * jitter, pitch + (Math.random() - 0.5) * 2 * jitter);
+    const wall = rayWorld(map, openDoors, from.x, PLAYER_EYE_HEIGHT, from.z, dx, dy, dz, def.range);
+    const body = entities.raycast(from.x, PLAYER_EYE_HEIGHT, from.z, dx, dy, dz, wall)[def.pierce];
+    const reach = body?.dist ?? wall;
+    fx.tracer(from, shotTo.set(from.x + dx * reach, PLAYER_EYE_HEIGHT + dy * reach, from.z + dz * reach));
+  }
+}
+
 installDebug({
   teleport: (x, z, yaw) => {
     player.teleport(x, z, yaw);
@@ -158,6 +220,23 @@ installDebug({
   look: (yaw, pitch = 0) => {
     player.yaw = yaw;
     player.pitch = pitch;
+  },
+  lookAt: (x, y, z) => {
+    const dx = x - player.x;
+    const dz = z - player.z;
+    player.yaw = Math.atan2(-dx, -dz);
+    player.pitch = Math.atan2(y - PLAYER_EYE_HEIGHT, Math.hypot(dx, dz));
+  },
+  give: (what) => s.send(typeof what === 'number' ? { t: 'debug', cmd: 'give', points: what } : { t: 'debug', cmd: 'give', weapon: what }),
+  dummy: (x, z) => {
+    const [dx, , dz] = aimDir(player.yaw, 0);
+    const px = x ?? player.x + dx * 3;
+    const pz = z ?? player.z + dz * 3;
+    s.send({ t: 'debug', cmd: 'dummy', x: px, z: pz, yaw: Math.atan2(-(player.x - px), -(player.z - pz)) });
+  },
+  press: (code) => {
+    input.setKey(code, true);
+    requestAnimationFrame(() => requestAnimationFrame(() => input.setKey(code, false)));
   },
   freeCam: (on) => player.setFreeCam(on ?? !player.freeCam),
   openAllDoors: () => s.send({ t: 'debug', cmd: 'openAllDoors' }),
@@ -184,8 +263,14 @@ renderer.gl.setAnimationLoop((now) => {
   last = now;
 
   if (playing()) {
+    weapons.update(dt, input, !player.freeCam);
     player.update(dt, input, map, openDoors);
     player.applyTo(camera);
+    camera.updateMatrixWorld();
+    vm.update(dt, {
+      aim: weapons.aim, speed: player.speed, sprinting: player.sprinting, lookX: player.lookX, lookY: player.lookY,
+      light: world.lightAt(player.x, 1.4, player.z),
+    });
     sendTimer += dt;
     if (sendTimer >= 1 / CLIENT_MOVE_SEND_HZ && !player.freeCam) {
       sendTimer = 0;
@@ -199,9 +284,20 @@ renderer.gl.setAnimationLoop((now) => {
     camera.position.set(33, 2.4, 43);
     camera.rotation.set(0.12, attract * 0.06, 0, 'YXZ');
   }
+  input.endFrame();
   remotes.update(dt, clock.renderTime, camera, window.innerWidth, window.innerHeight);
+  entities.update(dt, clock.renderTime);
+  fx.update(dt);
   sky.position.set(camera.position.x, 0, camera.position.z);
-  renderer.render(scene, camera);
+  // A scoped rifle swaps the viewmodel for a scope overlay once the sights are up.
+  const scoped = playing() && weapons.def?.cls === 'sniper' && weapons.aim > 0.85;
+  renderer.render(scene, camera, playing() && !player.freeCam && !scoped ? vm : null);
+  hud.setScope(scoped);
+
+  const cur = weapons.current;
+  hud.setAmmo(weapons.def?.name ?? '', cur?.mag ?? 0, cur?.reserve ?? 0, weapons.grenades, weapons.reloading);
+  const gapPx = (Math.tan(weapons.spread()) / Math.tan((camera.fov * Math.PI) / 360)) * (window.innerHeight / 2);
+  hud.setCrosshair(gapPx, weapons.aim < 0.5);
 
   const zoneId = map.zoneAt(player.x, player.z);
   hud.setZone(map.zones.find((z) => z.id === zoneId)?.name ?? '');
@@ -225,6 +321,9 @@ renderer.gl.setAnimationLoop((now) => {
     drawCalls: renderer.lastDrawCalls, triangles: renderer.lastTriangles,
     resolution: [renderer.width, renderer.height], openDoors: [...openDoors],
     pingMs: net.pingMs, remotes: remotes.list(),
+    weapon: cur?.id ?? null, weapons: weapons.slots.map((w) => w.id), slot: weapons.slot, mag: cur?.mag ?? 0,
+    reserve: cur?.reserve ?? 0, grenades: weapons.grenades, reloading: weapons.reloading, aim: weapons.aim,
+    shots: weapons.shots, entities: entities.list(), fx: fx.counts,
   });
 });
 

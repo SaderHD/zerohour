@@ -1,6 +1,8 @@
 import * as THREE from 'three';
-import { WALK_SPEED, clamp } from '@zh/shared';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { WALK_SPEED, clamp, type WeaponId } from '@zh/shared';
 import { damp, modelMaterial, part, pivot, shadedBox } from './rig';
+import { buildWeapon, disposeWeapon, type WeaponModel } from './weapons';
 
 /** Jacket colours by seat. */
 export const PLAYER_COLOURS = [0x5f7a3a, 0x3a5f9a, 0x9a3a3a, 0xb08a2a] as const;
@@ -9,7 +11,6 @@ const PANTS = 0x2c2c38;
 const BOOTS = 0x1a1612;
 const SKIN = 0xc89a78;
 const HAT = 0x24262c;
-const GUN = 0x16181c;
 const HIP_Y = 0.92;
 
 export interface PlayerAnim {
@@ -40,12 +41,19 @@ export class PlayerModel {
   private amp = 0;
   private sprintBlend = 0;
   private time = Math.random() * 10;
+  /** Held weapon: hangs off the right forearm, pointing along it. */
+  private readonly mount = new THREE.Group();
+  private readonly flashMesh: THREE.Mesh;
+  private weapon: WeaponModel | null = null;
+  private weaponId: WeaponId | null = null;
+  private flashT = 0;
+  private swingT = 1;
+  private recoil = 0;
 
   constructor(jacket: number) {
     const m = this.material;
-    const arm = (side: -1 | 1, withGun: boolean) => {
+    const arm = (side: -1 | 1) => {
       const fore = [shadedBox(0.1, 0.28, 0.1, jacket, 0, -0.14, 0), shadedBox(0.09, 0.08, 0.09, SKIN, 0, -0.32, 0)];
-      if (withGun) fore.push(shadedBox(0.06, 0.42, 0.09, GUN, -0.02, -0.5, -0.03), shadedBox(0.05, 0.1, 0.14, GUN, -0.02, -0.36, 0.06));
       const elbow = pivot(0, -0.3, 0, part(m, ...fore));
       const shoulder = pivot(side * 0.27, 0.44, 0, part(m, shadedBox(0.12, 0.32, 0.12, jacket, 0, -0.15, 0)), elbow);
       return { shoulder, elbow };
@@ -55,8 +63,8 @@ export class PlayerModel {
       const hip = pivot(side * 0.1, 0, 0, part(m, shadedBox(0.15, 0.46, 0.16, PANTS, 0, -0.22, 0)), knee);
       return { hip, knee };
     };
-    const L = arm(-1, false);
-    const R = arm(1, true);
+    const L = arm(-1);
+    const R = arm(1);
     this.shoulderL = L.shoulder;
     this.elbowL = L.elbow;
     this.shoulderR = R.shoulder;
@@ -77,6 +85,53 @@ export class PlayerModel {
     this.kneeR = legR.knee;
     this.body = pivot(0, HIP_Y, 0, part(m, shadedBox(0.34, 0.18, 0.2, PANTS, 0, 0.03, 0)), this.torso, this.hipL, this.hipR);
     this.root.add(this.body);
+
+    // The gun's -z (muzzle) maps to the forearm's -y, its +y (sights) to the forearm's -z.
+    this.mount.position.set(-0.02, -0.38, -0.05);
+    this.mount.rotation.x = -Math.PI / 2;
+    this.elbowR.add(this.mount);
+    const quad = new THREE.PlaneGeometry(0.34, 0.34);
+    this.flashMesh = new THREE.Mesh(
+      mergeGeometries([quad, quad.clone().rotateY(Math.PI / 2), quad.clone().rotateX(Math.PI / 2)]),
+      new THREE.MeshBasicMaterial({ color: 0xffd070, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }),
+    );
+    this.flashMesh.visible = false;
+    this.mount.add(this.flashMesh);
+  }
+
+  setWeapon(id: WeaponId | null): void {
+    if (id === this.weaponId) return;
+    this.weaponId = id;
+    if (this.weapon) {
+      this.mount.remove(this.weapon.group);
+      disposeWeapon(this.weapon);
+    }
+    this.weapon = id ? buildWeapon(id, false) : null;
+    if (!this.weapon) return;
+    // Third-person models share the first-person builders; the model's own material is swapped
+    // for this player's so one light tint covers body and gun.
+    this.weapon.group.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).material = this.material;
+    });
+    this.mount.add(this.weapon.group);
+    this.flashMesh.position.copy(this.weapon.muzzle.position);
+  }
+
+  /** Muzzle flash and arm kick for a shot. */
+  fire(): void {
+    this.flashT = 0.07;
+    this.recoil = 1;
+    this.flashMesh.rotation.z = Math.random() * Math.PI;
+  }
+
+  /** Knife swipe. */
+  swing(): void {
+    this.swingT = 0;
+  }
+
+  muzzleWorld(out: THREE.Vector3): THREE.Vector3 {
+    this.root.updateWorldMatrix(true, true);
+    return this.flashMesh.getWorldPosition(out);
   }
 
   update(dt: number, a: PlayerAnim): void {
@@ -106,9 +161,14 @@ export class PlayerModel {
     // Arms: weapon held forward and aimed with pitch; pumping while sprinting.
     const aim = clamp(a.pitch, -1.1, 1.1) * 0.85;
     const hold = 1 - run;
-    this.shoulderR.rotation.set(hold * (1.32 + aim) + run * (-s * 0.9), 0, hold * -0.12);
+    this.flashT -= dt;
+    this.flashMesh.visible = this.flashT > 0;
+    this.recoil *= 1 - damp(12, dt);
+    this.swingT = Math.min(1, this.swingT + dt / 0.3);
+    const swipe = Math.sin(this.swingT * Math.PI);
+    this.shoulderR.rotation.set(hold * (1.32 + aim + this.recoil * 0.14) + run * (-s * 0.9), 0, hold * -0.12);
     this.elbowR.rotation.x = hold * 0.18 + run * 1.1;
-    this.shoulderL.rotation.set(hold * (1.05 + aim) + run * (s * 0.9), 0, hold * 0.55);
+    this.shoulderL.rotation.set(hold * (1.05 + aim) + run * (s * 0.9) + swipe * 0.5, 0, hold * 0.55 - swipe * 0.9);
     this.elbowL.rotation.x = hold * 0.5 + run * 1.1;
     this.shoulderL.position.y = this.shoulderR.position.y = 0.44 + breathe * 1.5;
   }

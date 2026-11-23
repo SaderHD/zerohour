@@ -1,0 +1,55 @@
+import {
+  DUMMY_HP, DUMMY_RESET_SECONDS, ZombieState, type EntityId, type HitZone, type PlayerId, type ZombieKind, type ZombieSnap,
+} from '@zh/shared';
+import type { Game } from './Game';
+
+/** A server-owned enemy. Session 4 only has the stationary target dummy; zombies arrive in session 5. */
+export interface Zombie {
+  id: EntityId;
+  kind: ZombieKind;
+  seed: number;
+  x: number;
+  z: number;
+  yaw: number;
+  state: ZombieState;
+  hp: number;
+  maxHp: number;
+  speed: number;
+}
+
+export function spawnDummy(g: Game, x: number, z: number, yaw: number): Zombie {
+  const d: Zombie = {
+    id: g.nextEntityId++, kind: 'dummy', seed: g.rng.int(0, 0xffff), x, z, yaw,
+    state: ZombieState.Idle, hp: DUMMY_HP, maxHp: DUMMY_HP, speed: 0,
+  };
+  g.zombies.set(d.id, d);
+  g.emit({ e: 'zombieSpawn', id: d.id, kind: d.kind, seed: d.seed, x, z });
+  return d;
+}
+
+/** Apply damage, announce it, and remove the entity if it dies. Returns true on a kill. */
+export function damageZombie(g: Game, z: Zombie, dmg: number, by: PlayerId, zone: HitZone, cause: string): boolean {
+  if (dmg <= 0 || z.hp <= 0) return false;
+  z.hp -= dmg;
+  g.emit({ e: 'zombieHit', id: z.id, by, zone, dmg });
+  if (z.hp > 0) return false;
+  g.zombies.delete(z.id);
+  g.emit({ e: 'zombieDied', id: z.id, by, zone, cause });
+  // A destroyed dummy stands back up so damage tests can continue.
+  if (z.kind === 'dummy') g.dummyResets.push({ at: g.time + DUMMY_RESET_SECONDS, x: z.x, z: z.z, yaw: z.yaw });
+  return true;
+}
+
+export function updateEntities(g: Game): void {
+  for (let i = g.dummyResets.length - 1; i >= 0; i--) {
+    const r = g.dummyResets[i]!;
+    if (g.time < r.at) continue;
+    g.dummyResets.splice(i, 1);
+    spawnDummy(g, r.x, r.z, r.yaw);
+  }
+}
+
+const r2 = (n: number): number => Math.round(n * 100) / 100;
+
+export const zombieSnap = (z: Zombie): ZombieSnap =>
+  [z.id, r2(z.x), r2(z.z), r2(z.yaw), z.state, Math.max(0, Math.round((z.hp / z.maxHp) * 1000) / 1000), z.speed];

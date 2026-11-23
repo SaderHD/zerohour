@@ -1,6 +1,6 @@
 // Multiplayer end-to-end test: two browser players + two bots in one room.
-// Checks: lobby -> game, everyone sees everyone moving smoothly, late join, reconnect restores
-// the seat. Run `npm run build` first. Usage: npm run e2e
+// Checks: lobby -> game, everyone sees everyone moving smoothly, shooting (exact dummy damage,
+// remote shots, ammo), late join, reconnect restores the seat. Run `npm run build` first. Usage: npm run e2e
 const { spawn } = require('node:child_process');
 const { mkdirSync } = require('node:fs');
 const path = require('node:path');
@@ -106,6 +106,47 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
     await b.evaluate(() => { window.__zh.teleport(30, 27.5, 0); window.__zh.look(-2.2, 0); });
     await sleep(600);
     await a.screenshot({ path: path.join(root, 'test-results/mp-players.png') });
+
+    // 5b. Combat: A shoots a target dummy (exact body and head damage), B sees A's shots,
+    //     then B sprays an SMG and A sees the weapon change and the shots.
+    await a.evaluate(() => window.__zh.dummy(31, 24));
+    for (const p of [a, b]) await p.waitForFunction(() => window.__zh.state().entities.length === 1);
+    const shootAt = async (page, y, shotsAfter) => {
+      await page.evaluate((y) => { const e = window.__zh.state().entities[0]; window.__zh.key('Mouse2', true); window.__zh.lookAt(e.x, y, e.z); }, y);
+      await sleep(450); // sights up, spread settled
+      await page.evaluate(() => window.__zh.press('Mouse0'));
+      await page.waitForFunction((n) => window.__zh.state().hits.length === n, shotsAfter);
+    };
+    await shootAt(a, 1.1, 1);
+    await shootAt(a, 1.6, 2);
+    await a.evaluate(() => window.__zh.key('Mouse2', false));
+    const sa = await state(a);
+    assert(sa.hits[0].zone === 'torso' && sa.hits[0].dmg === 30, `body shot should deal 30, got ${JSON.stringify(sa.hits[0])}`);
+    assert(sa.hits[1].zone === 'head' && sa.hits[1].dmg === 75, `head shot should deal 75, got ${JSON.stringify(sa.hits[1])}`);
+    assert(sa.mag === 6 && sa.shots === 2, `expected 6 rounds left after 2 shots, got ${sa.mag}`);
+    await b.waitForFunction(() => window.__zh.state().remotes.find((r) => r.name === 'Ada').shots === 2);
+    await b.waitForFunction(() => Math.abs(window.__zh.state().entities[0].hp - 0.895) < 0.002);
+    assert((await state(b)).remotes.find((r) => r.name === 'Ada').weapon === 'warden', 'B should see A holding the pistol');
+
+    await b.evaluate(() => window.__zh.give('stitch'));
+    await a.waitForFunction(() => window.__zh.state().remotes.find((r) => r.name === 'Bea').weapon === 'stitch');
+    await a.evaluate(() => window.__zh.lookAt(30, 1.2, 27.5));
+    await b.evaluate(() => { window.__zh.lookAt(33.5, 1.4, 27); window.__zh.key('Mouse0', true); });
+    await a.waitForFunction(() => window.__zh.state().remotes.find((r) => r.name === 'Bea').shots >= 6);
+    await a.screenshot({ path: path.join(root, 'test-results/mp-shooting.png') });
+    await b.evaluate(() => window.__zh.key('Mouse0', false));
+    await sleep(300);
+    const sb = await state(b);
+    const seenShots = (await state(a)).remotes.find((r) => r.name === 'Bea').shots;
+    assert(seenShots === sb.shots, `A saw ${seenShots} of Bea's ${sb.shots} shots`);
+    assert(sb.mag === 30 - sb.shots, `Bea's magazine should be ${30 - sb.shots}, is ${sb.mag}`);
+    // Reload tops the magazine up from the reserve, and the server agrees once it settles.
+    await b.evaluate(() => window.__zh.press('KeyR'));
+    await b.waitForFunction(() => window.__zh.state().reloading);
+    await b.waitForFunction(() => !window.__zh.state().reloading && window.__zh.state().mag === 30, null, { timeout: 5000 });
+    await sleep(900);
+    const sr = await state(b);
+    assert(sr.mag === 30 && sr.reserve === 150 - sb.shots, `after reload expected 30 / ${150 - sb.shots}, got ${sr.mag} / ${sr.reserve}`);
 
     // 6. Reconnect: B's connection drops; same seat and position come back.
     const idBefore = bs.playerId;

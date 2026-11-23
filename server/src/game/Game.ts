@@ -1,9 +1,12 @@
 import {
   MOVE_BUDGET_CAP, MOVE_SPEED_SLACK, MoveState, PLAYER_MAX_HP, PLAYER_RADIUS, SNAPSHOT_EVERY_TICKS,
-  SPRINT_SPEED, START_GRENADES, START_POINTS, TICK_DT, circleFits, compileMap, harrowRidge, isFiniteNum,
+  Rng, SPRINT_SPEED, START_GRENADES, START_POINTS, START_WEAPON, TICK_DT, circleFits, compileMap, harrowRidge, isFiniteNum,
   type ClientMsg, type CompiledMap, type GameEvent, type PlayerId, type PlayerPublic, type PlayerSnap,
   type ServerMsg, type Snapshot,
 } from '@zh/shared';
+import { giveWeapon, newWeapon, onFire, onMelee, onReload, onSwap, onThrow, settleReload } from './combat';
+import { spawnDummy, updateEntities, zombieSnap, type Zombie } from './entities';
+import { projectileSnap, updateProjectiles, type Projectile } from './projectiles';
 
 let sharedMap: CompiledMap | null = null;
 export const gameMap = (): CompiledMap => (sharedMap ??= compileMap(harrowRidge));
@@ -24,6 +27,12 @@ export interface PlayerState {
   vx: number;
   vz: number;
   movedAt: number;
+  /** Combat timers, on the `Game.now()` clock. `reloadUntil` is 0 when not reloading. */
+  fireAck: number;
+  nextFireAt: number;
+  nextMeleeAt: number;
+  nextThrowAt: number;
+  reloadUntil: number;
 }
 
 /** Longest we extrapolate a player's last reported position when building a snapshot. */
@@ -48,10 +57,21 @@ export class Game {
   private events: GameEvent[] = [];
   private timer: NodeJS.Timeout | null = null;
   private spawnCursor = 0;
-  /** Wall clock in seconds; only used to time client messages between ticks. */
-  private readonly clock = (): number => performance.now() / 1000;
+  readonly zombies = new Map<number, Zombie>();
+  readonly projectiles: Projectile[] = [];
+  readonly dummyResets: { at: number; x: number; z: number; yaw: number }[] = [];
+  readonly rng: Rng;
+  nextEntityId = 1;
+  /**
+   * Wall clock in seconds, for timing client messages (which arrive between ticks): movement
+   * velocity, fire rate, reloads. Tests inject a fake one.
+   */
+  readonly now: () => number;
 
-  constructor(private readonly out: GameOut, readonly opts: { debug: boolean; seed: number }) {}
+  constructor(private readonly out: GameOut, readonly opts: { debug: boolean; seed: number; now?: () => number }) {
+    this.now = opts.now ?? (() => performance.now() / 1000);
+    this.rng = new Rng(opts.seed);
+  }
 
   // ------------------------------------------------------------ lifecycle
 
@@ -82,10 +102,11 @@ export class Game {
     const p: PlayerState = {
       pub: {
         id, name, points: START_POINTS, kills: 0, headshots: 0, downs: 0, revives: 0,
-        perks: [], weapons: [], slot: 0, grenades: START_GRENADES, tactical: 0, connected: true,
+        perks: [], weapons: [newWeapon(START_WEAPON)], slot: 0, grenades: START_GRENADES, tactical: 0, connected: true,
       },
       x: s.x, z: s.z, yaw: s.yaw, pitch: 0, state: MoveState.Idle, hp: PLAYER_MAX_HP, ack: 0, budget: MOVE_BUDGET_CAP,
-      vx: 0, vz: 0, movedAt: this.clock(),
+      vx: 0, vz: 0, movedAt: this.now(),
+      fireAck: 0, nextFireAt: 0, nextMeleeAt: 0, nextThrowAt: 0, reloadUntil: 0,
     };
     this.players.set(id, p);
     this.emit({ e: 'player', player: p.pub });
@@ -123,6 +144,7 @@ export class Game {
       openDoors: [...this.openDoors],
       barricades: [],
       players: [...this.players.values()].map((q) => q.pub),
+      zombies: [...this.zombies.values()].map((z) => ({ id: z.id, kind: z.kind, seed: z.seed, x: z.x, z: z.z })),
       powerups: [],
       activeEffects: [],
       cache: { site: '', phase: 'idle' },
@@ -139,11 +161,21 @@ export class Game {
     switch (msg.t) {
       case 'move':
         return this.onMove(p, msg);
+      case 'fire':
+        return onFire(this, p, msg);
+      case 'reload':
+        return onReload(this, p);
+      case 'swap':
+        return onSwap(this, p, msg);
+      case 'melee':
+        return onMelee(this, p, msg);
+      case 'throw':
+        return onThrow(this, p, msg);
       case 'debug':
         if (this.opts.debug) this.onDebug(p, msg);
         return;
       default:
-        return; // combat, interaction etc. arrive in later sessions
+        return; // interaction etc. arrive in later sessions
     }
   }
 
@@ -161,7 +193,7 @@ export class Game {
     }
     // Moves arrive at 20 Hz but snapshots leave at 15 Hz; remember the velocity so snapshots can
     // place the player where they are *now* instead of beating between the two rates.
-    const now = this.clock();
+    const now = this.now();
     const dt = now - p.movedAt;
     const maxV = SPRINT_SPEED * MOVE_SPEED_SLACK;
     if (dt > 0.005 && dt < 0.25 && d / dt <= maxV) {
@@ -186,6 +218,18 @@ export class Game {
         p.budget = MOVE_BUDGET_CAP;
         p.vx = p.vz = 0;
         this.out.send(p.pub.id, { t: 'correct', x: p.x, z: p.z, seq: p.ack });
+        return;
+      case 'give':
+        if (typeof m.weapon === 'string') giveWeapon(this, p, m.weapon);
+        if (isFiniteNum(m.points)) {
+          p.pub.points += Math.round(m.points);
+          this.emit({ e: 'player', player: p.pub });
+        }
+        return;
+      case 'dummy':
+        if ([m.x, m.z, m.yaw].every(isFiniteNum) && this.zombies.size < 32 && circleFits(this.map, this.openDoors, m.x, m.z, PLAYER_RADIUS)) {
+          spawnDummy(this, m.x, m.z, m.yaw);
+        }
         return;
       case 'openAllDoors':
         for (const o of this.map.def.openings) if (o.kind === 'door') this.openDoor(o.id, p.pub.id);
@@ -215,7 +259,10 @@ export class Game {
     this.tick++;
     for (const p of this.players.values()) {
       p.budget = Math.min(MOVE_BUDGET_CAP, p.budget + SPRINT_SPEED * MOVE_SPEED_SLACK * dt);
+      settleReload(this, p);
     }
+    updateProjectiles(this, dt);
+    updateEntities(this);
     if (this.events.length) {
       this.out.broadcast({ t: 'ev', tick: this.tick, events: this.events });
       this.events = [];
@@ -225,7 +272,7 @@ export class Game {
 
   private sendSnapshots(): void {
     const players: PlayerSnap[] = [];
-    const now = this.clock();
+    const now = this.now();
     for (const p of this.players.values()) {
       let { x, z } = p;
       const ahead = Math.min(now - p.movedAt, MAX_EXTRAPOLATE);
@@ -239,9 +286,14 @@ export class Game {
       }
       players.push([p.pub.id, round2(x), round2(z), round2(p.yaw), round2(p.pitch), p.state, p.hp, p.pub.slot]);
     }
-    const base: Omit<Snapshot, 'ack'> = { t: 'snap', tick: this.tick, time: Math.round(this.time * 1000) / 1000, players, zombies: [], projectiles: [] };
+    const base: Omit<Snapshot, 'ack' | 'ammo'> = { t: 'snap', tick: this.tick, time: Math.round(this.time * 1000) / 1000, players,
+      zombies: [...this.zombies.values()].map(zombieSnap),
+      projectiles: this.projectiles.map(projectileSnap),
+    };
     for (const p of this.players.values()) {
-      if (p.pub.connected) this.out.send(p.pub.id, { ...base, ack: p.ack });
+      if (!p.pub.connected) continue;
+      const w = p.pub.weapons[p.pub.slot];
+      this.out.send(p.pub.id, { ...base, ack: p.ack, ammo: [p.fireAck, p.pub.slot, w?.mag ?? 0, w?.reserve ?? 0] });
     }
   }
 }

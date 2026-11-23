@@ -55,14 +55,113 @@ body {
   text-shadow: 0 1px 0 #000;
 }
 #crosshair {
+  --gap: 6px;
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 4px;
-  height: 4px;
-  margin: -2px 0 0 -2px;
+  opacity: 0.8;
+  transition: opacity 0.1s;
+}
+#crosshair i {
+  position: absolute;
   background: var(--ink);
-  opacity: 0.7;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+}
+#crosshair i:nth-child(1),
+#crosshair i:nth-child(2) {
+  width: 2px;
+  height: 7px;
+  left: -1px;
+}
+#crosshair i:nth-child(3),
+#crosshair i:nth-child(4) {
+  width: 7px;
+  height: 2px;
+  top: -1px;
+}
+#crosshair i:nth-child(1) {
+  bottom: var(--gap);
+}
+#crosshair i:nth-child(2) {
+  top: var(--gap);
+}
+#crosshair i:nth-child(3) {
+  right: var(--gap);
+}
+#crosshair i:nth-child(4) {
+  left: var(--gap);
+}
+#scope {
+  position: absolute;
+  inset: 0;
+  display: none;
+  background:
+    linear-gradient(#000, #000) center / 100% 1px no-repeat,
+    linear-gradient(#000, #000) center / 1px 100% no-repeat,
+    radial-gradient(circle at center, transparent 0, transparent 44vh, #000 44.6vh);
+}
+#hitmarker {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  opacity: 0;
+  color: var(--ink);
+  background:
+    linear-gradient(45deg, transparent 46%, currentColor 46%, currentColor 54%, transparent 54%),
+    linear-gradient(-45deg, transparent 46%, currentColor 46%, currentColor 54%, transparent 54%);
+  /* Leave the centre open so the marker frames the crosshair. */
+  mask: radial-gradient(circle, transparent 4px, #000 5px);
+}
+#hitmarker.show {
+  animation: hitmark 0.22s ease-out;
+}
+#hitmarker.head {
+  color: #fff;
+}
+#hitmarker.kill {
+  color: var(--blood);
+}
+@keyframes hitmark {
+  from {
+    opacity: 1;
+    transform: scale(1.35);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+#ammo {
+  position: absolute;
+  right: 18px;
+  bottom: 16px;
+  text-align: right;
+  text-shadow: 0 1px 0 #000, 0 0 6px #000;
+}
+#ammo-name {
+  color: var(--dim);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 12px;
+}
+#ammo-mag {
+  font-size: 34px;
+  line-height: 1;
+}
+#ammo-mag.empty {
+  color: var(--blood);
+}
+#ammo-reserve {
+  color: var(--dim);
+  font-size: 16px;
+}
+#ammo-nades {
+  min-height: 1.2em;
+  letter-spacing: 0.2em;
+  color: #8fa05a;
 }
 #hint {
   position: absolute;

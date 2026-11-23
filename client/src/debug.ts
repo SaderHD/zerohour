@@ -27,8 +27,26 @@ export interface DebugState {
   openDoors: string[];
   mapErrors: string[];
   /** Other players as currently drawn (interpolated). */
-  remotes: { id: number; name: string; x: number; z: number; visible: boolean; connected: boolean }[];
+  remotes: { id: number; name: string; x: number; z: number; visible: boolean; connected: boolean; weapon: string | null; shots: number }[];
   corrections: number;
+  /** Held weapon and predicted ammo. */
+  weapon: string | null;
+  weapons: string[];
+  slot: number;
+  mag: number;
+  reserve: number;
+  grenades: number;
+  reloading: boolean;
+  aim: number;
+  /** Shots we have fired. */
+  shots: number;
+  /** Enemies as drawn; hp is a 0..1 fraction. */
+  entities: { id: number; kind: string; x: number; z: number; hp: number }[];
+  /** Server-confirmed hits by anyone, newest last (capped). */
+  hits: { id: number; by: number; zone: string; dmg: number }[];
+  kills: number;
+  explosions: number;
+  fx: { particles: number; tracers: number; projectiles: number };
 }
 
 export interface ZhDebug {
@@ -37,6 +55,14 @@ export interface ZhDebug {
   /** Teleport to the middle of a zone's largest room. */
   gotoZone(zoneId: string, yaw?: number): void;
   look(yaw: number, pitch?: number): void;
+  /** Aim the view at a world point. */
+  lookAt(x: number, y: number, z: number): void;
+  /** `give('pike')` hands over a weapon, `give(500)` points (debug servers only). */
+  give(what: string | number): void;
+  /** Stand a target dummy at (x, z), or 3 m in front of the player. */
+  dummy(x?: number, z?: number): void;
+  /** Tap a key for one frame, e.g. press('Mouse0') to fire once. */
+  press(code: string): void;
   freeCam(on?: boolean): void;
   openAllDoors(): void;
   openDoor(id: string): void;
@@ -59,6 +85,8 @@ export const debugState: DebugState = {
   x: 0, z: 0, yaw: 0, pitch: 0, zone: null, stamina: 0, sprinting: false, freeCam: false,
   drawCalls: 0, triangles: 0, worldTriangles: 0, resolution: [0, 0], openDoors: [], mapErrors: [],
   remotes: [], corrections: 0,
+  weapon: null, weapons: [], slot: 0, mag: 0, reserve: 0, grenades: 0, reloading: false, aim: 0, shots: 0,
+  entities: [], hits: [], kills: 0, explosions: 0, fx: { particles: 0, tracers: 0, projectiles: 0 },
 };
 
 export function installDebug(api: Omit<ZhDebug, 'state'>): void {

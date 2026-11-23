@@ -52,9 +52,10 @@ zerohour/
   shared/src/
     constants.ts          tick rates, speeds, economy numbers
     protocol.ts           all message types (client<->server)
+    combat.ts             damage/falloff/fire-rate maths used by both sides
     data/                 weapons.ts perks.ts powerups.ts props.ts rounds.ts
     map/                  types.ts  harrowRidge.ts  compile.ts  validate.ts
-    nav/                  grid.ts  flowfield.ts  los.ts
+    nav/                  grid.ts  flowfield.ts  los.ts  ray.ts (3D ray vs cell grid)  collide.ts
     math/                 vec.ts  rng.ts (seeded)
   server/src/
     index.ts              http static + ws upgrade
@@ -289,8 +290,14 @@ aim.** This is co-op with friends, so we optimise for feel and simplicity over c
     Gravewell, Siren) are fully server-simulated.
 - **Client presentation:** other players and zombies are interpolated ~120 ms in the past from a
   snapshot buffer; own firing/reload/recoil play immediately and reconcile ammo from snapshots.
-  One-shot events (`hitConfirm`, `zombieDied`, `pointsPopup`, `powerupTaken`, `sfx`) are discrete
-  messages, not snapshot state.
+  One-shot events (`zombieHit`, `zombieDied`, `fired`, `points`, `powerupTaken`) are discrete
+  messages, not snapshot state. Each player's snapshot carries their own ammo as
+  `[lastFireSeq, slot, mag, reserve]`; the client adopts it only when that seq matches the last
+  shot it sent and no reload is in flight.
+- **Fire-rate check:** the server keeps a per-player "next shot due" time on a wall clock
+  (messages arrive between ticks). A shot may arrive up to `FIRE_RATE_SLACK` early to absorb
+  jitter, but the schedule advances by a full interval per shot, so the average rate can never
+  exceed the weapon's rpm.
 - **Wire format:** JSON to start, with compact arrays for entity lists in snapshots
   (`[id, x, z, yaw, state, hpFrac]`). Static/slow state (doors, power, barricades, perks owned,
   Cache site) is sent on change + in a full `sync` on join. Only switch to binary if profiling
@@ -366,7 +373,8 @@ wall buys, tonics, Cache, Forge, power switch, barricade rebuild and revive.
 
 ### 6.6 Testing & debug hooks (required — this is how agents verify work)
 - `window.__zh` in dev: `state()`, `teleport(x,z)`, `give(weapon|perk|points)`, `setRound(n)`,
-  `spawnZombies(n)`, `god(bool)`, `freeCam()`, `openAllDoors()`, `powerOn()`. Matching server-side
+  `spawnZombies(n)`, `god(bool)`, `freeCam()`, `openAllDoors()`, `powerOn()`, `dummy(x,z)` (target
+  dummy), `lookAt(x,y,z)`, `press(code)` (mouse buttons are `Mouse0`/`Mouse2`). Matching server-side
   `debug` messages, enabled only when `ZH_DEBUG=1`.
 - URL flags: `?name=X`, `?room=CODE` (join; with `autostart` the room is created if missing —
   debug servers only), `?autostart=1` (skip menu and lobby), `?debug=1` (stats overlay).
@@ -545,7 +553,15 @@ with no errors in client or server logs.
   otherwise beat visibly); late joiners spawn immediately until rounds exist (session 6); bots
   only wander for now. Each player model is ~12 draw calls — fine for 4 players, but zombies
   (session 5) must use far fewer per body (merge static parts or instance) to stay under 150.
-- [ ] 4 Weapons and combat core
+- [x] 4 Weapons and combat core — done. All 12 conventional guns have stats and fire; Warden,
+  Dockhand, Farrow, Pike and Stitch have bespoke models, the other seven use a parametric long-gun
+  builder until session 11 (third-person reuses the same builders without hands). Additions to the
+  plan: `ZombieKind 'dummy'` (debug-spawned, 1000 HP, stands back up 3 s after being destroyed),
+  `sync.zombies`, per-player `snap.ammo`, shared `rayWorld`. Deferred: explosions do not hurt
+  players until player damage exists (session 5); points for hits/kills (session 6); weapons are
+  only obtainable through the debug `give` until wall buys (session 10); shotgun reloads are
+  whole-magazine, not shell-by-shell; no sounds (session 12). Four armed players cost ~50 draw
+  calls in software rendering — still fine, but zombies must not copy that pattern.
 - [ ] 5 Zombies
 - [ ] 6 Round loop, points, downs
 - [ ] 7 Map I: prop kit, doors, west wing

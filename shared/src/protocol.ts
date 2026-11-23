@@ -31,9 +31,11 @@ export const enum ZombieState {
   Attack = 4,
   Crawl = 5,
   Dying = 6,
+  /** Stationary (target dummies). */
+  Idle = 7,
 }
 
-export type ZombieKind = 'zombie' | 'howler';
+export type ZombieKind = 'zombie' | 'howler' | 'dummy';
 
 // ---------------------------------------------------------------- client -> server
 
@@ -51,7 +53,8 @@ export type DebugCmd =
   | { cmd: 'openAllDoors' }
   | { cmd: 'openDoor'; id: InteractableId }
   | { cmd: 'powerOn' }
-  | { cmd: 'teleport'; x: number; z: number };
+  | { cmd: 'teleport'; x: number; z: number }
+  | { cmd: 'dummy'; x: number; z: number; yaw: number };
 
 export type ClientMsg =
   | { t: 'hello'; v: number; name: string; token?: string }
@@ -163,6 +166,8 @@ export interface SyncState {
   openDoors: InteractableId[];
   barricades: BarricadeState[];
   players: PlayerPublic[];
+  /** Live enemies (their positions follow in snapshots). */
+  zombies: { id: EntityId; kind: ZombieKind; seed: number; x: number; z: number }[];
   powerups: PowerupDrop[];
   activeEffects: { kind: PowerupId; until: number }[];
   cache: CacheState;
@@ -184,6 +189,8 @@ export interface Snapshot {
   time: number;
   /** Last `move.seq` processed for the receiving player. */
   ack: number;
+  /** The receiving player's ammo: [last fire seq processed, slot, mag, reserve]. */
+  ammo: [number, number, number, number];
   players: PlayerSnap[];
   zombies: ZombieSnap[];
   projectiles: ProjectileSnap[];

@@ -28,6 +28,15 @@ export class LocalPlayer {
   sensitivity = 0.0022;
   /** Debug fly camera: no collision, free vertical movement. */
   freeCam = false;
+  /** Set each frame by the weapon system: speed multiplier, sprint lock-out and FOV zoom. */
+  speedMult = 1;
+  noSprint = false;
+  zoom = 1;
+  /** Mouse movement consumed this frame (pixels), for viewmodel sway. */
+  lookX = 0;
+  lookY = 0;
+  private recoil = 0;
+  private recoilTarget = 0;
   private flyY = PLAYER_EYE_HEIGHT;
   private sinceSprint = STAMINA_REGEN_DELAY;
   private bob = 0;
@@ -36,6 +45,17 @@ export class LocalPlayer {
 
   get speed(): number {
     return Math.hypot(this.vx, this.vz);
+  }
+
+  /** Where the camera (and the next shot) points, recoil included. */
+  get viewPitch(): number {
+    return clamp(this.pitch + this.recoil, -PITCH_LIMIT, PITCH_LIMIT);
+  }
+
+  /** Recoil: the view climbs quickly, then settles back. */
+  kick(radians: number): void {
+    this.recoilTarget += radians;
+    this.yaw += (Math.random() - 0.5) * radians * 0.5;
   }
 
   teleport(x: number, z: number, yaw = this.yaw): void {
@@ -47,8 +67,13 @@ export class LocalPlayer {
 
   update(dt: number, input: Input, map: CompiledMap, open: DoorSet): void {
     const mouse = input.consumeMouse();
-    this.yaw -= mouse.dx * this.sensitivity;
-    this.pitch = clamp(this.pitch - mouse.dy * this.sensitivity, -PITCH_LIMIT, PITCH_LIMIT);
+    const sens = this.sensitivity * this.zoom;
+    this.lookX = mouse.dx;
+    this.lookY = mouse.dy;
+    this.yaw -= mouse.dx * sens;
+    this.pitch = clamp(this.pitch - mouse.dy * sens, -PITCH_LIMIT, PITCH_LIMIT);
+    this.recoil += (this.recoilTarget - this.recoil) * (1 - Math.exp(-30 * dt));
+    this.recoilTarget *= Math.exp(-7 * dt);
 
     const fwd = (input.down('KeyW') ? 1 : 0) - (input.down('KeyS') ? 1 : 0);
     const strafe = (input.down('KeyD') ? 1 : 0) - (input.down('KeyA') ? 1 : 0);
@@ -73,7 +98,7 @@ export class LocalPlayer {
     }
 
     // Sprint: only while moving forward with stamina left; regen after a short delay.
-    const wantSprint = input.down('ShiftLeft') && fwd > 0 && mag > 0;
+    const wantSprint = input.down('ShiftLeft') && fwd > 0 && mag > 0 && !this.noSprint;
     this.sprinting = wantSprint && this.stamina > 0;
     if (this.sprinting) {
       this.stamina = Math.max(0, this.stamina - dt);
@@ -83,7 +108,7 @@ export class LocalPlayer {
       if (this.sinceSprint >= STAMINA_REGEN_DELAY) this.stamina = Math.min(STAMINA_SECONDS, this.stamina + dt);
     }
 
-    const target = this.sprinting ? SPRINT_SPEED : WALK_SPEED;
+    const target = (this.sprinting ? SPRINT_SPEED : WALK_SPEED) * this.speedMult;
     const k = 1 - Math.exp(-ACCEL * dt);
     this.vx += (wx * target - this.vx) * k;
     this.vz += (wz * target - this.vz) * k;
@@ -103,7 +128,7 @@ export class LocalPlayer {
     const moved = Math.hypot(this.x - before.x, this.z - before.z);
     this.bob += moved * 1.9;
     this.bobAmount += (clamp(this.speed / WALK_SPEED, 0, 1.4) - this.bobAmount) * (1 - Math.exp(-8 * dt));
-    this.fov += (BASE_FOV + (this.sprinting ? SPRINT_FOV_KICK : 0) - this.fov) * (1 - Math.exp(-8 * dt));
+    this.fov += ((BASE_FOV + (this.sprinting ? SPRINT_FOV_KICK : 0)) * this.zoom - this.fov) * (1 - Math.exp(-14 * dt));
   }
 
   applyTo(camera: THREE.PerspectiveCamera): void {
@@ -111,7 +136,7 @@ export class LocalPlayer {
     const bobX = this.freeCam ? 0 : Math.cos(this.bob) * 0.02 * this.bobAmount;
     const y = this.freeCam ? this.flyY : PLAYER_EYE_HEIGHT + bobY;
     camera.position.set(this.x + Math.cos(this.yaw) * bobX, y, this.z - Math.sin(this.yaw) * bobX);
-    camera.rotation.set(this.pitch, this.yaw, this.freeCam ? 0 : bobX * 0.4, 'YXZ');
+    camera.rotation.set(this.freeCam ? this.pitch : this.viewPitch, this.yaw, this.freeCam ? 0 : bobX * 0.4, 'YXZ');
     if (Math.abs(camera.fov - this.fov) > 0.01) {
       camera.fov = this.fov;
       camera.updateProjectionMatrix();

@@ -5,3 +5,6 @@ export * from './math/rng';
 export * from './map/index';
 export * from './nav/los';
 export * from './nav/collide';
+export * from './nav/ray';
+export * from './combat';
+export * from './data/weapons';

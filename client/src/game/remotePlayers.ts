@@ -12,6 +12,8 @@ interface Remote {
   buffer: InterpBuffer;
   tag: HTMLDivElement;
   pose: Pose | null;
+  weapon: string | null;
+  shots: number;
 }
 
 const TAG_RANGE = 28;
@@ -41,11 +43,13 @@ export class RemotePlayers {
       const tag = document.createElement('div');
       tag.className = 'tag';
       this.tags.appendChild(tag);
-      r = { id: p.id, name: p.name, connected: p.connected, model, buffer: new InterpBuffer(), tag, pose: null };
+      r = { id: p.id, name: p.name, connected: p.connected, model, buffer: new InterpBuffer(), tag, pose: null, weapon: null, shots: 0 };
       this.remotes.set(p.id, r);
     }
     r.name = p.name;
     r.connected = p.connected;
+    r.weapon = p.weapons[p.slot]?.id ?? null;
+    r.model.setWeapon(r.weapon);
     r.tag.textContent = p.connected ? p.name : `${p.name} (lost)`;
     r.tag.classList.toggle('lost', !p.connected);
   }
@@ -91,10 +95,25 @@ export class RemotePlayers {
     }
   }
 
+  /** A remote player fired: flash their gun. Returns the muzzle position for a tracer, if they are drawn. */
+  fired(id: PlayerId, out: THREE.Vector3): THREE.Vector3 | null {
+    const r = this.remotes.get(id);
+    if (!r) return null;
+    r.shots++;
+    if (!r.pose) return null;
+    r.model.fire();
+    return r.model.muzzleWorld(out);
+  }
+
+  melee(id: PlayerId): void {
+    this.remotes.get(id)?.model.swing();
+  }
+
   /** For tests/debug. */
-  list(): { id: PlayerId; name: string; x: number; z: number; visible: boolean; connected: boolean }[] {
+  list(): { id: PlayerId; name: string; x: number; z: number; visible: boolean; connected: boolean; weapon: string | null; shots: number }[] {
     return [...this.remotes.values()].map((r) => ({
       id: r.id, name: r.name, x: r.pose?.x ?? NaN, z: r.pose?.z ?? NaN, visible: r.model.root.visible, connected: r.connected,
+      weapon: r.weapon, shots: r.shots,
     }));
   }
 }

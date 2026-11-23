@@ -77,10 +77,17 @@ export class RetroRenderer {
     return aspect;
   }
 
-  render(scene: THREE.Scene, camera: THREE.Camera): void {
+  /** `overlay` (the first-person weapon) is drawn on top of the world after a depth clear. */
+  render(scene: THREE.Scene, camera: THREE.Camera, overlay?: { scene: THREE.Scene; camera: THREE.Camera } | null): void {
     this.gl.info.reset();
     this.gl.setRenderTarget(this.target);
     this.gl.render(scene, camera);
+    if (overlay) {
+      this.gl.autoClear = false;
+      this.gl.clearDepth();
+      this.gl.render(overlay.scene, overlay.camera);
+      this.gl.autoClear = true;
+    }
     this.lastDrawCalls = this.gl.info.render.calls;
     this.lastTriangles = this.gl.info.render.triangles;
     this.gl.setRenderTarget(null);

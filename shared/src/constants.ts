@@ -1,6 +1,6 @@
 // Every tunable number in the game lives here or in shared/src/data. See docs/PLAN.md section 4.
 
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 // --- Networking ---
 export const TICK_RATE = 30; // server sim Hz
@@ -43,6 +43,24 @@ export const KNIFE_DAMAGE = 150;
 export const KNIFE_COOLDOWN = 0.6;
 export const KNIFE_RANGE = 1.6;
 export const INTERACT_RANGE = 1.8;
+
+// --- Combat ---
+export const LIMB_MULT = 0.75;
+export const AIM_MOVE_MULT = 0.6; // walk speed while aiming down sights
+export const SWAP_SECONDS = 0.35;
+export const FIRE_RATE_SLACK = 0.08; // seconds a shot may arrive early (network jitter)
+export const HIT_DIST_SLACK = 3; // metres between a reported hit and where the server has the target
+export const KNIFE_RANGE_SLACK = 1;
+export const GRENADE_FUSE = 2.5;
+export const GRENADE_SPEED = 13;
+export const GRENADE_LOFT = 3; // extra upward speed on a throw
+export const GRENADE_DAMAGE = 600;
+export const GRENADE_RADIUS = 5;
+export const GRENADE_COOLDOWN = 0.8;
+export const EXPLOSION_MIN_FRAC = 0.25; // damage fraction at the edge of a blast
+export const PROJECTILE_GRAVITY = 14;
+export const DUMMY_HP = 1000;
+export const DUMMY_RESET_SECONDS = 3;
 
 // --- Points ---
 export const START_POINTS = 500;

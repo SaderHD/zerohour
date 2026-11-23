@@ -25,7 +25,8 @@ when its acceptance checks pass.
 - `npm test` — Vitest unit/sim tests (`*.test.ts` next to the code).
 - `npm run typecheck` / `npm run lint`.
 - `npm run e2e` — after a build: two browser players + two bots in one room; checks lobby flow,
-  smooth remote motion, reconnect and room-full handling. Writes `test-results/mp-*.png`.
+  smooth remote motion, shooting (exact dummy damage, remote shots, ammo), reconnect and room-full
+  handling. Writes `test-results/mp-*.png`.
 - `npm run bot -- <ROOM> [count]` — headless bot players that join a room and wander.
 - URL flags for quick testing: `?autostart=1` (straight into a solo game), `?room=ABCD&autostart=1`
   (shared room across tabs), `?name=X`, `?debug=1`.
@@ -47,5 +48,14 @@ when its acceptance checks pass.
   (the match; `step(dt)` is pure so tests drive it without timers). Client: `net/net.ts` is the
   connection/lobby state machine, `main.ts` wires everything.
 - Dynamic models: build from `models/rig.ts` boxes and tint each frame with `world.lightAt()`.
+- Combat: stats in `shared/src/data/weapons.ts`, maths in `shared/src/combat.ts`. The client
+  (`game/weapons.ts`) resolves its own shots against `game/entities.ts` hit boxes and
+  `rayWorld`, predicts ammo and sends `fire`; `server/src/game/combat.ts` validates rate, ammo,
+  distance and line of sight. Server enemies live in `game/entities.ts` (only the target dummy so
+  far), thrown/launched things in `game/projectiles.ts`.
+- The first-person weapon (`game/viewmodel.ts`) is its own scene drawn over the world after a
+  depth clear. Gun models come from `models/weapons/` (`Kit` boxes, muzzle at -z, origin at the
+  grip); add new guns to the table in `models/weapons/index.ts`.
+- Try weapons in a debug game from the console: `__zh.give('pike')`, `__zh.dummy()`.
 - Tests and visual checks go through `window.__zh` (`client/src/debug.ts`); extend it as features
   land.
