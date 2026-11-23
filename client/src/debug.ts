@@ -4,6 +4,7 @@
 // when started with ZH_DEBUG=1.
 
 import { PLAYER_EYE_HEIGHT, SIREN, aimDir, harrowRidge, perkDef, type ClientMsg, type ZombieKind } from '@zh/shared';
+import type { GameAudio } from './audio/audio';
 import type { LocalPlayer } from './game/localPlayer';
 import type { Input } from './input/input';
 import type { RetroRenderer } from './render/renderer';
@@ -54,7 +55,7 @@ export interface DebugState {
   /** Shots we have fired. */
   shots: number;
   /** Enemies as drawn; hp is a 0..1 fraction, state a ZombieState. */
-  entities: { id: number; kind: string; x: number; z: number; hp: number; state: number }[];
+  entities: { id: number; kind: string; x: number; z: number; hp: number; state: number; gait: number }[];
   /** Our health, and how many times we have been hit. */
   hp: number;
   hurts: number;
@@ -86,6 +87,11 @@ export interface DebugState {
   chains: number[];
   strikes: number;
   lastStrike: { x: number; z: number } | null;
+  /** Sound: the context's state, voices sounding now and the most ever at once (never over `max`), and the sliders. */
+  audio: GameAudio['stats'] | null;
+  /** Screen shake left (0..1), and the bearings of the damage arcs showing (radians, 0 ahead, positive right). */
+  shake: number;
+  damageArcs: number[];
   fx: { particles: number; tracers: number; projectiles: number; bolts: number; kinds: string[] };
 }
 
@@ -126,6 +132,8 @@ export interface ZhDebug {
   dither(on: boolean): void;
   /** Close the socket as if the network dropped; the client reconnects on its own. */
   dropConnection(): void;
+  /** Sound: `audio.play('shot-pike')`, `audio.names()`, `audio.render(name)` (offline), `audio.record(true|false)`, `audio.setVolume('music', 0.5)`, `audio.unlock()`. */
+  audio: GameAudio;
 }
 
 declare global {
@@ -140,7 +148,7 @@ export const debugState: DebugState = {
   drawCalls: 0, triangles: 0, worldTriangles: 0, movers: 0, resolution: [0, 0], openDoors: [], power: false, mapErrors: [],
   remotes: [], corrections: 0,
   weapon: null, weapons: [], upgraded: [], perks: [], maxHp: 100, forge: 'idle', slot: 0, mag: 0, reserve: 0, grenades: 0, reloading: false, aim: 0, shots: 0,
-  entities: [], hp: 100, hurts: 0, round: 0, roundPhase: 'intermission', zombiesLeft: 0, points: 0, life: 'alive', roster: [], over: false, barricades: [], prompt: '', hits: [], kills: 0, explosions: 0, tacticals: 0, powerups: [], effects: [], powerupsTaken: [], cache: { home: '', boxes: [] }, chains: [], strikes: 0, lastStrike: null, fx: { particles: 0, tracers: 0, projectiles: 0, bolts: 0, kinds: [] },
+  entities: [], hp: 100, hurts: 0, round: 0, roundPhase: 'intermission', zombiesLeft: 0, points: 0, life: 'alive', roster: [], over: false, barricades: [], prompt: '', hits: [], kills: 0, explosions: 0, tacticals: 0, powerups: [], effects: [], powerupsTaken: [], cache: { home: '', boxes: [] }, chains: [], strikes: 0, lastStrike: null, audio: null, shake: 0, damageArcs: [], fx: { particles: 0, tracers: 0, projectiles: 0, bolts: 0, kinds: [] },
 };
 
 export interface DebugWiring {
@@ -150,11 +158,13 @@ export interface DebugWiring {
   playing(): boolean;
   renderer: RetroRenderer;
   resize(): void;
+  audio: GameAudio;
 }
 
 /** Install window.__zh. Anything that changes the game is a debug message to the server. */
-export function wireDebug({ player, input, socket: s, playing, renderer, resize }: DebugWiring): void {
+export function wireDebug({ player, input, socket: s, playing, renderer, resize, audio }: DebugWiring): void {
   const api: Omit<ZhDebug, 'state'> = {
+  audio,
   teleport: (x, z, yaw) => {
     player.teleport(x, z, yaw);
     if (playing()) s.send({ t: 'debug', cmd: 'teleport', x, z });

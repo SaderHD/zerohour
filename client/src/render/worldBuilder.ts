@@ -32,6 +32,8 @@ export interface World {
   triangles: number;
   /** Parts that move by themselves (fans, flywheels, swinging lamps). */
   movers: number;
+  /** Where water drips from the roof (for the sound of it). */
+  drips: readonly (readonly [number, number, number])[];
 }
 
 const hash = (n: number): number => {
@@ -187,6 +189,7 @@ export function buildWorld(map: CompiledMap): World {
     group,
     triangles,
     movers: ambient.movers,
+    drips: out.drips!,
     lightAt: (x, y, z) => baker.lightAt(x, y, z),
     setDoors: (open) => {
       const want = new Set(open);

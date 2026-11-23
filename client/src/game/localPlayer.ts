@@ -48,6 +48,8 @@ export class LocalPlayer {
   lookY = 0;
   private recoil = 0;
   private recoilTarget = 0;
+  /** Sideways recoil still to be fed into the yaw (it does not come back; the player corrects). */
+  private yawKick = 0;
   private flyY = PLAYER_EYE_HEIGHT;
   private sinceSprint = STAMINA_REGEN_DELAY;
   private bob = 0;
@@ -64,9 +66,14 @@ export class LocalPlayer {
   }
 
   /** Recoil: the view climbs quickly, then settles back. */
-  kick(radians: number): void {
+  kick(radians: number, side = (Math.random() - 0.5) * radians * 0.5): void {
     this.recoilTarget += radians;
-    this.yaw += (Math.random() - 0.5) * radians * 0.5;
+    this.yawKick += side;
+  }
+
+  /** Footfalls so far: the view's bob bottoms out each time this passes a whole number. */
+  get stride(): number {
+    return this.bob / Math.PI + 0.25;
   }
 
   teleport(x: number, z: number, yaw = this.yaw): void {
@@ -84,6 +91,9 @@ export class LocalPlayer {
     this.yaw -= mouse.dx * sens;
     this.pitch = clamp(this.pitch - mouse.dy * sens, -PITCH_LIMIT, PITCH_LIMIT);
     this.recoil += (this.recoilTarget - this.recoil) * (1 - Math.exp(-30 * dt));
+    const turn = this.yawKick * (1 - Math.exp(-30 * dt));
+    this.yaw += turn;
+    this.yawKick -= turn;
     this.recoilTarget *= Math.exp(-7 * dt);
 
     const walk = this.frozen && !this.freeCam ? 0 : 1;

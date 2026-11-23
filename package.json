@@ -26,7 +26,8 @@
     "soak": "tsx scripts/soak.ts",
     "horde": "node scripts/horde.cjs",
     "economy": "node scripts/economy.cjs",
-    "wonders": "node scripts/wonders.cjs"
+    "wonders": "node scripts/wonders.cjs",
+    "audio": "node scripts/audio.cjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

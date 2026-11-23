@@ -19,6 +19,8 @@ export interface ViewmodelInput {
   /** Mouse movement this frame (pixels), for sway. */
   lookX: number;
   lookY: number;
+  /** Sideways speed, m/s (right is positive): the gun leans into a strafe. */
+  strafe: number;
   light: [number, number, number];
 }
 
@@ -59,6 +61,12 @@ export class Viewmodel {
   private swayX = 0;
   private swayY = 0;
   private time = 0;
+  /** Feel: which way this shot twists the gun, a lean into strafing, a flinch when hurt, a dry click, a frozen knife. */
+  private kickSide = 0;
+  private lean = 0;
+  private flinchT = 0;
+  private dry = 0;
+  private stopT = 0;
 
   constructor() {
     this.scene.add(new THREE.AmbientLight(0xffffff, Math.PI), this.holder);
@@ -129,6 +137,7 @@ export class Viewmodel {
 
   fire(): void {
     this.kick = 1;
+    this.kickSide = Math.random() * 2 - 1;
     this.slideKick = 1;
     this.flashT = FLASH_SECONDS;
     this.flash.rotation.z = Math.random() * Math.PI;
@@ -146,6 +155,26 @@ export class Viewmodel {
 
   swing(): void {
     this.melee = 0;
+  }
+
+  /** The blade met something: hold the swing still for a moment where it landed. */
+  hitStop(seconds: number): void {
+    this.stopT = seconds;
+  }
+
+  /** The trigger pulled on an empty gun. */
+  dryFire(): void {
+    this.dry = 1;
+  }
+
+  /** We were hit: the hands jerk. */
+  flinch(): void {
+    this.flinchT = 1;
+  }
+
+  /** How the weapon in hand cycles, for the sound of it. */
+  get action(): WeaponModel['action'] | null {
+    return this.model?.action ?? null;
   }
 
   throwGrenade(): void {
@@ -175,7 +204,10 @@ export class Viewmodel {
       this.canister.position.set(lerp(-0.2, -0.05, up), lerp(-0.42, -0.1, up) + tip * 0.03, -0.3 + tip * 0.06);
       this.canister.rotation.set(tip * 1.25, 0, -0.25 * (1 - tip));
     }
-    this.melee = Math.min(1, this.melee + dt / MELEE_SECONDS);
+    // Hit stop: the swing waits at the moment of contact (a third of the way through).
+    const stopped = this.stopT > 0 && this.melee >= 0.3;
+    if (stopped) this.stopT -= dt;
+    else this.melee = Math.min(1, this.melee + dt / MELEE_SECONDS);
     // Knife swipe across the view.
     this.knife.visible = this.melee < 1;
     if (this.knife.visible) {
@@ -200,6 +232,9 @@ export class Viewmodel {
     this.bobAmp += (clamp(i.speed / 4.5, 0, 1.3) - this.bobAmp) * damp(8, dt);
     this.swayX += (clamp(-i.lookX * 0.0006, -0.03, 0.03) - this.swayX) * damp(9, dt);
     this.swayY += (clamp(i.lookY * 0.0006, -0.03, 0.03) - this.swayY) * damp(9, dt);
+    this.lean += (clamp(i.strafe / 4.5, -1, 1) - this.lean) * damp(7, dt);
+    this.flinchT *= 1 - damp(9, dt);
+    this.dry *= 1 - damp(22, dt);
 
     // Base pose: hip → sights.
     const long = m.twoHanded;
@@ -222,6 +257,17 @@ export class Viewmodel {
     pos.z += this.kick * 0.05 * (0.5 + 0.5 * hip);
     pos.y += this.kick * 0.008 * hip;
     rot.x += this.kick * 0.11 * (0.4 + 0.6 * hip);
+    rot.y += this.kick * this.kickSide * 0.025 * hip;
+    rot.z += this.kick * this.kickSide * 0.05;
+
+    // Leaning into a strafe, a flinch when hit, the nudge of a dry trigger.
+    rot.z -= this.lean * 0.07 * (0.3 + 0.7 * hip);
+    pos.x -= this.lean * 0.008 * hip;
+    rot.z += this.flinchT * 0.14;
+    rot.x += this.flinchT * 0.07;
+    pos.y -= this.flinchT * 0.02;
+    rot.x -= this.dry * 0.018;
+    pos.z += this.dry * 0.004;
 
     // Sprint: gun swings across the body and bounces.
     pos.x -= this.sprint * 0.06;

@@ -13,7 +13,7 @@ export default tseslint.config(
   },
   {
     files: ['scripts/**', '**/*.cjs'],
-    languageOptions: { globals: { process: 'readonly', console: 'readonly', require: 'readonly', __dirname: 'readonly', fetch: 'readonly', setTimeout: 'readonly', window: 'readonly', document: 'readonly', performance: 'readonly', requestAnimationFrame: 'readonly' } },
+    languageOptions: { globals: { process: 'readonly', console: 'readonly', require: 'readonly', __dirname: 'readonly', fetch: 'readonly', setTimeout: 'readonly', window: 'readonly', document: 'readonly', performance: 'readonly', requestAnimationFrame: 'readonly', Buffer: 'readonly', atob: 'readonly', Event: 'readonly' } },
     rules: { '@typescript-eslint/no-require-imports': 'off' },
   },
 );

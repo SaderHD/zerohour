@@ -657,3 +657,57 @@ body[data-over] #hud > :not(#round) {
 #results {
   width: 480px;
 }
+
+/* Session 12: kill feedback, damage direction, volume sliders. */
+#hitmarker.kill,
+#hitmarker.headkill {
+  animation-duration: 0.34s;
+}
+#hitmarker.headkill {
+  color: #ffd040;
+  width: 30px;
+  height: 30px;
+  margin: -15px 0 0 -15px;
+}
+#damage {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+}
+#damage i {
+  position: absolute;
+  left: -19vh;
+  top: -19vh;
+  width: 38vh;
+  height: 38vh;
+  border-radius: 50%;
+  opacity: 0;
+  /* A wedge of a ring, at the top: rotated to the side the blow came from. */
+  background: conic-gradient(from -24deg, rgba(200, 20, 10, 0) 0deg, rgba(220, 30, 16, 0.95) 24deg, rgba(200, 20, 10, 0) 48deg, transparent 48deg);
+  mask: radial-gradient(circle, transparent 15.5vh, #000 16vh, #000 18.4vh, transparent 19vh);
+}
+#volumes {
+  position: absolute;
+  left: 12px;
+  top: 36px;
+  display: grid;
+  gap: 2px;
+  color: var(--dim);
+  font-size: 12px;
+  text-shadow: 0 1px 0 #000;
+  pointer-events: auto;
+}
+#volumes label {
+  display: grid;
+  grid-template-columns: 56px 110px;
+  align-items: center;
+}
+#volumes input {
+  accent-color: var(--blood);
+  height: 12px;
+}
+body[data-locked] #volumes {
+  display: none;
+}

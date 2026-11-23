@@ -4,10 +4,12 @@ import {
   maxHpWith, perkDef, powerupDef, rayWorld, staminaWith, validateMap, weaponDef,
   type ForgeState, type PerkId, type PlayerPublic, type PowerupId,
 } from '@zh/shared';
+import { GameAudio } from './audio/audio';
 import { debugState, wireDebug } from './debug';
 import { Barricades } from './game/barricades';
 import { CacheView } from './game/cacheView';
 import { Entities } from './game/entities';
+import { Shake } from './game/feel';
 import { ForgeView } from './game/forgeView';
 import { Fx } from './game/fx';
 import { Interact } from './game/interact';
@@ -25,9 +27,11 @@ import { RetroRenderer } from './render/renderer';
 import { buildSky } from './render/sky';
 import { Snow } from './render/snow';
 import { buildWorld } from './render/worldBuilder';
+import { DamageArcs } from './ui/damage';
 import { Hud } from './ui/hud';
 import { Menu } from './ui/menu';
 import { Scoreboard } from './ui/scoreboard';
+import { buildVolumes } from './ui/volumes';
 
 // URL flags: ?name=X  ?room=CODE (join it; with autostart, create it if missing)
 //            ?autostart=1 (skip menu and lobby)  ?debug=1 (stats overlay)
@@ -72,6 +76,8 @@ const fx = new Fx(scene);
 const vm = new Viewmodel();
 const barricades = new Barricades(scene, map, world, fx);
 const scores = new Scoreboard();
+const shake = new Shake();
+const arcs = new DamageArcs();
 let hp = PLAYER_MAX_HP;
 
 // Round and life state, as the server reports it.
@@ -158,7 +164,15 @@ function setForge(state: ForgeState): void {
   forgeView.set(state);
 }
 
-const weapons = new LocalWeapons({ player, camera, map, openDoors, entities, fx, vm, send: (m) => net.socket.send(m) });
+const audio = new GameAudio({
+  map, openDoors, drips: world.drips,
+  selfId: () => net.id,
+  playerAt: (id) => remotes.list().find((r) => r.id === id && Number.isFinite(r.x)) ?? null,
+  entityAt: (id) => entities.chest(id),
+  planks: (id) => barricades.list().find((b) => b.id === id)?.planks ?? 0,
+});
+buildVolumes(audio);
+const weapons = new LocalWeapons({ player, camera, map, openDoors, entities, fx, vm, sound: audio.guns, shake, send: (m) => net.socket.send(m) });
 
 function resize(): void {
   camera.aspect = renderer.resize(window.innerWidth, window.innerHeight);
@@ -178,7 +192,11 @@ let moveSeq = 0;
 let triedCreate = false;
 
 input.attach(canvas, live);
-input.onLockChange = (locked) => hud.setLocked(locked);
+input.onLockChange = (locked) => {
+  hud.setLocked(locked);
+  if (locked) document.body.dataset.locked = '1';
+  else delete document.body.dataset.locked;
+};
 
 net.onPhase = (phase) => {
   document.body.dataset.phase = phase;
@@ -239,6 +257,8 @@ s.on('sync', (m) => {
   roundPhase = m.roundPhase;
   zombiesLeft = m.zombiesLeft;
   hud.setRound(round, false);
+  audio.sync(m);
+  arcs.clear();
   setLife('alive'); // the next snapshot says otherwise if we are down or sitting out
   setOver(m.over);
 });
@@ -253,6 +273,7 @@ s.on('snap', (m) => {
   }
   entities.onSnapshot(m.time, m.zombies);
   fx.setProjectiles(m.projectiles);
+  audio.setProjectiles(m.projectiles);
   weapons.onAmmo(m.ammo);
 });
 s.on('correct', (m) => {
@@ -261,6 +282,7 @@ s.on('correct', (m) => {
 });
 s.on('ev', (m) => {
   for (const ev of m.events) {
+    audio.event(ev, clock.now); // first: it needs to find things the event is about to remove
     switch (ev.e) {
       case 'player':
         scores.upsert(ev.player);
@@ -321,7 +343,7 @@ s.on('ev', (m) => {
         const at = entities.chest(ev.id);
         if (at) fx.puff(at.x, at.y, at.z, at.colour, 10, 2.4, 0.05, 0.6);
         entities.die(ev.id);
-        if (ev.by === net.id) hud.hit('kill');
+        if (ev.by === net.id) hud.hit(ev.zone === 'head' ? 'headkill' : 'kill');
         debugState.kills++;
         break;
       }
@@ -330,6 +352,9 @@ s.on('ev', (m) => {
         break;
       case 'playerHurt':
         if (ev.id !== net.id) break;
+        shake.add(0.25 + (hp - ev.hp) / 200);
+        arcs.hit(ev.fromX, ev.fromZ);
+        vm.flinch();
         hp = ev.hp;
         hud.hurt();
         player.kick(0.05);
@@ -346,6 +371,7 @@ s.on('ev', (m) => {
         break;
       case 'explosion':
         fx.explosion(ev.x, ev.y, ev.z, ev.radius, ev.kind);
+        shake.blast(Math.hypot(ev.x - player.x, ev.z - player.z), ev.radius);
         debugState.explosions++;
         break;
       case 'playerLeft':
@@ -358,6 +384,7 @@ s.on('ev', (m) => {
       case 'powerOn':
         power = true;
         world.setPower(true, true);
+        shake.add(0.35);
         hud.banner('', 'The power is back on');
         break;
       case 'denied':
@@ -406,6 +433,7 @@ s.on('ev', (m) => {
         fx.bolts.strike(ev.x, ev.z);
         fx.flash(ev.x, 1.5, ev.z, 50);
         fx.puff(ev.x, 0.1, ev.z, 0xbfe8ff, 10, 3, 0.05, 0.5);
+        shake.blast(Math.hypot(ev.x - player.x, ev.z - player.z), 4);
         debugState.strikes++;
         debugState.lastStrike = { x: ev.x, z: ev.z };
         break;
@@ -442,7 +470,7 @@ function remoteShot(id: number, weapon: string, yaw: number, pitch: number): voi
   }
 }
 
-wireDebug({ player, input, socket: s, playing, renderer, resize });
+wireDebug({ player, input, socket: s, playing, renderer, resize, audio });
 
 const SPECTATE_BACK = 2.4;
 const SPECTATE_HEIGHT = 2;
@@ -473,10 +501,12 @@ renderer.gl.setAnimationLoop((now) => {
       camera.position.set(watching.x + bx * back, SPECTATE_HEIGHT, watching.z + bz * back);
       camera.rotation.set(watching.pitch * 0.5 - 0.12, watching.yaw, 0, 'YXZ');
     }
+    shake.apply(dt, camera);
     camera.updateMatrixWorld();
     if (life === 'downed' && !revivedBy) bleed = Math.max(0, bleed - dt);
     vm.update(dt, {
       aim: weapons.aim, speed: player.speed, sprinting: player.sprinting, lookX: player.lookX, lookY: player.lookY,
+      strafe: player.vx * Math.cos(player.yaw) - player.vz * Math.sin(player.yaw),
       light: world.lightAt(player.x, 1.4, player.z),
     });
     sendTimer += dt;
@@ -494,6 +524,8 @@ renderer.gl.setAnimationLoop((now) => {
   }
   remotes.update(dt, clock.renderTime, camera, window.innerWidth, window.innerHeight);
   entities.update(dt, clock.renderTime);
+  const ents = entities.list();
+  const mates = remotes.list();
   fx.update(dt);
   forgeView.update(dt, now / 1000);
   const gameTime = clock.now;
@@ -520,6 +552,12 @@ renderer.gl.setAnimationLoop((now) => {
   hud.setZone(map.zones.find((z) => z.id === zoneId)?.name ?? '');
   hud.setStamina(player.stamina, player.staminaMax);
   const maxHp = maxHpWith(perks);
+  audio.frame({
+    dt, playing: live(), alive: life === 'alive', downed: life === 'downed', x: camera.position.x, z: camera.position.z, yaw: camera.rotation.y,
+    zone: map.zoneAt(camera.position.x, camera.position.z), power, hp: life === 'dead' ? 1 : hp / maxHp, hpNow: hp, speed: player.speed, sprinting: player.sprinting,
+    stride: player.stride, reviving: interact.progress, gameTime, entities: ents, remotes: mates,
+  });
+  arcs.update(dt, player.x, player.z, player.yaw);
   hud.setHealth(live() && life !== 'dead' ? hp : maxHp, maxHp, dt);
   hud.setPrompt(live() ? interact.prompt : '');
   hud.setProgress(live() ? interact.progress : 0);
@@ -551,11 +589,11 @@ renderer.gl.setAnimationLoop((now) => {
     stamina: player.stamina, sprinting: player.sprinting, freeCam: player.freeCam,
     drawCalls: renderer.lastDrawCalls, triangles: renderer.lastTriangles,
     resolution: [renderer.width, renderer.height], openDoors: [...openDoors], power,
-    pingMs: net.pingMs, remotes: remotes.list(),
+    pingMs: net.pingMs, remotes: mates, audio: audio.stats, shake: shake.trauma, damageArcs: arcs.list(player.x, player.z, player.yaw),
     weapon: cur?.id ?? null, weapons: weapons.slots.map((w) => w.id), upgraded: weapons.slots.map((w) => w.upgraded), perks: [...perks], maxHp,
     forge: forge.phase, slot: weapons.slot, mag: cur?.mag ?? 0,
     reserve: cur?.reserve ?? 0, grenades: weapons.grenades, reloading: weapons.reloading, aim: weapons.aim,
-    shots: weapons.shots, entities: entities.list(), fx: fx.counts, hp, barricades: barricades.list(), prompt: interact.prompt,
+    shots: weapons.shots, entities: ents, fx: fx.counts, hp, barricades: barricades.list(), prompt: interact.prompt,
     tacticals: weapons.tacticals, powerups: pickups.list(), effects: [...effects.keys()], cache: cacheView.list(),
     round, roundPhase, zombiesLeft, life, over, points: scores.players.get(net.id)?.points ?? 0, roster: scores.list(),
   });

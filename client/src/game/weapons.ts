@@ -4,9 +4,11 @@ import {
   reloadMultWith, speedMultWith, weaponStats,
   type ClientMsg, type CompiledMap, type DoorSet, type FireHit, type PerkId, type PlayerPublic, type WeaponDef, type WeaponId,
 } from '@zh/shared';
+import type { GunSounds } from '../audio/guns';
 import type { Input } from '../input/input';
 import { damp } from '../models/rig';
 import type { Entities } from './entities';
+import { burstGap, recoilFor, type Shake } from './feel';
 import type { Fx } from './fx';
 import type { LocalPlayer } from './localPlayer';
 import type { Viewmodel } from './viewmodel';
@@ -19,6 +21,8 @@ export interface WeaponCtx {
   entities: Entities;
   fx: Fx;
   vm: Viewmodel;
+  sound: GunSounds;
+  shake: Shake;
   send(msg: ClientMsg): void;
 }
 
@@ -31,6 +35,10 @@ interface Slot {
 
 /** Seconds after a local reload before server ammo counts are trusted again (covers the round trip). */
 const RECONCILE_QUIET = 0.5;
+/** Where in a reload each sound falls (fractions of its length; they match the viewmodel's hands). */
+const RELOAD_STAGES = [[0.2, 'out'], [0.72, 'in'], [0.86, 'rack']] as const;
+/** How long the knife sticks when it lands. */
+const HIT_STOP = 0.07;
 const WALL_COLOUR = 0x8a8478;
 export const ARC_COLOUR = 0x9adfff;
 
@@ -54,6 +62,10 @@ export class LocalWeapons {
   reloading = false;
   private cooldown = 0;
   private reloadT = 0;
+  private reloadDur = 1;
+  /** Shots in the current burst, and seconds since the last one. */
+  private burst = 0;
+  private sinceShot = 9;
   private swapT = 0;
   private meleeT = 0;
   private throwT = 0;
@@ -123,6 +135,7 @@ export class LocalWeapons {
     this.meleeT -= dt;
     this.throwT -= dt;
     this.sinceReload += dt;
+    this.sinceShot += dt;
     this.bloom *= 1 - damp(7, dt);
     if (!cur || !def) {
       // Empty hands (the only gun is in the Forge): the knife and grenades still work.
@@ -135,7 +148,12 @@ export class LocalWeapons {
       return;
     }
 
-    // Reload finishing.
+    // Reload: each stage is heard as the hands reach it; then the rounds are in.
+    if (this.reloadT > 0) {
+      const now = 1 - (this.reloadT - dt) / this.reloadDur;
+      const was = 1 - this.reloadT / this.reloadDur;
+      for (const [at, stage] of RELOAD_STAGES) if (was < at && now >= at && (stage !== 'rack' || vm.action !== 'none')) this.ctx.sound.reload(def, stage);
+    }
     if (this.reloadT > 0 && (this.reloadT -= dt) <= 0) {
       const take = Math.min(def.magSize - cur.mag, cur.reserve);
       cur.mag += take;
@@ -155,6 +173,7 @@ export class LocalWeapons {
       this.cooldown = 0;
       this.bloom = 0;
       vm.setWeapon(this.slots[want]!.id, this.slots[want]!.upgraded);
+      this.ctx.sound.swap();
       send({ t: 'swap', slot: want });
       this.finish(player, this.def!, false);
       return;
@@ -170,11 +189,14 @@ export class LocalWeapons {
 
     const wantReload = hit('KeyR') || (cur.mag === 0 && (trigger || hit('Mouse0')));
     if (wantReload && !busy && cur.mag < def.magSize && cur.reserve > 0) {
-      this.reloadT = def.reloadTime * reloadMultWith(this.perks);
+      this.reloadT = this.reloadDur = def.reloadTime * reloadMultWith(this.perks);
       vm.reload(this.reloadT);
       send({ t: 'reload' });
     } else if (trigger && !busy && this.cooldown <= 0 && cur.mag > 0 && !player.sprinting && this.throwT < GRENADE_COOLDOWN - 0.4) {
       this.shoot(cur, def);
+    } else if (hit('Mouse0') && !busy && cur.mag === 0 && cur.reserve === 0) {
+      this.ctx.sound.dry();
+      vm.dryFire();
     }
     this.finish(player, def, held('Mouse0'));
   }
@@ -187,12 +209,14 @@ export class LocalWeapons {
       this.throwT = GRENADE_COOLDOWN;
       this.grenades--;
       vm.throwGrenade();
+      this.ctx.sound.toss();
       send({ t: 'throw', kind: 'frag', yaw: player.yaw, pitch: player.viewPitch });
     }
     if (able('KeyE') && this.throwT <= 0 && this.tacticals > 0) {
       this.throwT = GRENADE_COOLDOWN;
       this.tacticals--;
       vm.throwGrenade();
+      this.ctx.sound.toss();
       send({ t: 'throw', kind: 'tactical', yaw: player.yaw, pitch: player.viewPitch });
     }
   }
@@ -257,7 +281,14 @@ export class LocalWeapons {
     this.shots++;
     this.cooldown += fireInterval(def, fireRateMultWith(this.perks));
     this.bloom = Math.min(def.spreadHip, this.bloom + def.spreadHip * 0.18 * (1 - 0.6 * this.aim));
-    player.kick(def.recoil * (1 - 0.35 * this.aim));
+    // Recoil follows the gun's curve through the burst, with a little chance on top.
+    if (this.sinceShot > burstGap(def)) this.burst = 0;
+    const kick = recoilFor(def, this.burst++, this.aim);
+    this.sinceShot = 0;
+    player.kick(kick.up, kick.side + (Math.random() - 0.5) * def.recoil * 0.3);
+    this.ctx.shake.add(Math.min(0.3, def.recoil * 2.2));
+    this.ctx.sound.shot(def, cur.upgraded);
+    if (vm.action === 'pump') this.ctx.sound.pump(0.2);
     vm.fire();
     fx.flash(eye.x + fx0 * 0.7, eye.y + fy0 * 0.7 - 0.1, eye.z + fz0 * 0.7);
   }
@@ -274,7 +305,11 @@ export class LocalWeapons {
     if (target) {
       fx.puff(target.x, target.y, target.z, target.colour, 5, 1.8);
       entities.flinch(target.id, 1.5);
+      // The blade bites: the swing sticks for an instant and the view jolts.
+      vm.hitStop(HIT_STOP);
+      this.ctx.shake.add(0.22);
     }
+    this.ctx.sound.knife(!!target);
     send({ t: 'melee', hit: target?.id });
   }
 }

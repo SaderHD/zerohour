@@ -180,8 +180,8 @@ export class Hud {
     this.crosshair.style.setProperty('--gap', `${Math.max(3, gap)}px`);
   }
 
-  /** Flash the hit marker; red for a kill, brighter for a headshot. */
-  hit(kind: 'hit' | 'head' | 'kill'): void {
+  /** Flash the hit marker; red for a kill, brighter for a headshot, both and bigger for a headshot kill. */
+  hit(kind: 'hit' | 'head' | 'kill' | 'headkill'): void {
     this.hitmarker.className = '';
     void this.hitmarker.offsetWidth; // restart the CSS animation
     this.hitmarker.className = `show ${kind}`;

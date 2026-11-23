@@ -72,8 +72,11 @@ zerohour/
                           exterior.ts (roofs, stacks, pines), snow.ts, sky.ts, ambient.ts, atmosphere.ts
     models/               zombie.ts player.ts weapons/*.ts props/*.ts  rig.ts anim.ts
     game/                 localPlayer.ts viewmodel.ts entities.ts interact.ts forgeView.ts fx.ts
-    audio/                synth.ts sfx.ts music.ts
-    ui/                   hud.ts menu.ts lobby.ts scoreboard.ts settings.ts
+                          feel.ts (screen shake, recoil curves)
+    audio/                synth.ts (engine, 24 voices)  guns.ts sfx.ts music.ts (the library)
+                          ambience.ts (zone drones, heartbeat)  audio.ts (events -> sounds)
+                          catalogue.ts (every sound by name)  tools.ts (offline render, recording)
+    ui/                   hud.ts menu.ts lobby.ts scoreboard.ts settings.ts damage.ts volumes.ts
     debug.ts              window.__zh test hooks
 ```
 
@@ -112,6 +115,11 @@ zerohour/
   engine, and snow-laden pines on the rock beyond the wire — one mesh, lit as part of the yard.
   The sky is a textured cylinder (gradient, stars, moon, aurora, two ridges); snow falls as one
   cloud of points wherever a cell is open to the sky (`render/snow.ts`).
+- **Sound** is drawn the same way (`client/src/audio`): a voice is a few oscillators and noise
+  bursts through envelopes and filters, placed by pan, distance and a wall check, with a send to
+  one generated reverb. At most 24 voices sound at once; the least important is cut for a new one.
+  Two buses (effects; music, which also carries the zone drones and the heartbeat) sum into a
+  limiter, then the master volume. Tunes are note lists in `music.ts`.
 - **Static world** is merged into a few meshes per zone (see map compile). Zombies/props that
   repeat use shared geometries. The few world parts that move (fans, flywheels, a swinging lamp)
   are one small mesh each (`render/ambient.ts`), as are all drips together and the floor mist.
@@ -420,7 +428,8 @@ wall buys, tonics, Cache, Forge, power switch, barricade rebuild and revive.
   for the Forge upgrade), `setRound(n)`,
   `setRound(n, true)` for a howler round, `give('siren')`, `powerup(kind)`, `cacheNext(weapon|'siren'|'jinx')`,
   `rounds(bool)` (stop/resume the round loop), `spawnZombies(n, opts)` (`opts.kind: 'howler'`), `killZombies()`, `god(bool)`, `freeCam()`, `openAllDoors()`, `powerOn()`, `dummy(x,z)` (target
-  dummy), `lookAt(x,y,z)`, `press(code)` (mouse buttons are `Mouse0`/`Mouse2`). Matching server-side
+  dummy), `lookAt(x,y,z)`, `press(code)` (mouse buttons are `Mouse0`/`Mouse2`), `audio` (`play(name)`,
+  `names()`, `render(name)` offline, `record(on)`, `setVolume`). Matching server-side
   `debug` messages, enabled only when `ZH_DEBUG=1`.
 - URL flags: `?name=X`, `?room=CODE` (join; with `autostart` the room is created if missing —
   debug servers only), `?autostart=1` (skip menu and lobby), `?debug=1` (stats overlay).
@@ -740,7 +749,40 @@ with no errors in client or server logs.
   pick-up reads mirrored from behind; a Siren thrown where zombies cannot walk (out of a window) is
   ignored; `client/src/main.ts` is now ~565 lines (split due in 13). `npm run e2e` sampled its
   first position between frames and could read that as a jump; it now starts on a frame.
-- [ ] 12 Audio and feel
+- [x] 12 Audio and feel — done, client only (no protocol change). `npm run audio` renders all 106
+  catalogue sounds offline to `test-results/audio/*.wav` (each is there and does not clip), moves
+  the three sliders and measures the output (effects 0 silences a shot, music 0 a sting, master 0
+  everything, master 50% halves it; they survive a reload), then plays a solo session of about
+  140 s through everything that makes a noise while recording it to
+  `test-results/audio-session.webm`: some 530 sounds, never more than 24 at once (a dozen or two
+  cut short for a more important one), sound in every half second. Nobody has listened to it: the
+  checks are levels and counts, so "sounds complete" still needs a pair of ears, and the balance
+  was set from rendered peaks, not by ear.
+  Sounds: 14 guns (a recipe per class, adjusted per gun; forged guns add a falling whine), reload
+  in three stages timed to the hands, dry fire, pump, swap, knife, throws, three kinds of blast;
+  footsteps on six floors (ours in step with the view bob, other players' by distance covered);
+  zombie groans pitched per zombie (runners higher and shorter), swings, deaths, howler howls and
+  barks, thunder; planks, doors, debris, the master switch, drips and fires near the listener; hit,
+  headshot, kill and headshot-kill ticks, the till, the refusal buzz; a phrase for each tonic; the
+  Cache's music box (slowing as it chooses), its offer, the Jinx, leaving and landing; a cue for
+  each power-up; round start (four notes over a drum), howler round, round end, game over; a
+  drone per zone that changes when the power comes on (the generator hall gets its engine); a
+  heartbeat and a dulling of everything under 45% health or when downed. Sounds behind a wall are
+  quieter and muffled. Feel: trauma-based screen shake (shots, hits taken, blasts and lightning
+  by distance, the power, a knife landing); recoil curves in `game/feel.ts` (automatics jump,
+  settle, then weave in a fixed pattern; single-shot guns climb when worked fast) with sideways
+  kick eased into the yaw; 70 ms of hit stop on a knife that lands; a gold, larger marker and a
+  ring for a headshot kill; damage arcs round the crosshair that keep pointing at the source as
+  you turn; the viewmodel leans into a strafe, twists with each shot, flinches when hit and nods
+  on an empty trigger. Choices the plan left open: the volume sliders are a small panel shown
+  whenever the mouse is free (the full settings screen is 13) and are saved in `localStorage`;
+  the announcer is stingers and the banner text, no voice; ambience and heartbeat are on the
+  music slider. Deferred: no machine sound comes from the fans or the swinging lamp, and the
+  generator is part of its hall's drone rather than a source you can walk round; other players'
+  reloads, swaps and forged guns are not heard (the events do not say); remote shots are placed
+  where the player stands, not at the muzzle; a sound's pan and occlusion are fixed when it
+  starts; shake has a `scale` but no setting yet (13); bots are deaf. `client/src/main.ts` is
+  ~600 lines (split due in 13).
 - [ ] 13 UX, menus, robustness
 - [ ] 14 Balance, performance, ship
 

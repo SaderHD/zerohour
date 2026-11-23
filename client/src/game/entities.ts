@@ -175,7 +175,7 @@ export class Entities {
   }
 
   /** For tests/debug. */
-  list(): { id: EntityId; kind: ZombieKind; x: number; z: number; hp: number; state: number }[] {
-    return [...this.live.values()].map((e) => ({ id: e.id, kind: e.kind, x: e.pose.x, z: e.pose.z, hp: e.hp, state: e.pose.state }));
+  list(): { id: EntityId; kind: ZombieKind; x: number; z: number; hp: number; state: number; gait: number }[] {
+    return [...this.live.values()].map((e) => ({ id: e.id, kind: e.kind, x: e.pose.x, z: e.pose.z, hp: e.hp, state: e.pose.state, gait: e.gait }));
   }
 }

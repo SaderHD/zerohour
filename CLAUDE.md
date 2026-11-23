@@ -41,6 +41,9 @@ when its acceptance checks pass.
 - `npm run wonders` — after a build: one browser player through session 11 (Cache roll, take, Jinx and move;
   the six power-ups; every Cache gun in the hand; Arclight and Gravewell against 24 zombies; the Siren;
   a howler round). Writes `test-results/wonders-*.png`.
+- `npm run audio` — after a build: renders every sound offline to `test-results/audio/*.wav`, checks the
+  volume sliders by measuring the output, then records a solo session through everything that makes a
+  noise to `test-results/audio-session.webm` (voice limit, shake and damage arcs checked on the way).
 - URL flags for quick testing: `?autostart=1` (straight into a solo game), `?room=ABCD&autostart=1`
   (shared room across tabs), `?name=X`, `?debug=1`.
 - `npm run map` — validate the map and rewrite the ASCII dump `docs/MAP.txt`.
@@ -125,5 +128,13 @@ when its acceptance checks pass.
   `__zh.spawnZombies(3, { kind: 'howler' })`,
   `__zh.spawnZombies(8, { interval: 0.3 })`, `__zh.god(true)`, `__zh.killZombies()`, `__zh.setRound(10)`, `__zh.rounds(false)`,
   `__zh.openDoor('d_mess_bunk')`, `__zh.powerOn()`.
+- Sound (`client/src/audio`): `synth.ts` is the engine (a `Voice` of `tone`/`noise` layers; 24 at once,
+  by `priority`; `at` places it in the world); the library is `guns.ts`, `sfx.ts`, `music.ts` (tunes as
+  note lists) and `ambience.ts` (zone drones, heartbeat). `audio.ts` turns game events and each frame's
+  state into calls on those — a new event's sound goes in its `event()` switch, which runs before the
+  game applies the event. Every sound also gets a line in `catalogue.ts` so `npm run audio` checks it;
+  hear one with `__zh.audio.play('shot-pike')` (`__zh.audio.names()` lists them). No audio files, ever.
+- Feel: `game/feel.ts` (`Shake.add`/`blast`, `recoilFor`), `ui/damage.ts` (direction arcs); the viewmodel
+  takes `hitStop`, `flinch`, `dryFire`.
 - Tests and visual checks go through `window.__zh` (`client/src/debug.ts`); extend it as features
   land.
