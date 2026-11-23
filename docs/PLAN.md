@@ -368,7 +368,8 @@ wall buys, tonics, Cache, Forge, power switch, barricade rebuild and revive.
 - `window.__zh` in dev: `state()`, `teleport(x,z)`, `give(weapon|perk|points)`, `setRound(n)`,
   `spawnZombies(n)`, `god(bool)`, `freeCam()`, `openAllDoors()`, `powerOn()`. Matching server-side
   `debug` messages, enabled only when `ZH_DEBUG=1`.
-- URL flags: `?room=CODE&name=X&autostart=1&debug=1`.
+- URL flags: `?name=X`, `?room=CODE` (join; with `autostart` the room is created if missing —
+  debug servers only), `?autostart=1` (skip menu and lobby), `?debug=1` (stats overlay).
 - `server/src/bot.ts`: headless WS client that joins a room, walks the flow field away from
   zombies and shoots — used for 4-player soak tests and perf checks.
 - Vitest for sim (rounds maths, points, damage, flow field, map validation, cache weights).
@@ -539,7 +540,11 @@ with no errors in client or server logs.
   lighting rather than greedy-merged (35k triangles, 13–19 draw calls); debug hooks for doors are
   client-local until the server owns door state in session 7. 60 fps was checked only in headless
   software rendering (~50 fps), not on real hardware.
-- [ ] 3 Rooms, lobby, player sync
+- [x] 3 Rooms, lobby, player sync — done. Notes: the server extrapolates each player's last
+  reported position by up to 100 ms when building snapshots (20 Hz moves vs 15 Hz snapshots
+  otherwise beat visibly); late joiners spawn immediately until rounds exist (session 6); bots
+  only wander for now. Each player model is ~12 draw calls — fine for 4 players, but zombies
+  (session 5) must use far fewer per body (merge static parts or instance) to stay under 150.
 - [ ] 4 Weapons and combat core
 - [ ] 5 Zombies
 - [ ] 6 Round loop, points, downs

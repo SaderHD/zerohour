@@ -19,7 +19,9 @@
     "lint": "eslint .",
     "smoke": "node scripts/smoke.cjs",
     "map": "tsx scripts/map.ts",
-    "tour": "node scripts/tour.cjs"
+    "tour": "node scripts/tour.cjs",
+    "bot": "tsx server/src/bot.ts",
+    "e2e": "node scripts/mp.cjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

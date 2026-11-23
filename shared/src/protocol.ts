@@ -49,13 +49,14 @@ export type DebugCmd =
   | { cmd: 'spawnZombies'; count: number }
   | { cmd: 'god'; on: boolean }
   | { cmd: 'openAllDoors' }
+  | { cmd: 'openDoor'; id: InteractableId }
   | { cmd: 'powerOn' }
   | { cmd: 'teleport'; x: number; z: number };
 
 export type ClientMsg =
   | { t: 'hello'; v: number; name: string; token?: string }
-  | { t: 'create' }
-  | { t: 'join'; code: string }
+  | { t: 'create'; name?: string; code?: string } // a requested code is honoured only by debug servers
+  | { t: 'join'; code: string; name?: string }
   | { t: 'leave' }
   | { t: 'ready'; ready: boolean }
   | { t: 'start' }
@@ -83,6 +84,7 @@ export type ErrorCode =
   | 'room_full'
   | 'not_host'
   | 'not_in_room'
+  | 'not_ready'
   | 'rate_limited'
   | 'kicked';
 
@@ -165,6 +167,8 @@ export interface SyncState {
   activeEffects: { kind: PowerupId; until: number }[];
   cache: CacheState;
   forge: ForgeState;
+  /** Where the receiving player is standing (spawn point, or last position on reconnect). */
+  self: { x: number; z: number; yaw: number };
 }
 
 /** [id, x, z, yaw, pitch, moveState, hp, slot] */
@@ -199,6 +203,7 @@ export type GameEvent =
   | { e: 'playerRevived'; id: PlayerId; by?: PlayerId }
   | { e: 'playerDied'; id: PlayerId }
   | { e: 'playerSpawned'; id: PlayerId; x: number; z: number }
+  | { e: 'playerLeft'; id: PlayerId }
   | { e: 'roundStart'; round: number; special: boolean; total: number }
   | { e: 'roundEnd'; round: number }
   | { e: 'zombiesLeft'; n: number }
@@ -218,7 +223,7 @@ export type GameEvent =
   | { e: 'gameOver'; round: number; players: PlayerPublic[] };
 
 export type ServerMsg =
-  | { t: 'welcome'; v: number; id: PlayerId; token: string; time: number }
+  | { t: 'welcome'; v: number; id: PlayerId; token: string; time: number; resumed: boolean }
   | { t: 'error'; code: ErrorCode; msg?: string }
   | { t: 'room'; code: string; phase: RoomPhase; players: LobbyPlayer[]; you: PlayerId }
   | { t: 'left' }

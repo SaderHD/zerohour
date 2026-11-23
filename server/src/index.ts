@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { DEFAULT_PORT, MAX_MSG_BYTES } from '@zh/shared';
 import { Connection } from './connection';
+import { Lobby } from './lobby';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 const CLIENT_DIST = resolve(process.env.CLIENT_DIST ?? join(here, '../../client/dist'));
@@ -61,7 +62,9 @@ const http = createServer((req, res) => {
 });
 
 const wss = new WebSocketServer({ server: http, path: '/ws', maxPayload: MAX_MSG_BYTES });
-wss.on('connection', (socket) => new Connection(socket));
+const lobby = new Lobby({ debug: process.env.ZH_DEBUG === '1' });
+setInterval(() => lobby.sweep(), 5000).unref();
+wss.on('connection', (socket) => new Connection(socket, lobby));
 
 http.listen(PORT, () => {
   console.log(`[zerohour] listening on http://localhost:${PORT} (client: ${CLIENT_DIST})`);

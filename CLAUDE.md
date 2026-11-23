@@ -24,6 +24,11 @@ when its acceptance checks pass.
 - `npm start` — production: one process serves the built client and `/ws` on `PORT` (default 8080).
 - `npm test` — Vitest unit/sim tests (`*.test.ts` next to the code).
 - `npm run typecheck` / `npm run lint`.
+- `npm run e2e` — after a build: two browser players + two bots in one room; checks lobby flow,
+  smooth remote motion, reconnect and room-full handling. Writes `test-results/mp-*.png`.
+- `npm run bot -- <ROOM> [count]` — headless bot players that join a room and wander.
+- URL flags for quick testing: `?autostart=1` (straight into a solo game), `?room=ABCD&autostart=1`
+  (shared room across tabs), `?name=X`, `?debug=1`.
 - `npm run map` — validate the map and rewrite the ASCII dump `docs/MAP.txt`.
 - `npm run tour [view...]` — after a build: screenshots of every zone to `test-results/tour-*.png`
   (views are listed in `scripts/tour.cjs`; add one when you add something worth looking at).
@@ -38,5 +43,9 @@ when its acceptance checks pass.
   left.
 - World lighting is baked into vertex colours in `client/src/render/worldBuilder.ts`; the scene's
   white ambient light only passes it through. Use its `box()` helper for static geometry.
+- Server: `lobby.ts` (rooms, seats, reconnect; transport-agnostic via `Peer`) and `game/Game.ts`
+  (the match; `step(dt)` is pure so tests drive it without timers). Client: `net/net.ts` is the
+  connection/lobby state machine, `main.ts` wires everything.
+- Dynamic models: build from `models/rig.ts` boxes and tint each frame with `world.lightAt()`.
 - Tests and visual checks go through `window.__zh` (`client/src/debug.ts`); extend it as features
   land.

@@ -88,3 +88,137 @@ body {
   width: 100%;
   background: var(--ink);
 }
+
+/* --- name tags --- */
+#tags .tag {
+  position: absolute;
+  left: 0;
+  top: 0;
+  white-space: nowrap;
+  font-size: 12px;
+  text-shadow: 0 1px 0 #000, 0 0 4px #000;
+  will-change: transform;
+}
+#tags .tag.lost {
+  color: var(--dim);
+}
+
+/* --- menu and lobby --- */
+#hud,
+.screen {
+  display: none;
+}
+body[data-phase='playing'] #hud {
+  display: block;
+}
+body[data-phase='menu'] #menu,
+body[data-phase='lobby'] #lobby {
+  display: flex;
+}
+.screen {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 300px;
+  flex-direction: column;
+  gap: 10px;
+  padding: 22px 24px;
+  background: rgba(7, 8, 10, 0.82);
+  outline: 1px solid rgba(216, 210, 192, 0.25);
+  pointer-events: auto;
+  text-align: center;
+}
+.screen h1 {
+  margin: 0;
+  font-size: 34px;
+  letter-spacing: 0.22em;
+  color: var(--blood);
+  text-shadow: 2px 2px 0 #000;
+}
+.screen .sub {
+  margin: 0 0 6px;
+  color: var(--dim);
+  letter-spacing: 0.08em;
+}
+.screen label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--dim);
+}
+.screen input,
+.screen button {
+  font: inherit;
+  color: var(--ink);
+  background: #14161a;
+  border: 1px solid rgba(216, 210, 192, 0.35);
+  padding: 8px 10px;
+  min-width: 0;
+}
+.screen input {
+  flex: 1;
+}
+.screen input:focus,
+.screen button:focus-visible {
+  outline: 1px solid var(--ink);
+}
+#code {
+  text-transform: uppercase;
+  letter-spacing: 0.3em;
+  text-align: center;
+}
+.screen button {
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+.screen button:hover:not(:disabled) {
+  background: var(--blood);
+  color: #fff;
+}
+.screen button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.screen button.quiet {
+  border-color: transparent;
+  background: none;
+  color: var(--dim);
+}
+.screen button.on {
+  background: #2f5a34;
+}
+.row {
+  display: flex;
+  gap: 8px;
+}
+.row > * {
+  flex: 1;
+}
+.error {
+  margin: 0;
+  min-height: 1.4em;
+  color: var(--blood);
+}
+#lobby-players {
+  list-style: none;
+  margin: 4px 0;
+  padding: 0;
+  text-align: left;
+}
+#lobby-players li {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 2px;
+  border-bottom: 1px solid rgba(216, 210, 192, 0.12);
+}
+#lobby-players li.lost {
+  color: var(--dim);
+}
+#lobby-players .mark {
+  color: var(--dim);
+}
+#lobby-players .mark.ok {
+  color: #7fd08a;
+}

@@ -41,6 +41,8 @@ interface Vert {
 export interface World {
   group: THREE.Group;
   setDoorOpen(id: string, open: boolean): void;
+  /** Baked light level at a point, for tinting dynamic models so they sit in the scene. */
+  lightAt(x: number, y: number, z: number): [number, number, number];
   triangles: number;
 }
 
@@ -256,9 +258,28 @@ export function buildWorld(map: CompiledMap): World {
     triangles += b.pos.length / 9;
   }
 
+  const lightAt = (x: number, y: number, z: number): RGB => {
+    const cx = Math.floor(x / S);
+    const cz = Math.floor(z / S);
+    if (map.kindAt(cx, cz) === Cell.Solid) return [0.25, 0.25, 0.3];
+    const i = map.idx(cx, cz);
+    const c = ambientOf(i);
+    for (const li of cellLights[i] ?? []) {
+      const l = lights[li]!;
+      const d = Math.hypot(l.x - x, l.y - y, l.z - z);
+      if (d >= l.radius) continue;
+      const k = ((1 - d / l.radius) ** 2 / (1 + (d * d) / 6)) * 0.8 * l.intensity * LIGHT_GAIN;
+      c[0] += l.rgb[0] * k;
+      c[1] += l.rgb[1] * k;
+      c[2] += l.rgb[2] * k;
+    }
+    return c;
+  };
+
   return {
     group,
     triangles,
+    lightAt,
     setDoorOpen: (id, isOpen) => {
       const d = doors.get(id);
       if (d) d.visible = !isOpen;

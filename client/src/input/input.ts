@@ -6,7 +6,8 @@ export class Input {
   locked = false;
   onLockChange: ((locked: boolean) => void) | null = null;
 
-  attach(canvas: HTMLCanvasElement): void {
+  /** `canLock` gates pointer lock (only while actually playing). */
+  attach(canvas: HTMLCanvasElement, canLock: () => boolean = () => true): void {
     window.addEventListener('keydown', (e) => {
       if (e.repeat) return;
       this.keys.add(e.code);
@@ -15,7 +16,7 @@ export class Input {
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.keys.clear());
     canvas.addEventListener('click', () => {
-      if (!this.locked) void canvas.requestPointerLock()?.catch?.(() => {});
+      if (!this.locked && canLock()) void canvas.requestPointerLock()?.catch?.(() => {});
     });
     document.addEventListener('pointerlockchange', () => {
       this.locked = document.pointerLockElement === canvas;

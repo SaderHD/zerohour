@@ -1,24 +1,26 @@
 import * as THREE from 'three';
-import { compileMap, harrowRidge, validateMap } from '@zh/shared';
+import { CLIENT_MOVE_SEND_HZ, MoveState, compileMap, harrowRidge, validateMap } from '@zh/shared';
 import { debugState, installDebug } from './debug';
 import { LocalPlayer } from './game/localPlayer';
+import { RemotePlayers } from './game/remotePlayers';
 import { Input } from './input/input';
-import { Socket } from './net/socket';
+import { ServerClock } from './net/interp';
+import { Net } from './net/net';
 import { PALETTE } from './render/materials';
 import { RetroRenderer } from './render/renderer';
 import { buildSky } from './render/sky';
 import { buildWorld } from './render/worldBuilder';
 import { Hud } from './ui/hud';
+import { Menu } from './ui/menu';
 
+// URL flags: ?name=X  ?room=CODE (join it; with autostart, create it if missing)
+//            ?autostart=1 (skip menu and lobby)  ?debug=1 (stats overlay)
 const params = new URLSearchParams(location.search);
 const debugMode = params.has('debug');
+const autostart = params.has('autostart');
+const wantedRoom = params.get('room')?.toUpperCase() ?? null;
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const statusEl = document.getElementById('status') as HTMLDivElement;
-
-function setStatus(text: string, state: 'connecting' | 'ok' | 'error'): void {
-  statusEl.textContent = text;
-  statusEl.dataset.state = state;
-}
 
 // --- World
 const map = compileMap(harrowRidge);
@@ -41,20 +43,21 @@ debugState.worldTriangles = world.triangles;
 
 const camera = new THREE.PerspectiveCamera(72, 16 / 9, 0.08, 400);
 const input = new Input();
-input.attach(canvas);
 const hud = new Hud();
-input.onLockChange = (locked) => hud.setLocked(locked);
-
 const player = new LocalPlayer();
-const spawn = harrowRidge.playerSpawns[0]!;
-player.teleport(spawn.x, spawn.z, spawn.yaw);
+const remotes = new RemotePlayers(scene, world, map);
+const clock = new ServerClock();
 
-/** Doors opened so far. Local-only until the server owns door state (session 7). */
+/** Doors the server has opened. Also used for local collision. */
 const openDoors = new Set<string>();
-function setDoor(id: string, open: boolean): void {
-  if (open) openDoors.add(id);
-  else openDoors.delete(id);
-  world.setDoorOpen(id, open);
+function setDoors(ids: Iterable<string>): void {
+  const want = new Set(ids);
+  for (const o of harrowRidge.openings) {
+    if (o.kind !== 'door') continue;
+    world.setDoorOpen(o.id, want.has(o.id));
+  }
+  openDoors.clear();
+  for (const id of want) openDoors.add(id);
 }
 
 function resize(): void {
@@ -64,19 +67,101 @@ function resize(): void {
 window.addEventListener('resize', resize);
 resize();
 
+// --- Network
+const net = new Net();
+const menu = new Menu(net, params.get('name'));
+const playing = () => net.phase === 'playing';
+let moveSeq = 0;
+let triedCreate = false;
+
+input.attach(canvas, playing);
+input.onLockChange = (locked) => hud.setLocked(locked);
+
+net.onPhase = (phase) => {
+  document.body.dataset.phase = phase;
+  debugState.phase = phase;
+  if (phase === 'connecting' || phase === 'lost') debugState.connected = false;
+  if (phase !== 'playing' && document.pointerLockElement) document.exitPointerLock();
+  const text = { connecting: 'connecting…', menu: '', lobby: '', playing: '', lost: 'disconnected' }[phase];
+  statusEl.textContent = text;
+  statusEl.dataset.state = phase === 'lost' ? 'error' : phase === 'connecting' ? 'connecting' : 'ok';
+};
+net.onWelcome = (resumed) => {
+  remotes.selfId = net.id;
+  debugState.connected = true;
+  debugState.playerId = net.id;
+  if (resumed) return;
+  triedCreate = false;
+  if (wantedRoom) net.join(wantedRoom);
+  else if (autostart) net.create();
+};
+net.onRoom = (room) => {
+  menu.setRoom(room);
+  debugState.room = room?.code ?? null;
+  debugState.isHost = net.isHost;
+  if (room?.phase === 'lobby' && autostart) {
+    if (net.isHost) net.startGame();
+    else if (!room.players.find((p) => p.id === net.id)?.ready) net.ready(true);
+  }
+};
+net.onError = (code) => {
+  if (code === 'room_not_found' && wantedRoom && autostart && !triedCreate) {
+    triedCreate = true;
+    return net.create(wantedRoom);
+  }
+  if (code === 'not_ready' && autostart) return void setTimeout(() => net.phase === 'lobby' && net.startGame(), 300);
+  menu.showError(code);
+  if (net.phase === 'lost') statusEl.textContent = 'disconnected';
+};
+
+const s = net.socket;
+s.on('sync', (m) => {
+  player.teleport(m.self.x, m.self.z, m.self.yaw);
+  player.pitch = 0;
+  setDoors(m.openDoors);
+  remotes.reset(m.players);
+});
+s.on('snap', (m) => {
+  clock.observe(m.time);
+  remotes.onSnapshot(m.time, m.players);
+});
+s.on('correct', (m) => {
+  player.teleport(m.x, m.z);
+  debugState.corrections++;
+});
+s.on('ev', (m) => {
+  for (const ev of m.events) {
+    switch (ev.e) {
+      case 'player':
+        remotes.upsert(ev.player);
+        break;
+      case 'playerLeft':
+        remotes.remove(ev.id);
+        break;
+      case 'doorOpened':
+        setDoors([...openDoors, ev.id]);
+        break;
+      default:
+        break;
+    }
+  }
+});
 installDebug({
-  teleport: (x, z, yaw) => player.teleport(x, z, yaw),
+  teleport: (x, z, yaw) => {
+    player.teleport(x, z, yaw);
+    if (playing()) s.send({ t: 'debug', cmd: 'teleport', x, z });
+  },
   gotoZone: (zoneId, yaw = 0) => {
     const room = harrowRidge.rooms.filter((r) => r.zone === zoneId).sort((a, b) => b.w * b.d - a.w * a.d)[0];
-    if (room) player.teleport(room.x + room.w / 2, room.z + room.d / 2, yaw);
+    if (room) window.__zh.teleport(room.x + room.w / 2, room.z + room.d / 2, yaw);
   },
   look: (yaw, pitch = 0) => {
     player.yaw = yaw;
     player.pitch = pitch;
   },
   freeCam: (on) => player.setFreeCam(on ?? !player.freeCam),
-  openAllDoors: () => harrowRidge.openings.forEach((o) => o.kind === 'door' && setDoor(o.id, true)),
-  openDoor: (id, open = true) => setDoor(id, open),
+  openAllDoors: () => s.send({ t: 'debug', cmd: 'openAllDoors' }),
+  openDoor: (id) => s.send({ t: 'debug', cmd: 'openDoor', id }),
   key: (code, down) => input.setKey(code, down),
   renderScale: (scale) => {
     renderer.scale = scale;
@@ -85,18 +170,36 @@ installDebug({
   dither: (on) => {
     renderer.dither = on;
   },
+  dropConnection: () => s.drop(),
 });
 
 // --- Main loop
 let last = performance.now();
 let fpsFrames = 0;
 let fpsTime = 0;
+let sendTimer = 0;
+let attract = 0;
 renderer.gl.setAnimationLoop((now) => {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
 
-  player.update(dt, input, map, openDoors);
-  player.applyTo(camera);
+  if (playing()) {
+    player.update(dt, input, map, openDoors);
+    player.applyTo(camera);
+    sendTimer += dt;
+    if (sendTimer >= 1 / CLIENT_MOVE_SEND_HZ && !player.freeCam) {
+      sendTimer = 0;
+      const state = player.sprinting ? MoveState.Sprint : player.speed > 0.3 ? MoveState.Walk : MoveState.Idle;
+      s.send({ t: 'move', seq: ++moveSeq, x: player.x, z: player.z, yaw: player.yaw, pitch: player.pitch, state });
+    }
+  } else {
+    // Menu backdrop: a slow pan around the courtyard.
+    attract += dt;
+    input.consumeMouse();
+    camera.position.set(33, 2.4, 43);
+    camera.rotation.set(0.12, attract * 0.06, 0, 'YXZ');
+  }
+  remotes.update(dt, clock.renderTime, camera, window.innerWidth, window.innerHeight);
   sky.position.set(camera.position.x, 0, camera.position.z);
   renderer.render(scene, camera);
 
@@ -111,7 +214,7 @@ renderer.gl.setAnimationLoop((now) => {
     fpsFrames = fpsTime = 0;
     hud.setStats(
       debugMode
-        ? `${debugState.fps} fps · ${renderer.lastDrawCalls} calls · ${renderer.lastTriangles} tris\n${player.x.toFixed(1)}, ${player.z.toFixed(1)} · yaw ${player.yaw.toFixed(2)}`
+        ? `${debugState.fps} fps · ${renderer.lastDrawCalls} calls · ${renderer.lastTriangles} tris · ${net.pingMs ?? '?'} ms\n${player.x.toFixed(1)}, ${player.z.toFixed(1)} · yaw ${player.yaw.toFixed(2)} · room ${net.room?.code ?? '-'}`
         : null,
     );
   }
@@ -121,24 +224,9 @@ renderer.gl.setAnimationLoop((now) => {
     stamina: player.stamina, sprinting: player.sprinting, freeCam: player.freeCam,
     drawCalls: renderer.lastDrawCalls, triangles: renderer.lastTriangles,
     resolution: [renderer.width, renderer.height], openDoors: [...openDoors],
+    pingMs: net.pingMs, remotes: remotes.list(),
   });
 });
 
-// --- Network handshake (lobby and player sync arrive in session 3)
-const socket = new Socket(params.get('name') ?? 'Survivor');
-socket.on('welcome', (msg) => {
-  debugState.connected = true;
-  debugState.playerId = msg.id;
-  console.log(`[zh] welcome: player ${msg.id}, protocol v${msg.v}`);
-  setStatus(`connected · player ${msg.id}`, 'ok');
-  socket.send({ t: 'ping', c: performance.now() });
-});
-socket.on('pong', (msg) => {
-  debugState.pingMs = Math.round(performance.now() - msg.c);
-});
-socket.on('error', (msg) => setStatus(`server error: ${msg.code}`, 'error'));
-socket.onClose = () => {
-  debugState.connected = false;
-  if (statusEl.dataset.state !== 'error') setStatus('disconnected', 'error');
-};
-socket.connect();
+document.body.dataset.phase = net.phase;
+net.start(params.get('name') ?? '');

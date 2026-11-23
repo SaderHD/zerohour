@@ -1,34 +1,25 @@
-import { randomBytes } from 'node:crypto';
 import type { WebSocket } from 'ws';
-import {
-  MAX_NAME_LENGTH,
-  PROTOCOL_VERSION,
-  decodeClient,
-  encode,
-  sanitizeText,
-  type ClientMsg,
-  type PlayerId,
-  type ServerMsg,
-} from '@zh/shared';
+import { PROTOCOL_VERSION, decodeClient, encode, type ClientMsg, type ErrorCode, type ServerMsg } from '@zh/shared';
+import type { Lobby, Session } from './lobby';
+import type { Peer } from './peer';
 
-let nextPlayerId: PlayerId = 1;
+/** One WebSocket client. Owns the handshake, then forwards messages to the lobby. */
+export class Connection implements Peer {
+  private session: Session | null = null;
 
-/**
- * One WebSocket client. Owns the handshake; after `hello` it will hand messages to the lobby
- * (session 3). Nothing but `hello` and `ping` is accepted before the handshake completes.
- */
-export class Connection {
-  id: PlayerId = 0;
-  name = '';
-  token = '';
-  private greeted = false;
-
-  constructor(private readonly socket: WebSocket) {
+  constructor(private readonly socket: WebSocket, private readonly lobby: Lobby) {
     socket.on('message', (data, isBinary) => {
-      if (isBinary) return this.fail('bad_message');
+      if (isBinary) return this.kick('bad_message');
       const msg = decodeClient(data.toString());
-      if (!msg) return this.fail('bad_message');
-      this.handle(msg);
+      if (!msg) return this.kick('bad_message');
+      try {
+        this.handle(msg);
+      } catch (err) {
+        console.error('[zerohour] error handling message', msg.t, err);
+      }
+    });
+    socket.on('close', () => {
+      if (this.session) this.lobby.disconnect(this.session, this);
     });
     socket.on('error', () => socket.terminate());
   }
@@ -37,7 +28,7 @@ export class Connection {
     if (this.socket.readyState === this.socket.OPEN) this.socket.send(encode(msg));
   }
 
-  private fail(code: Extract<ServerMsg, { t: 'error' }>['code']): void {
+  kick(code: ErrorCode): void {
     this.send({ t: 'error', code });
     this.socket.close(1008, code);
   }
@@ -47,16 +38,16 @@ export class Connection {
       if (typeof msg.c === 'number') this.send({ t: 'pong', c: msg.c, time: performance.now() / 1000 });
       return;
     }
-    if (!this.greeted) {
-      if (msg.t !== 'hello') return this.fail('bad_message');
-      if (msg.v !== PROTOCOL_VERSION) return this.fail('version');
-      this.greeted = true;
-      this.id = nextPlayerId++;
-      this.name = sanitizeText(msg.name, MAX_NAME_LENGTH) || `Survivor${this.id}`;
-      this.token = randomBytes(12).toString('hex');
-      this.send({ t: 'welcome', v: PROTOCOL_VERSION, id: this.id, token: this.token, time: performance.now() / 1000 });
+    if (!this.session) {
+      if (msg.t !== 'hello') return this.kick('bad_message');
+      if (msg.v !== PROTOCOL_VERSION) return this.kick('version');
+      const { session, resumed } = this.lobby.connect(this, msg.name, msg.token);
+      this.session = session;
+      this.send({ t: 'welcome', v: PROTOCOL_VERSION, id: session.id, token: session.token, time: performance.now() / 1000, resumed });
+      if (resumed) this.lobby.resume(session);
       return;
     }
-    // Lobby and game messages are routed from here starting in session 3.
+    if (msg.t === 'hello') return;
+    this.lobby.handle(this.session, msg);
   }
 }

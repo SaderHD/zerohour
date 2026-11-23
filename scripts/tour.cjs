@@ -27,7 +27,7 @@ const VIEWS = [
 ];
 
 (async () => {
-  const server = spawn('node', ['server/dist/index.js'], { cwd: root, env: { ...process.env, PORT: String(port) }, stdio: 'ignore' });
+  const server = spawn('node', ['server/dist/index.js'], { cwd: root, env: { ...process.env, PORT: String(port), ZH_DEBUG: '1' }, stdio: 'ignore' });
   let browser;
   try {
     for (let i = 0; i < 50; i++) {
@@ -39,15 +39,14 @@ const VIEWS = [
     browser = await chromium.launch();
     const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
     page.on('pageerror', (e) => console.error('[page]', String(e)));
-    await page.goto(`http://localhost:${port}/?debug=1`);
-    await page.waitForFunction(() => window.__zh?.state().frames > 3, null, { timeout: 15000 });
+    await page.goto(`http://localhost:${port}/?debug=1&autostart=1`);
+    await page.waitForFunction(() => window.__zh?.state().phase === 'playing', null, { timeout: 15000 });
     mkdirSync(path.join(root, 'test-results'), { recursive: true });
     const only = process.argv.slice(2);
     for (const [name, x, z, yaw, pitch] of VIEWS) {
       if (only.length && !only.includes(name)) continue;
       await page.evaluate(([x, z, yaw, pitch]) => { window.__zh.teleport(x, z, yaw); window.__zh.look(yaw, pitch); }, [x, z, yaw, pitch]);
-      const f = await page.evaluate(() => window.__zh.state().frames);
-      await page.waitForFunction((f) => window.__zh.state().frames > f + 2, f);
+      await page.waitForTimeout(250); // server round-trip for the teleport, then a few frames
       await page.screenshot({ path: path.join(root, `test-results/tour-${name}.png`) });
     }
     console.log('[tour]', JSON.stringify(await page.evaluate(() => window.__zh.state())));

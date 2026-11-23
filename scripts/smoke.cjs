@@ -7,7 +7,7 @@ const { chromium } = require('playwright');
 
 const root = path.resolve(__dirname, '..');
 const port = 18080 + Math.floor(Math.random() * 1000);
-const url = `http://localhost:${port}/?name=Smoke&debug=1`;
+const url = `http://localhost:${port}/?name=Smoke&debug=1&autostart=1`;
 
 async function waitForServer() {
   for (let i = 0; i < 50; i++) {
@@ -34,11 +34,9 @@ async function waitForServer() {
     page.on('pageerror', (e) => errors.push(String(e)));
     page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
     await page.goto(url);
-    await page.waitForFunction(() => window.__zh?.state().connected && window.__zh.state().pingMs !== null, null, { timeout: 10000 });
+    await page.waitForFunction(() => window.__zh?.state().phase === 'playing' && window.__zh.state().pingMs !== null, null, { timeout: 10000 });
     await page.waitForFunction(() => window.__zh.state().frames > 5, null, { timeout: 10000 });
     const state = await page.evaluate(() => window.__zh.state());
-    const status = await page.textContent('#status');
-    if (!/connected · player \d+/.test(status)) throw new Error(`unexpected status: ${status}`);
     if (errors.length) throw new Error(`page errors:\n${errors.join('\n')}`);
     // World: map valid, standing in the spawn zone, cheap to draw.
     if (state.mapErrors.length) throw new Error(`map errors: ${state.mapErrors.join('; ')}`);

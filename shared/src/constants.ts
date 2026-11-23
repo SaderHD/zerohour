@@ -1,6 +1,6 @@
 // Every tunable number in the game lives here or in shared/src/data. See docs/PLAN.md section 4.
 
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 // --- Networking ---
 export const TICK_RATE = 30; // server sim Hz
@@ -28,6 +28,8 @@ export const SPRINT_SPEED = 6.5;
 export const STAMINA_SECONDS = 4;
 export const STAMINA_REGEN_DELAY = 2;
 export const MOVE_SPEED_SLACK = 1.5; // server tolerance multiplier on reported movement
+export const MOVE_BUDGET_CAP = 3; // metres of movement a client can bank (absorbs jitter and lag spikes)
+export const ROOM_IDLE_MS = 30_000; // empty rooms are deleted after this
 export const PLAYER_MAX_HP = 100;
 export const PLAYER_REGEN_DELAY = 4;
 export const BLEEDOUT_SECONDS = 45;
