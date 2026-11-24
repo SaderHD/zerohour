@@ -97,6 +97,7 @@ const FLEE_RANGE = 4.5;
 const PANIC_RANGE = 6.5;
 const RESCUE_RANGE = 1.8;
 const BODY_WIDTH = 0.75;
+const QUIET = 8;
 const SAVE_FOR: ReadonlySet<string> = new Set(['power', 'tonic:ironhide']);
 const RESCUE_CLEAR = 5;
 /** This many within this range and we move before they close the ring. */
@@ -125,6 +126,7 @@ export class BotMind {
   private readonly spots = new Map<string, { x: number; z: number }>();
   private readonly guns: string[];
   private readonly near: BotTarget[] = [];
+  private readonly all: BotTarget[] = [];
   private goal: Goal | null = null;
   private routed = false;
   private replanAt = 0;
@@ -250,7 +252,9 @@ export class BotMind {
       list.push({ key: 'cache', it: site, cost: CACHE_COST });
     }
     const forge = thing('forge');
-    if (v.power && forge && v.forge.phase === 'idle') {
+    // The Forge is down a dead end: a trip for a quiet moment, not for the middle of a horde.
+    const about = this.all.length;
+    if (v.power && forge && v.forge.phase === 'idle' && about <= QUIET) {
       let pick = -1;
       v.weapons.forEach((w, i) => {
         if (!w.upgraded && w.id !== 'warden' && (pick < 0 || rank(w) > rank(v.weapons[pick]!))) pick = i;
@@ -274,7 +278,7 @@ export class BotMind {
       if (m.downed && d < mateD) {
         // Leave them while a crowd stands over them: it soon turns on someone else, and three down help nobody.
         let over = 0;
-        for (const zb of v.zombies) if (Math.hypot(zb.x - m.x, zb.z - m.z) < RESCUE_CLEAR) over++;
+        for (const zb of this.all) if (Math.hypot(zb.x - m.x, zb.z - m.z) < RESCUE_CLEAR) over++;
         if (over < 2 || d < 3) {
           mate = m;
           mateD = d;
@@ -394,7 +398,10 @@ export class BotMind {
     this.near.length = 0;
     let nearD = Infinity;
     let crowd = 0;
+    // `v.zombies` may be a one-shot iterator: keep the list for everything that asks later.
+    this.all.length = 0;
     for (const zb of v.zombies) {
+      this.all.push(zb);
       const d = Math.hypot(zb.x - v.x, zb.z - v.z);
       if (d > SIGHT || !lineOfSight(this.map, v.x, v.z, zb.x, zb.z, v.open)) continue;
       if (d < NEAR) this.near.push(zb);
@@ -481,7 +488,7 @@ export class BotMind {
       if (g.revive) {
         // Not into a crowd standing over them: hang back and thin it out first.
         let over = 0;
-        for (const zb of v.zombies) if (Math.hypot(zb.x - g.x, zb.z - g.z) < 4) over++;
+        for (const zb of this.all) if (Math.hypot(zb.x - g.x, zb.z - g.z) < 4) over++;
         swamped = over >= 3 && d > 2;
         if (swamped && d < 10) arrived = true;
         else if (d < INTERACT_RANGE - 0.3) o.revive = g.revive;
