@@ -25,7 +25,7 @@ const USE_EVERY = 0.6;
 /** A finger on a trigger: taps a second for a gun that is not automatic. */
 const TRIGGER_EVERY = 0.2;
 const ZOMBIE_DYING = 6;
-const SIGHTS_BEYOND = 6;
+const SIGHTS_BEYOND = 5;
 
 /**
  * A computer at the controls (`?auto=1`, `__zh.auto(true)`): the shared `BotMind` decides, and this
@@ -139,8 +139,8 @@ export class Autopilot {
     const auto = weapons.def?.auto === true;
     const cur = weapons.current;
     this.hold('Mouse0', it.fire && auto);
-    // Sights up for a target that is not on top of us, when standing: they slow the feet.
-    this.hold('Mouse2', it.fire && !!it.aim && it.aim.dist > SIGHTS_BEYOND && life === 'alive' && !moving);
+    // Sights up for a target that is not on top of us, unless we are backing away: they slow the feet.
+    this.hold('Mouse2', it.fire && !!it.aim && it.aim.dist > SIGHTS_BEYOND && life === 'alive' && !it.fleeing);
     if (it.fire && !auto && this.time >= this.triggerAt) {
       this.triggerAt = this.time + TRIGGER_EVERY;
       this.tap('Mouse0');

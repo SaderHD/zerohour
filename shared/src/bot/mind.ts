@@ -65,6 +65,8 @@ export interface BotIntent {
   use: string | null;
   /** Downed teammate to hold F on (0 = none). */
   revive: number;
+  /** Backing away from something close (rather than walking somewhere). */
+  fleeing: boolean;
   /** For logs. */
   goal: string;
 }
@@ -122,7 +124,7 @@ const TONICS = ['ironhide', 'second_wind', 'hair_trigger', 'quickhands'];
 const step = { x: 0, z: 0 };
 
 export class BotMind {
-  private readonly out: BotIntent = { moveX: 0, moveZ: 0, sprint: false, aim: null, look: null, fire: false, melee: 0, reload: false, swap: -1, use: null, revive: 0, goal: '' };
+  private readonly out: BotIntent = { moveX: 0, moveZ: 0, sprint: false, aim: null, look: null, fire: false, melee: 0, reload: false, swap: -1, use: null, revive: 0, fleeing: false, goal: '' };
   private readonly route: FlowField;
   private readonly things = new Map<string, Interactable>();
   private readonly spots = new Map<string, { x: number; z: number }>();
@@ -390,7 +392,7 @@ export class BotMind {
   think(v: BotView): BotIntent {
     const o = this.out;
     o.moveX = o.moveZ = 0;
-    o.sprint = o.fire = o.reload = false;
+    o.sprint = o.fire = o.reload = o.fleeing = false;
     o.aim = o.look = o.use = null;
     o.melee = o.revive = 0;
     o.swap = -1;
@@ -518,6 +520,7 @@ export class BotMind {
     const holdFast = o.revive !== 0 && v.hp > 55;
     if (nearD < range && !holdFast) {
       this.flee(v, towardX, towardZ);
+      o.fleeing = true;
       o.moveX = this.fleeX;
       o.moveZ = this.fleeZ;
       o.revive = 0;
