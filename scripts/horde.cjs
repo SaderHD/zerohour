@@ -148,11 +148,11 @@ const S = { Approach: 0, Tear: 1, Vault: 2, Chase: 3, Attack: 4, Crawl: 5, Crawl
     await sleep(2500);
     const full = await state();
     // Step back to the far corner of the yard for a wide look at them coming.
-    await page.evaluate(() => { window.__zh.teleport(44.5, 51, 0); window.__zh.lookAt(33, 1.2, 43); });
+    await page.evaluate(() => { window.__zh.teleport(44.5, 51, 0); window.__zh.lookAt(33, 0, 43); });
     await sleep(1600);
     await shot('32');
     // Look straight at whichever zombies are nearest for a close-up of the pack.
-    await page.evaluate(() => { const s = window.__zh.state(); const z = s.entities.filter((e) => e.state >= 3).sort((a, b) => Math.hypot(a.x - s.x, a.z - s.z) - Math.hypot(b.x - s.x, b.z - s.z))[0]; window.__zh.lookAt(z.x, 1.3, z.z); });
+    await page.evaluate(() => { const s = window.__zh.state(); const z = s.entities.filter((e) => e.state >= 3).sort((a, b) => Math.hypot(a.x - s.x, a.z - s.z) - Math.hypot(b.x - s.x, b.z - s.z))[0]; window.__zh.lookAt(z.x, z.y + 1.3, z.z); });
     await sleep(400);
     await shot('pack');
     console.log(`[horde] 32 zombies + 4 players: ${full.fps} fps, ${full.drawCalls} draw calls, ${full.triangles} triangles (headless software rendering)`);

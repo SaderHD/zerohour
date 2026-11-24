@@ -11,7 +11,7 @@ import { openingDistance } from '../map/windows';
 import type { Rng } from '../math/rng';
 import { circleFits, moveCircle } from '../nav/collide';
 import { FlowField, UNREACHABLE } from '../nav/flowfield';
-import { lineOfSight } from '../nav/los';
+import { lineOfSight, lineWalkable } from '../nav/los';
 import { base, listWants, rank, type BotIntent, type BotTarget, type BotView } from './wants';
 
 export type { BotIntent, BotTarget, BotView } from './wants';
@@ -296,13 +296,16 @@ export class BotMind {
       const d = Math.hypot(zb.x - v.x, zb.z - v.z);
       if (d > SIGHT || !lineOfSight(this.map, v.x, v.y, v.z, zb.x, zb.y, zb.z, v.open)) continue;
       // One on another floor can be shot at, but it is not close: it has the stairs to find first.
-      const here = level(zb, v);
+      // (On a flight of stairs a body a few steps off is already half a storey up or down: if the
+      // straight line to it can be walked, it is here.)
+      const here = level(zb, v) || (d < NEAR && lineWalkable(this.map, v.x, v.y, v.z, zb.x, zb.y, zb.z, v.open));
       if (here && d < NEAR) this.near.push(zb);
       if (here && d < CROWD_RANGE) crowd++;
       if (here ? d < nearD : !o.aim) {
         if (here) nearD = d;
         else far = d;
-        o.aim = { id: zb.id, x: zb.x, y: zb.y, z: zb.z, dist: d };
+        // (How far the shot goes is measured through the air, as the server measures it.)
+        o.aim = { id: zb.id, x: zb.x, y: zb.y, z: zb.z, dist: Math.hypot(d, zb.y - v.y) };
       }
     }
 

@@ -274,7 +274,16 @@ const autopilot = new Autopilot(map, player, input, entities, remotes, weapons, 
   cacheHome: () => cacheView.home, cacheAt: (site) => cacheView.at(site).state,
 });
 autopilot.on = params.has('auto');
-wireDebug({ map, player, input, socket: s, playing, renderer, resize, audio, settings, screens, chat: (text) => net.chat(text), ping, autopilot });
+const pick = (): { name: string; dist: number; at: [number, number, number] } | null => {
+  const ray = new THREE.Raycaster();
+  ray.setFromCamera(new THREE.Vector2(0, 0), camera);
+  const hit = ray.intersectObjects(scene.children, true).find((h) => (h.object as THREE.Mesh).isMesh && h.object.visible);
+  if (!hit) return null;
+  const names: string[] = [];
+  for (let o: THREE.Object3D | null = hit.object; o && o !== scene; o = o.parent) names.unshift(o.name || o.type);
+  return { name: names.join('/'), dist: hit.distance, at: [hit.point.x, hit.point.y, hit.point.z] };
+};
+wireDebug({ map, player, input, socket: s, playing, renderer, resize, audio, settings, screens, chat: (text) => net.chat(text), ping, autopilot, pick });
 
 const MAX_FRAME = 0.2;
 const SPECTATE_BACK = 2.4;

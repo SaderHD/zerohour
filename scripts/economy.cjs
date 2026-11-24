@@ -41,9 +41,12 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
         await sleep(100);
       }
     };
-    /** Stand at (x, z) looking at a point, and wait for the prompt to say something. */
-    const face = async (x, z, lx, ly, lz, expect) => {
-      await zh(([x, z, lx, ly, lz]) => { window.__zh.teleport(x, z); window.__zh.lookAt(lx, ly, lz); }, [x, z, lx, ly, lz]);
+    /**
+     * Stand at (x, z) looking at a point `ly` above the floor there, and wait for the prompt to say
+     * something. `y` picks the floor where one lies over another (the gallery, the vault).
+     */
+    const face = async (x, z, lx, ly, lz, expect, y = null) => {
+      await zh(([x, z, lx, ly, lz, y]) => { window.__zh.teleport(x, z, undefined, y ?? undefined); window.__zh.lookAt(lx, window.__zh.state().y + ly, lz); }, [x, z, lx, ly, lz, y]);
       return until(`prompt "${expect}"`, async () => { const p = (await state()).prompt; return p.includes(expect) && p; });
     };
     const pressF = () => zh(() => window.__zh.press('KeyF'));
@@ -82,11 +85,15 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
     await until('Second Wind', async () => (await state()).perks.includes('second_wind'));
     await sleep(450);
     await shot('tonic-drink');
-    await face(60.7, 38.5, 62, 1.4, 38.5, 'needs power');
+    await face(56, 39.8, 56, 1.4, 38.5, 'needs power');
     await shot('tonic-no-power');
 
-    // 4. The master switch: lights, the vault door, the dispensers.
-    await face(60.2, 32.5, 61.5, 1.0, 32.5, 'turn on the power');
+    // 4. The master switch, up on the generator hall's gallery: lights, the vault door, the dispensers.
+    // (From the hall floor under it there is nothing to press.)
+    await zh(() => { window.__zh.teleport(56.5, 25.4, undefined, 0); window.__zh.lookAt(56.5, 1.0, 24); });
+    await sleep(400);
+    assert((await state()).prompt === '', `under the gallery: ${(await state()).prompt}`);
+    await face(56.5, 25.5, 56.5, 1.0, 24, 'turn on the power', 3);
     await shot('switch');
     await pressF();
     await until('power', async () => { const t = await state(); return t.power && t.openDoors.includes('d_vault'); });
@@ -95,7 +102,7 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
     assert((await state()).prompt === '', 'the switch has nothing more to offer');
 
     // 5. A tonic.
-    prompt = await face(60.7, 38.5, 62, 1.4, 38.5, 'Quickhands');
+    prompt = await face(56, 39.8, 56, 1.4, 38.5, 'Quickhands');
     assert(prompt.includes('[3000]'), `tonic prompt: ${prompt}`);
     await shot('tonic');
     await pressF();
@@ -105,8 +112,8 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
     assert(await zh(() => document.querySelectorAll('#perks .perk').length) === 2, 'two tonics in the HUD tray');
     await sleep(1500);
 
-    // 6. The Forge.
-    prompt = await face(40.2, 58, 41.75, 1.1, 58, 'forge the');
+    // 6. The Forge, in the vault under the bunker.
+    prompt = await face(26.6, 57.5, 24.75, 1.1, 57.5, 'forge the', -4.5);
     assert(prompt.includes('Farrow') && prompt.includes('[5000]'), `forge prompt: ${prompt}`);
     await shot('forge');
     await pressF();
@@ -126,9 +133,9 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
     assert(await zh(() => document.getElementById('ammo-name').textContent) === '"Farrowgate"', 'the HUD names the upgraded weapon');
 
     // 7. It hits like it says: 225 to the body of a dummy.
-    await zh(() => { window.__zh.teleport(38.5, 59.4, 0); window.__zh.dummy(38.5, 56.6); });
+    await zh(() => { window.__zh.teleport(33, 59.4, 0, -4.5); window.__zh.dummy(33, 56.2); });
     const dummy = await until('a dummy', async () => (await state()).entities.find((e) => e.kind === 'dummy'));
-    await zh((d) => { window.__zh.key('Mouse2', true); window.__zh.lookAt(d.x, 1.2, d.z); }, dummy);
+    await zh((d) => { window.__zh.key('Mouse2', true); window.__zh.lookAt(d.x, d.y + 1.2, d.z); }, dummy);
     await sleep(500);
     await shot('upgraded');
     await zh(() => window.__zh.press('Mouse0'));
@@ -137,7 +144,7 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
     await zh(() => window.__zh.key('Mouse2', false));
 
     // 8. Down, alone, with Second Wind: back up without anyone's help, tonics gone.
-    await zh(() => window.__zh.spawnZombies(2, { x: 39.6, z: 57.4, speed: 4.8 }));
+    await zh(() => window.__zh.spawnZombies(2, { x: 34.5, z: 57.4, speed: 4.8 }));
     await until('going down', async () => (await state()).life === 'downed', 20000);
     await zh(() => window.__zh.killZombies());
     await sleep(600);

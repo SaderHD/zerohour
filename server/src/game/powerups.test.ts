@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   BARRICADE_PLANKS, FIRESTORM_POINTS, MAX_GRENADES, POINTS_HIT, POWERUP_DROP_CHANCE, POWERUP_DURATION, POWERUP_LIFETIME, POWERUP_LIST,
-  POWERUP_MAX_PER_ROUND, REBUILD_POINTS, START_POINTS, mapWindows, weaponDef,
+  POWERUP_MAX_PER_ROUND, REBUILD_POINTS, START_POINTS, TERRACE_S, mapWindows, weaponDef,
 } from '@zh/shared';
 import { setPlanks } from './barricades';
 import { damageZombie } from './entities';
@@ -35,9 +35,9 @@ describe('drops', () => {
     for (let i = 0; i < n; i++) {
       t.game.powerups.dropped = 0;
       const before = t.game.powerups.drops.length;
-      damageZombie(t.game, spawnZombie(t.game, null, 30, 0, 45, 10, 1), 10, 1, 'torso', 'bullet');
+      damageZombie(t.game, spawnZombie(t.game, null, 30, TERRACE_S, 45, 10, 1), 10, 1, 'torso', 'bullet');
       drops += t.game.powerups.drops.length - before;
-      damageZombie(t.game, spawnZombie(t.game, win, win.spawnX, 0, win.spawnZ, 10, 1), 10, 1, 'torso', 'bullet');
+      damageZombie(t.game, spawnZombie(t.game, win, win.spawnX, win.y, win.spawnZ, 10, 1), 10, 1, 'torso', 'bullet');
       expect(t.game.powerups.drops.length - before).toBeLessThanOrEqual(1);
     }
     expect(drops / n).toBeGreaterThan(POWERUP_DROP_CHANCE * 0.6);
@@ -51,7 +51,7 @@ describe('drops', () => {
     // Within one round: no more than four.
     t.game.powerups.drops.length = 0;
     t.game.powerups.dropped = 0;
-    for (let i = 0; i < n; i++) damageZombie(t.game, spawnZombie(t.game, null, 30, 0, 45, 10, 1), 10, 1, 'torso', 'bullet');
+    for (let i = 0; i < n; i++) damageZombie(t.game, spawnZombie(t.game, null, 30, TERRACE_S, 45, 10, 1), 10, 1, 'torso', 'bullet');
     expect(t.game.powerups.drops).toHaveLength(POWERUP_MAX_PER_ROUND);
   });
 

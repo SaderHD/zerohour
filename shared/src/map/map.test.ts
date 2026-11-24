@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { PLAYER_RADIUS } from '../constants';
+import { FLOOR_GAP, PLAYER_RADIUS } from '../constants';
+import { FlowField, UNREACHABLE } from '../nav/flowfield';
 import { Rng } from '../math/rng';
 import { circleFits, moveCircle } from '../nav/collide';
 import { propDef } from '../data/props';
@@ -10,6 +11,7 @@ import { asciiMap } from './ascii';
 import { Cell, DIR_VEC, compileMap, type CompiledMap, type DoorSet } from './compile';
 import { TONICS } from './dressing/mounts';
 import { harrowRidge } from './harrowRidge';
+import { GALLERY_Y, TERRACE_N, TERRACE_S, VAULT_Y } from './terraces';
 import type { MapDef } from './types';
 import { floodWalkable, validateMap } from './validate';
 
@@ -106,19 +108,23 @@ describe('Harrow Ridge', () => {
     const rng = new Rng(42);
     const s = harrowRidge.playerSpawns[0]!;
     let { x, z } = s;
+    let y = 0;
     let heading = 0;
     const visited = new Set<string>();
+    const heights = new Set<number>();
     for (let i = 0; i < 60000; i++) {
       if (i % 40 === 0) heading = rng.range(0, Math.PI * 2);
       const step = rng.range(0.05, 0.6); // up to a very laggy frame at sprint speed
-      const p = moveCircle(map, 'all', x, 0, z, Math.cos(heading) * step, Math.sin(heading) * step, PLAYER_RADIUS);
-      x = p.x;
-      z = p.z;
-      if (!circleFits(map, 'all', x, 0, z, PLAYER_RADIUS - 0.01)) throw new Error(`clipped at ${x}, ${z} (step ${i})`);
-      const zone = map.zoneAt(x, 0, z);
+      const p = moveCircle(map, 'all', x, y, z, Math.cos(heading) * step, Math.sin(heading) * step, PLAYER_RADIUS);
+      // (The site is terraced: the walker goes up and down it by the slopes and the stairs.)
+      ({ x, y, z } = p);
+      if (!circleFits(map, 'all', x, y, z, PLAYER_RADIUS - 0.01)) throw new Error(`clipped at ${x}, ${y}, ${z} (step ${i})`);
+      const zone = map.zoneAt(x, y, z);
       if (zone) visited.add(zone);
+      heights.add(Math.round(y));
     }
     expect(visited.size).toBeGreaterThanOrEqual(5);
+    expect(heights.size).toBeGreaterThanOrEqual(2);
   });
 
   it('closed doors contain the player in the spawn zone', () => {
@@ -193,10 +199,84 @@ describe('props', () => {
   });
 });
 
+describe('Harrow Ridge site', () => {
+  const map = compileMap(harrowRidge);
+  const cell = (v: number) => Math.floor(v / 0.5);
+
+  it('is terraced: the laboratory and cold store up the ridge, the low yard, motor pool and bunker down it', () => {
+    const at = (x: number, z: number) => map.floorOn(0, x, z);
+    expect([at(29, 27), at(14, 27), at(55, 33), at(30, 36)]).toEqual([0, 0, 0, 0]); // mess, bunk, generator hall, top of the yard
+    expect([at(14, 10), at(30, 11)]).toEqual([TERRACE_N, TERRACE_N]);
+    expect([at(30, 48), at(55, 45), at(30, 58)]).toEqual([TERRACE_S, TERRACE_S, TERRACE_S]);
+    // A terrace is a whole FLOOR_GAP from the next: nothing reaches across its wall.
+    expect(TERRACE_N).toBeGreaterThanOrEqual(FLOOR_GAP);
+    expect(-TERRACE_S).toBeGreaterThanOrEqual(FLOOR_GAP);
+  });
+
+  it('has a snow slope to walk and a bluff nobody steps off', () => {
+    // Down the west slope from the terrace to the low yard, a step at a time.
+    let y = 0;
+    for (let z = 39; z < 45; z += 0.5) {
+      const i = map.walkAt(cell(24), cell(z), y, 'all');
+      expect(i, `z ${z}`).toBeGreaterThanOrEqual(0);
+      y = map.lo[i]!;
+    }
+    expect(y).toBeCloseTo(TERRACE_S);
+    // The bluff's south edge: floor at 0 on one side, a terrace lower on the other, no link between.
+    expect(map.floorOn(0, 33, 41.75)).toBe(0);
+    expect(map.floorOn(0, 33, 42.25)).toBeCloseTo(TERRACE_S);
+    expect(map.walkAt(cell(33), cell(42.25), 0, 'all')).toBe(-1);
+    expect(lineWalkable(map, 33, 0, 41, 33, 0, 43, 'all')).toBe(false);
+    expect(lineOfSight(map, 36, 0, 41, 36, TERRACE_S, 46, 'all')).toBe(true); // but it is a fine place to shoot from
+  });
+
+  it('has an upstairs: the generator hall\'s gallery, with the master switch on it and the tunnel\'s door', () => {
+    expect(map.layers).toBe(3);
+    expect(map.zoneAt(55, GALLERY_Y, 24.5)).toBe('gen');
+    expect(map.zoneAt(55, 0, 24.5)).toBe('gen');
+    expect(map.standAt(cell(55), cell(24.5), GALLERY_Y)).not.toBe(map.standAt(cell(55), cell(24.5), 0));
+    const power = harrowRidge.interactables.find((i) => i.kind === 'powerSwitch')!;
+    expect(map.mountHeight(power)).toBe(GALLERY_Y);
+    expect(map.openingHeight(map.openingById('d_cold_gen')!)).toBe(GALLERY_Y);
+    // The floor straight below is three metres and a staircase away.
+    const f = new FlowField(map);
+    f.compute('all', 55, GALLERY_Y, 25);
+    expect(f.costAt(55, 0, 27)).toBeGreaterThan(f.costAt(49, GALLERY_Y, 25));
+    expect(f.costAt(55, 0, 27)).toBeLessThan(UNREACHABLE);
+    expect(lineOfSight(map, 55, GALLERY_Y, 25.5, 55, 0, 33, 'all')).toBe(true); // over the rail, down at the sets
+    expect(lineOfSight(map, 55, GALLERY_Y, 24.5, 55, 0, 24.5, 'all')).toBe(false); // not through its own floor
+  });
+
+  it('has a basement: the vault under the bunker, behind the power door and down two flights', () => {
+    expect(map.zoneAt(30, VAULT_Y, 57)).toBe('vault');
+    expect(map.zoneAt(30, TERRACE_S, 57)).toBe('comms');
+    expect(lineOfSight(map, 30, VAULT_Y, 57, 30, TERRACE_S, 57, 'all')).toBe(false);
+    const forge = harrowRidge.interactables.find((i) => i.kind === 'forge')!;
+    expect(map.mountHeight(forge)).toBe(VAULT_Y);
+    const f = new FlowField(map);
+    // From a spot in the bunker to the same spot a storey down.
+    expect(f.compute(new Set(harrowRidge.openings.filter((o) => o.kind === 'door' && !o.needsPower).map((o) => o.id)), 30, TERRACE_S, 60)).toBe(true);
+    expect(f.costAt(30, TERRACE_S, 55)).toBeLessThan(UNREACHABLE);
+    expect(f.costAt(30, VAULT_Y, 57)).toBe(UNREACHABLE); // until the power is on
+    expect(f.compute('all', 30, TERRACE_S, 60)).toBe(true);
+    expect(f.costAt(30, VAULT_Y, 57)).toBeGreaterThan(20 * 10 * 2); // more than twenty metres of walking
+    expect(f.costAt(30, VAULT_Y, 57)).toBeLessThan(UNREACHABLE);
+  });
+
+  it('is made of rooms that are not boxes, and nothing stands on a slope', () => {
+    const rects = new Map<string, number>();
+    for (const r of harrowRidge.rooms) if (!r.outdoor) rects.set(r.zone, (rects.get(r.zone) ?? 0) + 1);
+    for (const zone of ['mess', 'bunk', 'lab', 'cold', 'gen', 'motor', 'comms', 'vault']) expect(rects.get(zone), zone).toBeGreaterThanOrEqual(2);
+    for (let i = 0; i < map.kind.length; i++) if (map.rise[i]) expect(map.block[i]).toBe(0);
+    // Every ledge a player can stand at the top of indoors has a rail (the yard's bluff has a timber one).
+    expect(harrowRidge.props.filter((p) => p.type === 'railing').length).toBeGreaterThanOrEqual(8);
+  });
+});
+
 describe('Harrow Ridge dressing', () => {
   const map = compileMap(harrowRidge);
   const count = (zone: string, solid: boolean) =>
-    harrowRidge.props.filter((p) => !!propDef(p.type)?.solid === solid && (map.zoneAt(p.x, 0, p.z) ?? map.zoneAt(p.x + 0.3, 0, p.z + 0.3) ?? map.zoneAt(p.x - 0.3, 0, p.z - 0.3)) === zone).length;
+    harrowRidge.props.filter((p) => !!propDef(p.type)?.solid === solid && (map.zoneOn(p.level, p.x, p.z) ?? map.zoneOn(p.level, p.x + 0.3, p.z + 0.3) ?? map.zoneOn(p.level, p.x - 0.3, p.z - 0.3)) === zone).length;
 
   it('the west wing is furnished', () => {
     for (const zone of ['mess', 'bunk', 'lab']) {
@@ -210,7 +290,7 @@ describe('Harrow Ridge dressing', () => {
       expect(count(zone, true), zone).toBeGreaterThanOrEqual(12);
       expect(count(zone, false), zone).toBeGreaterThanOrEqual(8);
     }
-    const has = (zone: string, type: string) => harrowRidge.props.filter((p) => p.type === type && map.zoneAt(p.x, 0, p.z) === zone).length;
+    const has = (zone: string, type: string) => harrowRidge.props.filter((p) => p.type === type && map.zoneOn(p.level, p.x, p.z) === zone).length;
     expect(has('cold', 'rack')).toBeGreaterThanOrEqual(4);
     expect(has('cold', 'ice_block') + has('cold', 'ice_stack')).toBeGreaterThanOrEqual(3);
     expect(has('gen', 'generator')).toBe(2);
@@ -227,11 +307,11 @@ describe('Harrow Ridge dressing', () => {
     expect(count('comms', false)).toBeGreaterThanOrEqual(8);
     expect(count('vault', true)).toBeGreaterThanOrEqual(8);
     expect(count('vault', false)).toBeGreaterThanOrEqual(8);
-    const has = (zone: string, type: string) => harrowRidge.props.filter((p) => p.type === type && map.zoneAt(p.x, 0, p.z) === zone).length;
+    const has = (zone: string, type: string) => harrowRidge.props.filter((p) => p.type === type && map.zoneOn(p.level, p.x, p.z) === zone).length;
     for (const type of ['truck_cab', 'truck_bed', 'snowcat', 'flagpole', 'mast']) expect(has('yard', type), type).toBe(1);
     expect(has('yard', 'guy_wire')).toBe(has('yard', 'anchor_block'));
     expect(has('yard', 'sandbags')).toBe(harrowRidge.openings.filter((o) => o.kind === 'window' && o.zones[0] === 'yard').length);
-    expect(harrowRidge.lights.filter((l) => l.fixture === 'flood' && map.zoneAt(l.x, 0, l.z) === 'yard').length).toBeGreaterThanOrEqual(4);
+    expect(harrowRidge.lights.filter((l) => l.fixture === 'flood' && map.zoneOn(l.level, l.x, l.z) === 'yard').length).toBeGreaterThanOrEqual(4);
     for (const type of ['console', 'radar', 'map_table', 'radio_rack']) expect(has('comms', type), type).toBeGreaterThanOrEqual(1);
     expect(has('vault', 'forge')).toBe(1);
     expect(has('vault', 'stripes')).toBeGreaterThanOrEqual(2);
@@ -247,13 +327,13 @@ describe('Harrow Ridge dressing', () => {
     const wallGuns = [...WEAPONS.values()].filter((w) => w.source === 'wall').map((w) => w.id as string).sort();
     expect(of('wallbuy').map((i) => i.ref).sort()).toEqual(wallGuns);
     expect(of('tonic').map((i) => i.ref).sort()).toEqual(TONICS.map((t) => t.id).sort());
-    expect(of('cacheSite').map((i) => map.zoneAt(i.x, 0, i.z))).toEqual(['yard', 'bunk', 'cold', 'motor', 'comms']);
-    expect(of('powerSwitch').map((i) => map.zoneAt(i.x, 0, i.z))).toEqual(['gen']);
-    expect(of('forge').map((i) => map.zoneAt(i.x, 0, i.z))).toEqual(['vault']);
+    expect(of('cacheSite').map((i) => map.zoneOn(i.level, i.x, i.z))).toEqual(['yard', 'bunk', 'cold', 'motor', 'comms']);
+    expect(of('powerSwitch').map((i) => map.zoneOn(i.level, i.x, i.z))).toEqual(['gen']);
+    expect(of('forge').map((i) => map.zoneOn(i.level, i.x, i.z))).toEqual(['vault']);
     const zoneOf = (ref: string) => {
       const it = its.find((i) => i.ref === ref)!;
       const v = DIR_VEC[it.facing];
-      return map.zoneAt(it.x + v.x * 0.3, 0, it.z + v.z * 0.3);
+      return map.zoneOn(it.level, it.x + v.x * 0.3, it.z + v.z * 0.3);
     };
     expect(['farrow', 'pike', 'stitch', 'kestrel', 'brakeman', 'coachman'].map(zoneOf)).toEqual(['mess', 'mess', 'bunk', 'lab', 'cold', 'motor']);
     expect(TONICS.map((t) => zoneOf(t.id))).toEqual(['comms', 'mess', 'motor', 'lab', 'bunk', 'cold']);
@@ -262,25 +342,25 @@ describe('Harrow Ridge dressing', () => {
     for (const it of its) {
       expect(harrowRidge.props.some((p) => p.type === mounts[it.kind] && Math.hypot(p.x - it.x, p.z - it.z) < 1), it.id).toBe(true);
       const v = DIR_VEC[it.facing];
-      expect(circleFits(map, 'all', it.x + v.x * 0.6, 0, it.z + v.z * 0.6, PLAYER_RADIUS), it.id).toBe(true);
+      expect(circleFits(map, 'all', it.x + v.x * 0.6, map.mountHeight(it), it.z + v.z * 0.6, PLAYER_RADIUS), it.id).toBe(true);
     }
   });
 
   it('signs point the way to the power from both ends of the station', () => {
     const arrows = harrowRidge.props.filter((p) => p.type === 'sign' && /^< POWER$|^POWER >$/.test(p.text ?? ''));
-    const zones = new Set(arrows.map((p) => { const a = ((p.rot ?? 0) * Math.PI) / 180; return map.zoneAt(p.x - Math.sin(a) * 0.3, 0, p.z - Math.cos(a) * 0.3); }));
+    const zones = new Set(arrows.map((p) => { const a = ((p.rot ?? 0) * Math.PI) / 180; return map.zoneOn(p.level, p.x - Math.sin(a) * 0.3, p.z - Math.cos(a) * 0.3); }));
     for (const zone of ['mess', 'bunk', 'lab', 'yard', 'motor', 'gen']) expect(zones.has(zone), zone).toBe(true);
   });
 
   it('every prop has a definition and every zone keeps a light that works without the mains', () => {
     for (const p of harrowRidge.props) expect(propDef(p.type), p.type).toBeDefined();
     for (const zone of ['mess', 'bunk', 'lab', 'cold', 'gen', 'motor', 'yard', 'comms', 'vault']) {
-      expect(harrowRidge.lights.some((l) => !l.needsPower && map.zoneAt(l.x, 0, l.z) === zone), zone).toBe(true);
-      expect(harrowRidge.lights.some((l) => l.needsPower && map.zoneAt(l.x, 0, l.z) === zone), zone).toBe(true);
+      expect(harrowRidge.lights.some((l) => !l.needsPower && map.zoneOn(l.level, l.x, l.z) === zone), zone).toBe(true);
+      expect(harrowRidge.lights.some((l) => l.needsPower && map.zoneOn(l.level, l.x, l.z) === zone), zone).toBe(true);
     }
   });
 
   it('player spawns have elbow room', () => {
-    for (const s of harrowRidge.playerSpawns) expect(circleFits(map, undefined, s.x, 0, s.z, PLAYER_RADIUS + 0.15)).toBe(true);
+    for (const s of map.playerSpawns) expect(circleFits(map, undefined, s.x, s.y, s.z, PLAYER_RADIUS + 0.15)).toBe(true);
   });
 });

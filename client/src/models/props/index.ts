@@ -47,6 +47,7 @@ export const PROP_BUILDERS: Record<PropType, (k: Kit) => void> = {
   timber_frame: cold.timberFrame,
   wall_fan: gen.wallFan,
   ladder: gen.ladder,
+  railing: gen.railing,
   range: mess.range,
   counter: mess.counter,
   notice_board: mess.noticeBoard,

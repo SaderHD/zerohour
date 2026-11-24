@@ -1,7 +1,9 @@
 // A whole game played by bots on a fake clock, as fast as the machine will step it.
-// Usage: npm run campaign -- [rounds=25] [--god] [--players=4] [--seed=1] [--runs=1] [--accuracy=0.75] [--head=0.2]
+// Usage: npm run campaign -- [rounds=25] [--god] [--players=4] [--seed=1] [--runs=1] [--accuracy=0.75] [--head=0.2] [--downs] [--trace]
 //   --god   nothing hurts the bots: the endurance run (fails on a stuck zombie or a slow tick)
 //   without it the bots are mortal and the run is a balance report: how far a team gets.
+//   --trace  every ten seconds: where each bot is, its health and what it is after
+//   --downs  also count what each bot was doing, and where, when it went down (goal zone weapon zombies-within-3-m)
 import { SNAPSHOT_BUDGET_BYTES, TICK_BUDGET_MS } from '@zh/shared';
 import { runCampaign } from '../server/src/game/campaign';
 
@@ -15,6 +17,7 @@ const accuracy = flag('accuracy', 0.75);
 const IDLE_LIMIT = 10;
 const mmss = (s: number): string => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
+const downs = new Map<string, number>();
 const failures: string[] = [];
 const reached: number[] = [];
 for (let run = 0; run < runs; run++) {
@@ -24,6 +27,8 @@ for (let run = 0; run < runs; run++) {
   const began = Date.now();
   const r = runCampaign({
     seed, players, rounds, god, skill: { accuracy, head: flag('head', 0.2) },
+    onTrace: args.includes('--trace') ? (line) => console.log(`  ${line}`) : undefined,
+    onDown: args.includes('--downs') ? (what) => void downs.set(what, (downs.get(what) ?? 0) + 1) : undefined,
     onRound: (o) => {
       if (quiet) return;
       console.log(
@@ -50,5 +55,6 @@ for (let run = 0; run < runs; run++) {
   if (god && r.cleared < rounds) failures.push(`seed ${seed}: only reached round ${r.cleared}`);
 }
 if (runs > 1) console.log(`[campaign] rounds cleared: ${reached.join(' ')} (median ${[...reached].sort((a, b) => a - b)[Math.floor(runs / 2)]})`);
+for (const [what, n] of [...downs].sort((a, b) => b[1] - a[1])) console.log(`[campaign]   down x${n}: ${what}`);
 for (const f of failures) console.error(`[campaign] FAILED: ${f}`);
 process.exit(failures.length ? 1 : 0);

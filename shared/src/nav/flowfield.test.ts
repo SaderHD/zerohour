@@ -10,12 +10,10 @@ const map = compileMap(harrowRidge);
 const spawn = harrowRidge.playerSpawns[0]!;
 
 /** Walk a circle downhill and return how far from the goal it ends up. */
-function walk(field: FlowField, open: Set<string> | 'all', x: number, z: number, maxSteps = 4000): number {
+function walk(field: FlowField, open: Set<string> | 'all', x: number, y: number, z: number, maxSteps = 4000): number {
   const d = { x: 0, z: 0 };
-  for (let i = 0; i < maxSteps && field.dir(x, 0, z, d); i++) {
-    const p = moveCircle(map, open, x, 0, z, d.x * 0.1, d.z * 0.1, PLAYER_RADIUS);
-    x = p.x;
-    z = p.z;
+  for (let i = 0; i < maxSteps && field.dir(x, y, z, d); i++) {
+    ({ x, y, z } = moveCircle(map, open, x, y, z, d.x * 0.1, d.z * 0.1, PLAYER_RADIUS));
   }
   return Math.hypot(x - field.goalX, z - field.goalZ);
 }
@@ -45,8 +43,8 @@ describe('flow field', () => {
     const f = new FlowField(map);
     f.compute('all', spawn.x, 0, spawn.z);
     for (const w of mapWindows(map)) {
-      expect(f.costAt(w.inX, 0, w.inZ), w.id).toBeLessThan(UNREACHABLE);
-      expect(walk(f, 'all', w.inX, w.inZ), w.id).toBeLessThan(0.75);
+      expect(f.costAt(w.inX, w.y, w.inZ), w.id).toBeLessThan(UNREACHABLE);
+      expect(walk(f, 'all', w.inX, w.y, w.inZ), w.id).toBeLessThan(0.75);
     }
   });
 
@@ -54,9 +52,9 @@ describe('flow field', () => {
     const wins = mapWindows(map);
     expect(wins).toHaveLength(harrowRidge.openings.filter((o) => o.kind === 'window').length);
     for (const w of wins) {
-      expect(map.walkAt(Math.floor(w.inX / CELL_SIZE), Math.floor(w.inZ / CELL_SIZE), 0), w.id).toBeGreaterThanOrEqual(0);
-      expect(map.zoneAt(w.inX, 0, w.inZ), w.id).toBe(w.zone);
-      expect(map.zoneAt(w.outX, 0, w.outZ), w.id).toBeNull();
+      expect(map.walkAt(Math.floor(w.inX / CELL_SIZE), Math.floor(w.inZ / CELL_SIZE), w.y), w.id).toBeGreaterThanOrEqual(0);
+      expect(map.zoneAt(w.inX, w.y, w.inZ), w.id).toBe(w.zone);
+      expect(map.zoneAt(w.outX, w.y, w.outZ), w.id).toBeNull();
     }
   });
 });

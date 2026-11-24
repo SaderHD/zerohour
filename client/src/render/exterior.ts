@@ -26,9 +26,14 @@ const TREE_NEAR = 20;
 
 export function buildExterior(map: CompiledMap, baker: Baker): Bucket {
   const b = new Bucket();
-  const yard = map.def.rooms.find((r) => r.outdoor);
-  if (!yard) return b;
-  const lit = map.idx(Math.floor((yard.x + yard.w / 2) / CELL_SIZE), Math.floor((yard.z + yard.d / 2) / CELL_SIZE));
+  const outdoors = map.def.rooms.filter((r) => r.outdoor);
+  const first = outdoors[0];
+  if (!first) return b;
+  const lit = map.idx(Math.floor((first.x + first.w / 2) / CELL_SIZE), Math.floor((first.z + first.d / 2) / CELL_SIZE));
+  // The yard is all the outdoor rooms together (it is made of terraces, slopes and wall strips).
+  const yx0 = Math.min(...outdoors.map((r) => r.x));
+  const yz0 = Math.min(...outdoors.map((r) => r.z));
+  const yard = { x: yx0, z: yz0, w: Math.max(...outdoors.map((r) => r.x + r.w)) - yx0, d: Math.max(...outdoors.map((r) => r.z + r.d)) - yz0 };
 
   const quad = (p: [V3, V3, V3, V3], n: V3, colour: RGB): void => {
     const v = p.map((q): Vert => ({ p: q, uv: [(q[0] + q[2]) / 2, (q[1] + q[2] * 0.5) / 2], ao: 1 })) as [Vert, Vert, Vert, Vert];
@@ -44,18 +49,53 @@ export function buildExterior(map: CompiledMap, baker: Baker): Bucket {
     if (top) quad([[x0, y1, z0], [x0, y1, z1], [x1, y1, z1], [x1, y1, z0]], [0, 1, 0], top);
   };
 
-  /** Where a shell wall may start: the top of the lowest open ground just outside it, else the floor. */
-  const startOf = (cx0: number, cz0: number, cx1: number, cz1: number): number => {
-    let lo = Infinity;
-    for (let cz = cz0; cz < cz1; cz++) {
-      for (let cx = cx0; cx < cx1; cx++) {
-        // The top of whatever is open highest in this column.
-        let top = -Infinity;
-        for (let layer = 0; layer < map.layers; layer++) if (map.kindAt(cx, cz, layer) !== Cell.Solid) top = Math.max(top, map.hi[map.idx(cx, cz, layer)]!);
-        if (top > -Infinity) lo = Math.min(lo, top);
-      }
+  /** The top of whatever is open highest in a column, or -Infinity where it is solid all the way up. */
+  const topOf = (cx: number, cz: number): number => {
+    let top = -Infinity;
+    if (map.inBounds(cx, cz)) for (let layer = 0; layer < map.layers; layer++) if (map.kindAt(cx, cz, layer) !== Cell.Solid) top = Math.max(top, map.hi[map.idx(cx, cz, layer)]!);
+    return top;
+  };
+  /** Is a room's own floor (not a doorway cut through a wall) open in this column? */
+  const roomAt = (cx: number, cz: number): boolean => {
+    if (!map.inBounds(cx, cz)) return false;
+    for (let layer = 0; layer < map.layers; layer++) {
+      const i = map.idx(cx, cz, layer);
+      if (map.kind[i] === Cell.Floor && map.opening[i]! < 0) return true;
     }
-    return lo === Infinity ? 0 : lo;
+    return false;
+  };
+  /**
+   * The walls of a building's shell round the cell rectangle (cx0, cz0)-(cx1, cz1), up to y1. They
+   * are worked out a column at a time: where the wall's own thickness is another room of the same
+   * building (rooms abut to make shapes that are not boxes) the shell starts above that room;
+   * elsewhere above whatever is open just outside it (a window's pocket, the yard), or at the ground.
+   */
+  const shell = (cx0: number, cz0: number, cx1: number, cz1: number, y1: number, colour: RGB): void => {
+    const side = (n: number, at: (k: number) => [number, number, number, number], wall: (k0: number, k1: number, y0: number) => void): void => {
+      let from = 0;
+      let start = NaN;
+      for (let k = 0; k <= n; k++) {
+        let y0 = NaN;
+        if (k < n) {
+          const [bx, bz, ox, oz] = at(k);
+          const top = roomAt(bx, bz) ? topOf(bx, bz) : topOf(ox, oz);
+          y0 = top === -Infinity ? 0 : top;
+        }
+        if (k > 0 && y0 !== start) {
+          if (start < y1 - 1e-3) wall(from, k, start);
+          from = k;
+        }
+        start = y0;
+      }
+    };
+    const [x0, z0, x1, z1] = [cx0 * CELL_SIZE, cz0 * CELL_SIZE, cx1 * CELL_SIZE, cz1 * CELL_SIZE];
+    const X = (k: number): number => x0 + k * CELL_SIZE;
+    const Z = (k: number): number => z0 + k * CELL_SIZE;
+    // For each column along a side: the cell in the wall's thickness, and the one beyond it.
+    side(cx1 - cx0, (k) => [cx0 + k, cz0, cx0 + k, cz0 - 1], (a, c, y) => quad([[X(c), y, z0], [X(a), y, z0], [X(a), y1, z0], [X(c), y1, z0]], [0, 0, -1], colour));
+    side(cx1 - cx0, (k) => [cx0 + k, cz1 - 1, cx0 + k, cz1], (a, c, y) => quad([[X(a), y, z1], [X(c), y, z1], [X(c), y1, z1], [X(a), y1, z1]], [0, 0, 1], colour));
+    side(cz1 - cz0, (k) => [cx1 - 1, cz0 + k, cx1, cz0 + k], (a, c, y) => quad([[x1, y, Z(c)], [x1, y, Z(a)], [x1, y1, Z(a)], [x1, y1, Z(c)]], [1, 0, 0], colour));
+    side(cz1 - cz0, (k) => [cx0, cz0 + k, cx0 - 1, cz0 + k], (a, c, y) => quad([[x0, y, Z(a)], [x0, y, Z(c)], [x0, y1, Z(c)], [x0, y1, Z(a)]], [-1, 0, 0], colour));
   };
   const cell = (v: number): number => Math.round(v / CELL_SIZE);
 
@@ -75,19 +115,17 @@ export function buildExterior(map: CompiledMap, baker: Baker): Bucket {
     const snow = linear(SNOW).map((c) => c * rng.range(0.92, 1.04)) as RGB;
     const eave = Math.max(YARD_WALL, top) + 0.25;
     const [cx0, cz0, cx1, cz1] = [cell(x0), cell(z0), cell(x1), cell(z1)];
-    const starts: [number, number, number, number] = [
-      startOf(cx0, cz0 - 1, cx1, cz0), startOf(cx0, cz1, cx1, cz1 + 1), startOf(cx1, cz0, cx1 + 1, cz1), startOf(cx0 - 1, cz0, cx0, cz1),
-    ];
     const gable = room.wall === 'panel' || room.wall === 'plaster';
     if (!gable) {
       // A flat roof behind a parapet, the snow lying a little below its lip.
-      box(x0, z0, x1, z1, starts, eave + 0.35, side, side);
+      shell(cx0, cz0, cx1, cz1, eave + 0.35, side);
+      quad([[x0, eave + 0.35, z0], [x0, eave + 0.35, z1], [x1, eave + 0.35, z1], [x1, eave + 0.35, z0]], [0, 1, 0], side);
       box(x0 + 0.3, z0 + 0.3, x1 - 0.3, z1 - 0.3, [eave, eave, eave, eave], eave + 0.42, snow, snow);
       roofs.push({ x0, z0, x1, z1, at: () => eave + 0.42 });
       continue;
     }
     // A pitched roof, ridge along the longer side, eaves overhanging.
-    box(x0, z0, x1, z1, starts, eave, side);
+    shell(cx0, cz0, cx1, cz1, eave, side);
     const alongX = room.w >= room.d;
     const rise = Math.min(room.w, room.d) * 0.24;
     const ridge = eave + rise;
@@ -116,7 +154,9 @@ export function buildExterior(map: CompiledMap, baker: Baker): Bucket {
     const roof = roofs.find((q) => p.x > q.x0 && p.x < q.x1 && p.z > q.z0 && p.z < q.z1);
     if (!r || !roof) continue;
     const top = roof.at(p.x, p.z) + 0.6 + r * 3;
-    box(p.x - r, p.z - r, p.x + r, p.z + r, [YARD_WALL, YARD_WALL, YARD_WALL, YARD_WALL], top, linear(0x2c2a2a), linear(0x101010));
+    // (From above the ceiling it comes through: the room under it may be taller than the yard's wall.)
+    const from = Math.max(YARD_WALL, topOf(Math.floor(p.x / CELL_SIZE), Math.floor(p.z / CELL_SIZE)));
+    box(p.x - r, p.z - r, p.x + r, p.z + r, [from, from, from, from], top, linear(0x2c2a2a), linear(0x101010));
     box(p.x - r - 0.05, p.z - r - 0.05, p.x + r + 0.05, p.z + r + 0.05, [top - 0.12, top - 0.12, top - 0.12, top - 0.12], top - 0.04, linear(SNOW));
   }
 

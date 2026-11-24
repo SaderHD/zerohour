@@ -332,6 +332,16 @@ export class CompiledMap {
     return this.kind[i] === Cell.Solid ? NaN : this.lo[i]!;
   }
 
+  /** Zone of a storey's cell under (x, z): for things placed by level (props, lights). Null where it has none. */
+  zoneOn(level: number | undefined, x: number, z: number): string | null {
+    const l = this.layerOf(level ?? 0);
+    const cx = Math.floor(x / CELL_SIZE);
+    const cz = Math.floor(z / CELL_SIZE);
+    if (l < 0 || !this.inBounds(cx, cz)) return null;
+    const zi = this.zone[this.idx(cx, cz, l)]!;
+    return zi === NO_ZONE ? null : this.zones[zi]!.id;
+  }
+
   /** Where someone stands to use an interactable: the height of the floor in front of it. */
   mountHeight(it: Interactable): number {
     return this.mountY.get(it.id) ?? 0;
@@ -590,6 +600,7 @@ export function compileMap(def: MapDef): CompiledMap {
         const i = m.idx(cx, cz, layer);
         if (m.kind[i] !== Cell.Floor || m.opening[i]! >= 0) bad = 'must stand on room floor';
         else if (m.block[i]) bad = 'overlaps another prop';
+        else if (m.rise[i]) bad = 'stands on a ramp or stairs';
         m.block[i] = pd.tall ? 2 : 1;
         m.propH[i] = pd.h;
       }

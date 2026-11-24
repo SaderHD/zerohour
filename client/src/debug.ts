@@ -121,6 +121,8 @@ export interface ZhDebug {
   /** Teleport to the middle of a zone's largest room. */
   gotoZone(zoneId: string, yaw?: number): void;
   look(yaw: number, pitch?: number): void;
+  /** What is drawn under the crosshair: the mesh's name (with its parents'), how far off, and where. For finding what a stray surface belongs to. */
+  pick(): { name: string; dist: number; at: [number, number, number] } | null;
   /** Aim the view at a world point. */
   lookAt(x: number, y: number, z: number): void;
   /** `give('pike')` hands over a weapon (`give('pike', true)` its Forge upgrade), `give('ironhide')` a tonic, `give('siren')` decoys, `give(500)` points (debug servers only). */
@@ -194,11 +196,13 @@ export interface DebugWiring {
   chat(text: string): void;
   ping(): void;
   autopilot: { on: boolean };
+  pick: ZhDebug['pick'];
 }
 
 /** Install window.__zh. Anything that changes the game is a debug message to the server. */
-export function wireDebug({ map, player, input, socket: s, playing, renderer, resize, audio, settings, screens, chat, ping, autopilot }: DebugWiring): void {
+export function wireDebug({ map, player, input, socket: s, playing, renderer, resize, audio, settings, screens, chat, ping, autopilot, pick }: DebugWiring): void {
   const api: Omit<ZhDebug, 'state'> = {
+    pick,
   audio, settings, screens, chat, ping,
   teleport: (x, z, yaw, y) => {
     const floor = map.nearestFloor(x, y ?? player.y, z, 'all');

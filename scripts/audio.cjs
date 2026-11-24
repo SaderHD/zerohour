@@ -174,7 +174,8 @@ function writeWav(file, b64, rate) {
       }
 
       // Every gun: a few rounds each, a reload, an empty click, the knife, a grenade.
-      await zh(() => { window.__zh.teleport(30, 48, 0); window.__zh.look(0, 0); });
+      // (Facing east along the low yard: the launchers and the Gravewell need room in front of them.)
+      await zh(() => { window.__zh.teleport(27, 50, -Math.PI / 2); window.__zh.look(-Math.PI / 2, 0); });
       for (const g of GUNS) {
         await zh((g) => window.__zh.give(g), g);
         await until(`the ${g}`, async () => (await state()).weapon === g, 3000);
@@ -189,7 +190,7 @@ function writeWav(file, b64, rate) {
       for (let i = 0; i < 3; i++) { await press('Mouse0'); await sleep(170); }
       await press('KeyR');
       await sleep(1700);
-      await zh(() => window.__zh.dummy(30, 46.9));
+      await zh(() => window.__zh.dummy(28.1, 50));
       await until('a dummy', async () => (await state()).entities.some((e) => e.kind === 'dummy'), 3000);
       await sleep(600); // the last shots' shake dies away
       assert((await state()).shake === 0, 'the view should be still before the knife');
@@ -200,7 +201,7 @@ function writeWav(file, b64, rate) {
       await sleep(3300);
 
       // A horde: their voices, their swings; then no god for a moment: hurt, shake, direction.
-      await zh(() => { window.__zh.killZombies(); window.__zh.teleport(22, 49, 0); window.__zh.lookAt(26, 1.2, 49); window.__zh.spawnZombies(10, { x: 26, z: 49, speed: 2.4 }); });
+      await zh(() => { window.__zh.killZombies(); window.__zh.teleport(27.5, 50, 0); window.__zh.lookAt(31.5, 0, 50); window.__zh.spawnZombies(10, { x: 31.5, z: 50, speed: 2.4 }); });
       await sleep(2500);
       await zh(() => window.__zh.god(false));
       const hurt = await until('a hit taken', async () => { const s = await state(); return s.hurts > 0 && s; }, 8000);
@@ -218,14 +219,14 @@ function writeWav(file, b64, rate) {
       await sleep(600);
 
       // The power, a tonic, the Cache, the Forge.
-      await zh(() => { window.__zh.teleport(60.2, 32.5); window.__zh.lookAt(61.5, 1.0, 32.5); });
+      await zh(() => { window.__zh.teleport(56.5, 25.5, undefined, 3); window.__zh.lookAt(56.5, 4, 24); });
       await until('the switch', async () => (await state()).prompt.includes('power'), 3000);
       await press('KeyF');
       await until('power', async () => (await state()).power, 3000);
       await sleep(600);
       assert((await state()).audio.played > 100, 'sounds should have been playing');
       await sleep(2600);
-      await zh(() => { window.__zh.teleport(60.7, 38.5); window.__zh.lookAt(62, 1.4, 38.5); });
+      await zh(() => { window.__zh.teleport(56, 39.8); window.__zh.lookAt(56, -0.1, 38.5); });
       await until('the dispenser', async () => (await state()).prompt.includes('Quickhands'), 3000);
       await press('KeyF');
       await sleep(3200);
@@ -239,7 +240,7 @@ function writeWav(file, b64, rate) {
         await zh(() => { window.__zh.cacheNext('jinx'); window.__zh.press('KeyF'); });
         await sleep(9500);
       }
-      await zh(() => { window.__zh.teleport(40.2, 58); window.__zh.lookAt(41.75, 1.1, 58); });
+      await zh(() => { window.__zh.teleport(26.6, 57.5, undefined, -4.5); window.__zh.lookAt(24.75, -3.4, 57.5); });
       await until('the Forge', async () => (await state()).prompt.includes('forge the'), 3000);
       await press('KeyF');
       await sleep(4200);
@@ -259,7 +260,7 @@ function writeWav(file, b64, rate) {
         await zh(() => { window.__zh.killZombies(); window.__zh.teleport(22, 49, 0); for (let i = 0; i < 24; i++) window.__zh.spawnZombies(1, { x: 28 + (i % 6) * 0.9, z: 49 + Math.floor(i / 6) * 0.9 - 1.4, speed: 0.6, hp: 7000 }); });
         await until('24 zombies', async () => (await state()).entities.filter((e) => e.kind === 'zombie').length === 24, 5000);
         await sleep(600);
-        await zh(() => window.__zh.lookAt(28, 1.2, 48.5));
+        await zh(() => window.__zh.lookAt(28, 0, 48.5));
         await sleep(200);
       };
       await zh(() => window.__zh.give('arclight'));

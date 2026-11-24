@@ -266,8 +266,25 @@ cycle before repeating. Float for 30 s (blink in the last 8). Team-wide.
 | Clearance | 30 s: the Cache costs 10 and appears at every site, each with its own roll; no Jinx meanwhile (only drops after the Cache has moved once) |
 
 ### 4.11 Map — "Harrow Ridge Station"
-A snowed-in 1970s mountain signals outpost. One walkable level, 70 × 70 m (see `docs/MAP.txt`), eight zones in a loop
+A snowed-in 1970s mountain signals outpost on a slope, 70 × 70 m (see `docs/MAP.txt`, a sheet per storey), eight zones in a loop
 plus one spur, so there are good "training" circuits and no dead-end deathtraps except the Vault.
+
+The site is terraced (`map/terraces.ts`), each terrace 1.5 m from the next - `FLOOR_GAP`, so nothing
+reaches up or down a terrace wall and whoever is at its foot has to walk round:
+- **North terrace, +1.5 m**: the Laboratory and Cold Storage. The washroom door opens on a flight of
+  stairs up into the lab; the tunnel climbs on two ramps from the cold store to +3 m.
+- **Middle, 0**: Mess Hall, Bunkhouse, the Generator Hall's floor, the top of the yard.
+- **South terrace, -1.5 m**: the low yard, the Motor Pool's floor, the Comms Bunker. The yard goes
+  down by a snow slope on either side of a bluff held up by a wall (railed; a place to shoot from, not
+  to step off); the motor pool has a loading dock at 0 along its north wall with a ramp and steps down.
+- **Upstairs, +3 m**: the Generator Hall's gallery along its north wall, a flight of stairs at each end.
+  The tunnel's door and the master switch are up there; the sets and both windows are on the floor below.
+- **Basement, -4.5 m**: the Vault, the cellar under the bunker: through the power door, down two
+  flights that double back, in under the bunker's floor. The Forge stands in a recess at the far end.
+
+No room is a plain box: the mess hall has a servery let into its east wall, the lab a specimen bay
+and a corner given up to the stairs, the generator hall its fuel store under the gallery, the bunker
+a signals office off its corner.
 
 ```
                  [Laboratory]====1250====[Cold Storage]
@@ -293,11 +310,11 @@ plus one spur, so there are good "training" circuits and no dead-end deathtraps 
 | Bunkhouse + Washroom | 16×8 + 6×4 | bunk beds, lockers, footlockers, pot-belly stove, sinks, stalls | 2 | Stitch, Marathon, Cache site |
 | Laboratory | 16×12 | lab benches, glass specimen tanks (emissive), tape-reel computers, chalkboards, toppled shelves | 2 | Kestrel, Hair Trigger |
 | Cold Storage | 20×7 | shelving aisles, crates, ice blocks, hanging hooks, frost fog | 2 | Brakeman, Packmule, Cache site |
-| Generator Hall | 14×12 | 2 big generators (animated when on), pipes, catwalk overhead (visual only), fuel tanks, switch panel | 2 | Power switch |
+| Generator Hall | 17×12 + gallery | 2 big generators (animated when on), pipes, the gallery and its two flights of stairs, fuel store, switchgear on the gallery | 2 | Power switch (on the gallery) |
 | Motor Pool | 16×12 | truck on jacks, workbench, tool boards, tyre stacks, oil drums, roller door (shut) | 2 | Coachman, Quickhands, Cache site |
 | Courtyard (outdoor) | 26×20 | snow, parked truck + snowcat, crate stacks, flagpole, radio mast base with guy wires, floodlights, fence, falling snow particles | 3 fence breaches | Cache start site |
 | Comms Bunker | 12×10 | console banks with blinking lights, radar scope, map table, radio racks | 2 | Ironhide, Cache site |
-| Vault | 6×6 | the Forge, cable bundles, warning stripes | 0 | Forge |
+| Vault (basement) | 10×7 + stairs | the Forge, cable bundles, warning stripes | 0 | Forge |
 
 Props that are ≥0.5 m tall block movement (and bullets if tall); small clutter is non-colliding.
 Keep every lane ≥1.5 m wide. Varied ceiling heights, skybox gradient with mountains silhouette and
@@ -425,7 +442,9 @@ cell someone at that height is on), `holdAt(cx, cz, y)` (the cell whose air hold
 `zoneAt(x, y, z)`, `floorOn(level, x, z)` for things placed by level. The Stacks
 (`map/stacks.ts`; `npm run map -- stacks` prints it) is a small proving ground with a ramp, a
 terrace, a loft over a hall and a cellar under it; `stacks.test.ts` in shared and server run the
-map machinery and a full-horde soak on it. Harrow Ridge itself is still one flat storey.
+map machinery and a full-horde soak on it. Harrow Ridge uses all of it (4.11). A solid prop may not
+stand on a ramp or stairs (the compiler refuses it); a `railing` prop (dressing helpers `rail`,
+`stairRail`) marks the top of a ledge and stops nothing.
 
 `validate.ts` runs in tests and fails the build if: a prop blocks the floor inside a window; any zone is unreachable with all doors open;
 any window/spawn can't path to the player spawn; a prop seals a lane (<1.5 m); interactables are
@@ -478,7 +497,8 @@ wall buys, tonics, Cache, Forge, power switch, barricade rebuild and revive.
   `setRound(n, true)` for a howler round, `give('siren')`, `powerup(kind)`, `cacheNext(weapon|'siren'|'jinx')`,
   `rounds(bool)` (stop/resume the round loop), `spawnZombies(n, opts)` (`opts.kind: 'howler'`), `killZombies()`, `god(bool)`, `freeCam()`, `openAllDoors()`, `powerOn()`, `dummy(x,z)` (target
   dummy), `lookAt(x,y,z)`, `press(code)` (mouse buttons are `Mouse0`/`Mouse2`), `audio` (`play(name)`,
-  `names()`, `render(name)` offline, `record(on)`, `setVolume`). Matching server-side
+  `names()`, `render(name)` offline, `record(on)`, `setVolume`), `pick()` (the name of whatever mesh is
+  under the crosshair, for finding what a stray surface belongs to). Matching server-side
   `debug` messages, enabled only when `ZH_DEBUG=1`.
 - URL flags: `?name=X`, `?room=CODE` (join; with `autostart` the room is created if missing —
   debug servers only), `?autostart=1` (skip menu and lobby), `?debug=1` (stats overlay).
@@ -952,8 +972,37 @@ floor. Four steps.
   Not done: railings (a ledge is a bare drop; dressing, step 3); damage arcs still point in plan
   only; the roofs, snow and pines have only been seen on the station, since the Stacks has no
   yard.
-- [ ] 3 Rebuild Harrow Ridge: sloped site, rooms that are not boxes, a basement and an upstairs.
-- [ ] 4 Balance and acceptance (`campaign --runs=8` before and after, tour, soak, `ship`).
+- [x] 3 Rebuild Harrow Ridge - done (4.11 describes the site). Same nine zones, doors and prices, on
+  three terraces 1.5 m apart, with the generator hall's gallery upstairs (the master switch and the
+  tunnel's door are on it) and the Vault as the cellar under the bunker; every zone is now several
+  rectangles. `npm run site` walks a browser player over all of it (slope, bluff, lab stairs, tunnel,
+  gallery, dock, both vault flights: no corrections, the view moving smoothly; shots and prompts by
+  floor; a zombie from the low yard up to the gallery and one from the hall down to the vault), and
+  the other browser scripts, the tour (now 56 views, 28 of them again with the power on) and the
+  25-round god-mode campaign (worst stall 3 s, no corrections, power, Forge and Cache all used) pass
+  on it. Found on the way: stepping off the side of a ramp left the body overlapping the ramp's
+  higher treads until the next move (`moveCircle` now pushes out again after the floor underfoot
+  changes); the outdoor shell of a building was drawn half a metre outside every room rectangle,
+  which cut through the next room wherever a building is more than one rectangle (`exterior.ts`
+  now builds shells a column at a time); a thrown Siren rolls back down the snow slope; a bot took
+  a zombie a few steps up the same flight of stairs for one on another floor (the mind now asks
+  whether the straight line to it can be walked, and measures a shot's length through the air). New tools:
+  `__zh.pick()`, and `npm run campaign -- --trace --downs` (where each bot is every ten seconds;
+  what and where each was when it went down).
+  **Bots get less far**: eight mortal campaigns reach rounds 7 9 5 8 8 9 12 8 (median 8) where the
+  old station gave 9 6 15 10 14 14 14 13 (median 14); the first four rounds are the same to the
+  shot. Shots per round cleared are unchanged, so it is where they stand and how they move, not how
+  they shoot. Ruled out by experiment (median stayed 8-9): the terrace heights (the same plan
+  flattened), the switch being upstairs, the Forge being a long way down, the yard's west breach, a
+  cramped hall floor (the hall was widened 3 m anyway). Two traps found in the traces and removed:
+  the Quickhands dispenser narrowing the lane beside the truck to 1.5 m (it now stands under the
+  dock), and a dead-end pocket beside the lab stairs (now rock). Still seen in the traces: whole
+  teams caught in the vault, which is a much longer dead end than it was, and bots going down one
+  at a time on the way to a revive across the site. That is step 4's to settle - the bots, the
+  site, or both. `campaign.test.ts` runs seed 2 for that reason (six seeds in eight clear its eight rounds).
+  Not done: damage arcs still point in plan only; nobody has played it on real hardware.
+- [ ] 4 Balance and acceptance (`campaign --runs=8` before and after, tour, soak, `ship`). Starts
+  from the numbers above.
 
 ## 10. Risks to watch
 - **Map authoring by hand in code** is the biggest schedule risk → mitigated by the carved-rect

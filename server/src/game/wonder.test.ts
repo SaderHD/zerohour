@@ -1,25 +1,28 @@
 import { describe, expect, it } from 'vitest';
 import {
-  MAX_TACTICALS, POINTS_SPECIAL_KILL, SIREN_SECONDS, START_POINTS, ZombieState, lineOfSight, weaponStats, zombieHpForRound,
+  MAX_TACTICALS, POINTS_SPECIAL_KILL, SIREN_SECONDS, START_POINTS, TERRACE_S, ZombieState, lineOfSight, weaponStats, zombieHpForRound,
 } from '@zh/shared';
 import { makeGame } from './testkit';
 import { spawnZombie } from './zombies';
 
 // Session 11: the Arclight, the Gravewell and the Siren (PLAN 4.5), each against a horde.
 
-/** A player in the yard's open south-west with a wonder weapon, looking east. */
+/** The low yard's ground. */
+const LOW = TERRACE_S;
+
+/** A player in the low yard's open south-west with a wonder weapon, looking east. */
 function setup(weapon: string, upgraded = false) {
   const t = makeGame();
   const p = t.game.addPlayer(1, 'Ada');
   t.game.openDoor('d_mess_yard', 1);
   t.teleport(1, 22, 49);
   t.send(1, { t: 'debug', cmd: 'give', weapon, upgraded });
-  const sees = (x: number, z: number) => lineOfSight(t.game.map, p.x, p.y, p.z, x, 0, z, t.game.openDoors);
+  const sees = (x: number, z: number) => lineOfSight(t.game.map, p.x, p.y, p.z, x, LOW, z, t.game.openDoors);
   const hp = zombieHpForRound(30);
   /** `n` zombies in a rank across the yard, `gap` metres apart, barely moving. */
   const rank = (n: number, gap: number, x0 = 25) => Array.from({ length: n }, (_, i) => {
     expect(sees(x0 + i * gap, 49)).toBe(true);
-    return spawnZombie(t.game, null, x0 + i * gap, 0, 49, hp, 0.01);
+    return spawnZombie(t.game, null, x0 + i * gap, LOW, 49, hp, 0.01);
   });
   const east = -Math.PI / 2;
   let seq = 0;
@@ -54,7 +57,7 @@ describe('the Arclight', () => {
   it('does nothing without a first target, and stops where the horde thins out', () => {
     const { t, rank, fire } = setup('arclight');
     const near = rank(3, 2);
-    const far = spawnZombie(t.game, null, 40, 0, 49, 150, 0.01);
+    const far = spawnZombie(t.game, null, 40, LOW, 49, 150, 0.01);
     fire();
     t.wait(1);
     expect(t.of('chain')).toHaveLength(0);
@@ -80,7 +83,7 @@ describe('the Gravewell', () => {
   it('opens a singularity that drags a 24-zombie horde in, then implodes on them', () => {
     const { t, p, rank, fire, hp } = setup('gravewell');
     const horde = [...rank(8, 0.6, 28), ...rank(8, 0.6, 28).map((z) => ((z.z = 48), z)), ...rank(8, 0.6, 28).map((z) => ((z.z = 50), z))];
-    const out = spawnZombie(t.game, null, 44, 0, 40, hp, 0.01); // well out of reach
+    const out = spawnZombie(t.game, null, 44, 0, 36, hp, 0.01); // well out of reach, up on the terrace
     fire();
     t.wait(0.2);
     expect(t.snaps.at(-1)!.projectiles.map((pr) => pr[1])).toEqual(['orb']);
@@ -128,13 +131,15 @@ describe('the Siren', () => {
     const { t, p, rank } = setup('warden');
     t.send(1, { t: 'debug', cmd: 'give', tactical: true });
     expect(p.pub.tactical).toBe(MAX_TACTICALS);
-    const horde = rank(6, 1.2, 26).map((z) => ((z.speed = 3), z));
-    // Thrown north, away from the player and the zombies.
+    const horde = rank(6, 1.2, 28).map((z) => ((z.speed = 3), z));
+    // Thrown north, away from the player and the zombies, from far enough back that the blast
+    // does not reach (anything thrown onto the snow slope rolls back to its foot).
+    t.teleport(1, 22, 50.5);
     t.send(1, { t: 'throw', kind: 'tactical', yaw: 0, pitch: -0.1 });
     expect(p.pub.tactical).toBe(MAX_TACTICALS - 1);
     t.wait(1.5);
     const siren = t.game.projectiles.find((pr) => pr.kind === 'siren')!;
-    expect(siren.z).toBeLessThan(45);
+    expect(siren.z).toBeLessThan(46);
     expect(siren.z).toBeGreaterThan(36);
     expect(t.game.nav.lure).not.toBeNull();
     const toSiren = () => horde.map((z) => Math.hypot(z.x - siren.x, z.z - siren.z));

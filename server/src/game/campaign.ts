@@ -20,6 +20,8 @@ export interface CampaignOpts {
   onRound?: (r: RoundReport) => void;
   /** Told what each bot was doing when it went down (for tuning the bots). */
   onDown?: (what: string) => void;
+  /** Told every ten seconds where each bot is and what it is after (for tuning the bots). */
+  onTrace?: (line: string) => void;
 }
 
 export interface RoundReport {
@@ -158,6 +160,10 @@ export function runCampaign(opts: CampaignOpts): CampaignResult {
     if (ms > TICK_BUDGET_MS) res.overBudget++;
     res.ticks++;
     if (res.ticks % 15 !== 0) continue;
+    if (opts.onTrace && res.ticks % 300 === 0) {
+      const who = [...game.players.values()].map((p) => `${game.map.zoneAt(p.x, p.y, p.z) ?? '?'}(${p.x.toFixed(0)},${p.z.toFixed(0)},${p.y.toFixed(1)}) ${p.state === MoveState.Dead ? 'dead' : p.state === MoveState.Downed ? 'down' : Math.round(p.hp)} ${(bots.get(p.pub.id)?.intent?.goal ?? '').split(':').slice(0, 2).join(':') || '-'}`);
+      opts.onTrace(`${game.time.toFixed(0).padStart(5)}s r${game.rounds.round} z${zombieCount(game)}  ${who.join(' | ')}`);
+    }
     res.peakAlive = Math.max(res.peakAlive, zombieCount(game));
     for (const z of game.zombies.values()) {
       const idle = idleFor(game, z);
