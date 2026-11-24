@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_ALIVE_CAP, Rng, TICK_DT, ZOMBIE_SPEED_RUN, ZOMBIE_SPEED_SHAMBLE, ZOMBIE_SPEED_WALK, ZombieState } from '@zh/shared';
+import { MAX_ALIVE_CAP, Rng, SNAPSHOT_BUDGET_BYTES, encode, TICK_DT, ZOMBIE_SPEED_RUN, ZOMBIE_SPEED_SHAMBLE, ZOMBIE_SPEED_WALK, ZombieState } from '@zh/shared';
 import { BotBrain } from '../botBrain';
 import { killZombie } from './entities';
 import { zombieCount } from './spawner';
@@ -63,14 +63,18 @@ function soak(seconds: number, openDoors: boolean) {
     }
   }
   const hits = t.of("playerHurt").length;
-  return { worstIdle, worst, peak, kills, hits, zones, tickMs: tickMsTotal / ticks, tickMsMax, corrections: t.corrections.length, game };
+  const snapBytes = Math.max(...t.snaps.filter((m) => m.zombies.length === MAX_ALIVE_CAP).slice(-200).map((m) => encode(m).length));
+  return { snapBytes, worstIdle, worst, peak, kills, hits, zones, tickMs: tickMsTotal / ticks, tickMsMax, corrections: t.corrections.length, game };
 }
 
 describe('soak: 32 zombies, 4 roaming bots', () => {
   it('5 minutes with every door open: nobody gets stuck, the tick stays cheap', () => {
     const r = soak(300, true);
-    console.log(`[soak open] worst idle ${r.worstIdle.toFixed(1)} s (${r.worst}); peak ${r.peak}; kills ${r.kills}; tick avg ${r.tickMs.toFixed(2)} ms, max ${r.tickMsMax.toFixed(2)} ms; zones ${[...r.zones].join(',')}`);
+    console.log(`[soak open] worst idle ${r.worstIdle.toFixed(1)} s (${r.worst}); peak ${r.peak}; kills ${r.kills}; tick avg ${r.tickMs.toFixed(2)} ms, max ${r.tickMsMax.toFixed(2)} ms; snapshot ${r.snapBytes} bytes; zones ${[...r.zones].join(',')}`);
     expect(r.peak).toBe(MAX_ALIVE_CAP);
+    // PLAN session 14: a snapshot of four players and the full horde, as it goes on the wire.
+    expect(r.snapBytes).toBeGreaterThan(500);
+    expect(r.snapBytes).toBeLessThan(SNAPSHOT_BUDGET_BYTES);
     expect(r.kills).toBeGreaterThan(100);
     expect(r.zones.size).toBeGreaterThanOrEqual(8); // zombies chased through (nearly) the whole map
     expect(r.corrections).toBe(0);

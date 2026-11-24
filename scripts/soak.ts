@@ -10,6 +10,8 @@ import { idleFor } from '../server/src/game/zombies';
 import { Lobby } from '../server/src/lobby';
 
 const IDLE_LIMIT = 10;
+/** Tough enough that four bots with whatever they have bought cannot thin the horde. */
+const SOAK_HP = ZOMBIE_BASE_HP * 40;
 const args = process.argv.slice(2);
 const seconds = Number(args.find((a) => /^\d+$/.test(a)) ?? 300);
 const shut = args.includes('--shut');
@@ -22,9 +24,9 @@ wss.on('connection', (socket) => new Connection(socket, lobby));
 
 const url = `ws://localhost:${port}/ws`;
 const god = (send: (m: { t: 'debug'; cmd: 'god'; on: boolean }) => void) => send({ t: 'debug', cmd: 'god', on: true });
-const bots = [new Bot(url, 'Bot1', 'SOAK', 1, { create: true, expect: 4, onPlaying: god })];
+const bots = [new Bot(url, 'Bot1', 'SOAK', 1, { create: true, expect: 4, onPlaying: god, roam: true })];
 await sleep(300);
-for (let i = 2; i <= 4; i++) bots.push(new Bot(url, `Bot${i}`, 'SOAK', i, { onPlaying: god }));
+for (let i = 2; i <= 4; i++) bots.push(new Bot(url, `Bot${i}`, 'SOAK', i, { onPlaying: god, roam: true }));
 
 let game = lobby.rooms.get('SOAK')?.game ?? null;
 for (let i = 0; i < 50 && !game; i++) {
@@ -47,7 +49,7 @@ let nextLog = 30;
 console.log(`[soak] ${seconds} s, doors ${shut ? 'shut' : 'open'}, ${bots.length} bots`);
 while (Date.now() - began < seconds * 1000) {
   await sleep(250);
-  while (zombieCount(game) + game.spawnQueue.length < MAX_ALIVE_CAP) game.spawnQueue.push({ hp: ZOMBIE_BASE_HP, speed: rng.pick(speeds) });
+  while (zombieCount(game) + game.spawnQueue.length < MAX_ALIVE_CAP) game.spawnQueue.push({ hp: SOAK_HP, speed: rng.pick(speeds) });
   peak = Math.max(peak, zombieCount(game));
   for (const z of game.zombies.values()) {
     const idle = idleFor(game, z);

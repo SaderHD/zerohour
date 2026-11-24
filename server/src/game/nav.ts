@@ -29,6 +29,8 @@ export class Nav {
   update(g: Game): void {
     const interval = FLOWFIELD_INTERVAL_MS / 1000;
     let slot = 0;
+    // One scheduled recompute a tick: after a door opens the fields follow on successive ticks, not all at once.
+    let spent = false;
     for (const p of g.players.values()) {
       let e = this.fields.get(p.pub.id);
       if (!g.targetable(p)) {
@@ -41,7 +43,8 @@ export class Nav {
         this.fields.set(p.pub.id, e);
       }
       if (!e.valid) e.nextAt = 0;
-      if (g.time >= e.nextAt) {
+      if (g.time >= e.nextAt && (!spent || !e.valid)) {
+        spent = true;
         e.valid = e.field.compute(g.openDoors, p.x, p.z);
         e.nextAt = g.time + interval + (e.nextAt === 0 ? (slot * interval) / 4 : 0);
       }
