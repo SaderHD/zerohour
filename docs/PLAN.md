@@ -1043,8 +1043,9 @@ floor. Four steps.
   Acceptance: typecheck, lint and 232 tests; `campaign -- 25 --god` (25 rounds in 131 minutes of
   game time, worst stall 3.0 s, no corrections, the Forge used 34 times); `soak` (32 alive, worst
   stall 3.0 s); smoke, rounds, economy, e2e, site, heights, horde, wonders, ux, audio and the tour
-  (102 pictures); `ship -- --here`: four autopilot players through ten rounds in 14:14 with no downs,
-  forged guns from round 9, nothing in a console or the server log. Found on the way: the audio
+  (102 pictures); `ship`, on a fresh clone of the commit: four autopilot players through ten rounds
+  in 14:28 with one down (revived), forged guns from round 9, nothing in a console or the server log
+  (`ship -- --here` before it: 14:14, no downs). Found on the way: the audio
   script read the damage arcs in the instant of the hit, a frame before they are published, and
   failed whenever that frame was slow (it waits for the frame now); `ux` failed once at the pause
   screen and passed when run again.
