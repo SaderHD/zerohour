@@ -1,5 +1,7 @@
 // Screenshot tour: boots the built server and saves one or more views per zone to
 // test-results/tour-*.png so visual changes can be reviewed. Usage: npm run build && npm run tour
+// `npm run tour -- --stacks [view...]` tours the Stacks (the height proving ground) instead, with its
+// doors open, to test-results/tour-stacks-*.png.
 const { spawn } = require('node:child_process');
 const { mkdirSync } = require('node:fs');
 const path = require('node:path');
@@ -75,8 +77,29 @@ const VIEWS = [
   ['mount-tonic-on', 25.4, 31, 1.45, 0],
 ];
 
+// The Stacks: a sixth number is the height of the floor to stand on (the loft is over the hall, the cellar under it).
+const STACKS_VIEWS = [
+  ['hall', 18, 16.8, 0.85, -0.02, 0],
+  ['hall-ramp', 15, 10.5, -1.45, 0.05, 0],
+  ['hall-ledge', 16.5, 15, -1.57, 0.05, 0],
+  ['ramp-foot', 19.2, 9, -1.57, 0.1, 0],
+  ['ramp-top', 25, 9, 1.57, -0.2, 1],
+  ['terrace', 25, 16.5, 1.2, -0.12, 1],
+  ['lobby-stairs', 4.6, 17, 0.12, 0.3, 0],
+  ['stairs-mid', 4, 13, 0, 0.35, 1.25],
+  ['stairs-top', 4, 8.2, 3.14, -0.55, 3],
+  ['loft', 15, 17, 0.85, -0.03, 3],
+  ['loft-window', 12, 13, -1.57, 0, 3],
+  ['loft-east', 7, 9.5, -2.2, -0.03, 3],
+  ['cellar-door', 11, 16, 3.14, -0.35, 0],
+  ['cellar-stairs', 11, 25.3, 0, 0.35, -3],
+  ['cellar', 18.5, 16.5, 0.9, -0.02, -3],
+  ['cellar-window', 17, 15, 3.14, 0, -3],
+];
+
 (async () => {
-  const server = spawn('node', ['server/dist/index.js'], { cwd: root, env: { ...process.env, PORT: String(port), ZH_DEBUG: '1' }, stdio: 'ignore' });
+  const stacks = process.argv.includes('--stacks');
+  const server = spawn('node', ['server/dist/index.js'], { cwd: root, env: { ...process.env, PORT: String(port), ZH_DEBUG: '1', ...(stacks ? { ZH_MAP: 'stacks' } : {}) }, stdio: 'ignore' });
   let browser;
   try {
     for (let i = 0; i < 50; i++) {
@@ -88,20 +111,21 @@ const VIEWS = [
     browser = await chromium.launch();
     const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
     page.on('pageerror', (e) => console.error('[page]', String(e)));
-    await page.goto(`http://localhost:${port}/?debug=1&autostart=1`);
+    await page.goto(`http://localhost:${port}/?debug=1&autostart=1${stacks ? '&map=stacks' : ''}`);
     await page.waitForFunction(() => window.__zh?.state().phase === 'playing', null, { timeout: 15000 });
     await page.evaluate(() => window.__zh.rounds(false));
     mkdirSync(path.join(root, 'test-results'), { recursive: true });
-    const only = process.argv.slice(2);
-    for (const [name, x, z, yaw, pitch] of VIEWS) {
+    const only = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+    if (stacks) await page.evaluate(() => window.__zh.openAllDoors());
+    for (const [name, x, z, yaw, pitch, y] of stacks ? STACKS_VIEWS : VIEWS) {
       if (only.length && !only.includes(name)) continue;
       if (name.endsWith('-on') && !(await page.evaluate(() => window.__zh.state().power))) {
         await page.evaluate(() => window.__zh.powerOn());
         await page.waitForTimeout(2200); // the lights stutter up
       }
-      await page.evaluate(([x, z, yaw, pitch]) => { window.__zh.teleport(x, z, yaw); window.__zh.look(yaw, pitch); }, [x, z, yaw, pitch]);
+      await page.evaluate(([x, z, yaw, pitch, y]) => { window.__zh.teleport(x, z, yaw, y ?? undefined); window.__zh.look(yaw, pitch); }, [x, z, yaw, pitch, y ?? null]);
       await page.waitForTimeout(900); // server round-trip for the teleport, a few frames, the air settling
-      await page.screenshot({ path: path.join(root, `test-results/tour-${name}.png`) });
+      await page.screenshot({ path: path.join(root, `test-results/tour-${stacks ? 'stacks-' : ''}${name}.png`) });
     }
     console.log('[tour]', JSON.stringify(await page.evaluate(() => window.__zh.state())));
   } finally {

@@ -3,7 +3,7 @@
 import type { PerkId, PowerupId } from '@zh/shared';
 import { midi, type Synth, type ToneSpec, type Voice } from './synth';
 
-type At = { x: number; z: number } | undefined;
+type At = { x: number; z: number; y?: number } | undefined;
 /** [MIDI note (0 = rest), beats] */
 type Note = readonly [number, number];
 

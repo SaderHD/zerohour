@@ -82,8 +82,8 @@ export function onFire(g: Game, p: PlayerState, m: Msg<'fire'>): void {
     const n = (perTarget.get(z.id) ?? 0) + 1;
     perTarget.set(z.id, n);
     if (n > def.pellets) continue;
-    // (Over the floor: the client measures the same way, and a storey's height is within the slack.)
-    const actual = Math.hypot(z.x - p.x, z.z - p.z);
+    // The client reports how far along the shot the body was: over the floor, and up or down to its storey.
+    const actual = Math.hypot(z.x - p.x, z.z - p.z, z.y - p.y);
     if (Math.abs(h.dist - actual) > HIT_DIST_SLACK || actual > def.range + HIT_DIST_SLACK) continue;
     if (!lineOfSight(g.map, p.x, p.y, p.z, z.x, z.y, z.z, g.openDoors)) continue;
     if (def.wonder?.kind === 'arclight') return arc(g, p, z, def);

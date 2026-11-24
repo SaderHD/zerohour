@@ -18,11 +18,12 @@ export class ForgeView {
   private key = '';
   private phase: ForgeState['phase'] = 'idle';
   private spark = 0;
-  private readonly at: { x: number; z: number } | null;
+  private readonly at: { x: number; y: number; z: number } | null;
 
   constructor(scene: THREE.Scene, map: CompiledMap, private readonly lightAt: (x: number, y: number, z: number) => [number, number, number], private readonly fx: Fx) {
     const prop = map.def.props.find((p) => p.type === 'forge');
-    this.at = prop ? { x: prop.x, z: prop.z } : null;
+    const floor = prop ? map.floorOn(prop.level, prop.x, prop.z) : NaN;
+    this.at = prop ? { x: prop.x, y: Number.isNaN(floor) ? 0 : floor, z: prop.z } : null;
     // Along the cradle: across the machine, whichever way it faces.
     this.holder.rotation.y = ((prop?.rot ?? 0) * Math.PI) / 180 + Math.PI / 2;
     this.holder.visible = false;
@@ -51,19 +52,19 @@ export class ForgeView {
   update(dt: number, time: number): void {
     const m = this.model;
     if (!m || !this.at) return;
-    const { x, z } = this.at;
-    const [r, g, b] = this.lightAt(x - 0.6, 1.2, z);
+    const { x, y, z } = this.at;
+    const [r, g, b] = this.lightAt(x - 0.6, y + 1.2, z);
     if (this.phase === 'working') {
-      this.holder.position.set(x + (Math.random() - 0.5) * 0.012, CRADLE_Y + (Math.random() - 0.5) * 0.012, z);
+      this.holder.position.set(x + (Math.random() - 0.5) * 0.012, y + CRADLE_Y + (Math.random() - 0.5) * 0.012, z);
       this.holder.rotation.z = Math.PI / 2 + (Math.random() - 0.5) * 0.06;
       if ((this.spark -= dt) <= 0) {
         this.spark = 0.07;
-        this.fx.puff(x + (Math.random() - 0.5) * 0.5, CRADLE_Y + 0.1, z + (Math.random() - 0.5) * 0.7, ARC, 2, 2.4, 0.035, 0.35);
+        this.fx.puff(x + (Math.random() - 0.5) * 0.5, y + CRADLE_Y + 0.1, z + (Math.random() - 0.5) * 0.7, ARC, 2, 2.4, 0.035, 0.35);
       }
       const hot = 1.4 + Math.sin(time * 40) * 0.5;
       m.material.color.setRGB(r + hot * 0.5, g + hot * 0.2, b + hot);
     } else {
-      this.holder.position.set(x, OFFER_Y + Math.sin(time * 2.2) * 0.04, z);
+      this.holder.position.set(x, y + OFFER_Y + Math.sin(time * 2.2) * 0.04, z);
       this.holder.rotation.z = Math.sin(time * 1.3) * 0.25;
       m.material.color.setRGB(r + 0.35, g + 0.3, b + 0.5);
     }

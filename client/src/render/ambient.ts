@@ -31,6 +31,8 @@ interface Drip {
   x: number;
   y: number;
   z: number;
+  /** Height of the floor it falls to. */
+  floor: number;
   period: number;
   phase: number;
 }
@@ -64,7 +66,7 @@ export class Ambient {
       this.moving.push({ mover, meshes, angle: 0, phase: i * 1.7 });
     }
 
-    this.drips = drips.map(([x, y, z], i) => ({ x, y, z, period: 1.3 + ((i * 0.618) % 1) * 1.9, phase: (i * 0.37) % 1 }));
+    this.drips = drips.map(([x, y, z], i) => ({ x, y, z, floor: Math.min(y, map.floorUnder(x, y - 0.1, z)) === y ? 0 : map.floorUnder(x, y - 0.1, z), period: 1.3 + ((i * 0.618) % 1) * 1.9, phase: (i * 0.37) % 1 }));
     if (this.drips.length) {
       // Per drip: two crossed quads for the drop and one flat one for the splash.
       const verts = this.drips.length * 18;
@@ -104,13 +106,15 @@ export class Ambient {
           for (let x = room.x; x < room.x + room.w - 1e-3; x += MIST_TILE) {
             const cx = Math.floor((x + MIST_TILE / 2) / CELL_SIZE);
             const cz = Math.floor((z + MIST_TILE / 2) / CELL_SIZE);
-            if (map.kindAt(cx, cz) === Cell.Solid) continue;
+            const cell = map.idx(cx, cz, Math.max(0, map.layerOf(room.level ?? 0)));
+            if (map.kind[cell] === Cell.Solid) continue;
+            const floor = map.lo[cell]!;
             // The two layers drift across each other.
-            const V = (px: number, pz: number): Vert => ({ p: [px, y, pz], uv: li ? [pz / 5 + 0.37, px / 5 + 0.11] : [px / 6, pz / 6], ao: edge(px, pz) });
+            const V = (px: number, pz: number): Vert => ({ p: [px, floor + y, pz], uv: li ? [pz / 5 + 0.37, px / 5 + 0.11] : [px / 6, pz / 6], ao: edge(px, pz) });
             const x1 = Math.min(x + MIST_TILE, room.x + room.w);
             const z1 = Math.min(z + MIST_TILE, room.z + room.d);
             const k = gain * MIST_GAIN;
-            this.baker.quad(b, [V(x, z), V(x, z1), V(x1, z1), V(x1, z)], [0, 1, 0], map.idx(cx, cz), [k * 0.8, k * 0.92, k]);
+            this.baker.quad(b, [V(x, z), V(x, z1), V(x1, z1), V(x1, z)], [0, 1, 0], cell, [k * 0.8, k * 0.92, k]);
           }
         }
       }
@@ -146,11 +150,12 @@ export class Ambient {
     };
     for (const [i, d] of this.drips.entries()) {
       const t = ((time / d.period + d.phase) % 1) * d.period;
-      const fall = Math.sqrt((2 * d.y) / GRAVITY);
+      const drop = Math.max(0.1, d.y - d.floor);
+      const fall = Math.sqrt((2 * drop) / GRAVITY);
       const w = 0.018;
       if (t < fall) {
         const y1 = d.y - 0.5 * GRAVITY * t * t;
-        const y0 = Math.max(0, y1 - DROP_LENGTH * Math.min(1, t / 0.15));
+        const y0 = Math.max(d.floor, y1 - DROP_LENGTH * Math.min(1, t / 0.15));
         quad([d.x - w, y0, d.z], [d.x + w, y0, d.z], [d.x + w, y1, d.z], [d.x - w, y1, d.z]);
         quad([d.x, y0, d.z - w], [d.x, y0, d.z + w], [d.x, y1, d.z + w], [d.x, y1, d.z - w]);
       } else {
@@ -160,13 +165,14 @@ export class Ambient {
       const s = (t - fall) / SPLASH_SECONDS;
       if (s >= 0 && s < 1) {
         const r = 0.04 + s * 0.16;
-        quad([d.x - r, 0.03, d.z - r], [d.x - r, 0.03, d.z + r], [d.x + r, 0.03, d.z + r], [d.x + r, 0.03, d.z - r]);
+        const f = d.floor + 0.03;
+        quad([d.x - r, f, d.z - r], [d.x - r, f, d.z + r], [d.x + r, f, d.z + r], [d.x + r, f, d.z - r]);
       } else {
         p.fill(0, o, o + 18);
         o += 18;
       }
       // Drops catch whatever light there is.
-      const l = this.baker.lightAt(d.x, 1, d.z);
+      const l = this.baker.lightAt(d.x, d.floor + 1, d.z);
       const fade = s >= 0 && s < 1 ? 1 - s : 1;
       for (let v = 0; v < 18; v++) {
         const k = v < 12 ? 1 : fade * 0.7;

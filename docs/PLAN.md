@@ -931,13 +931,27 @@ floor. Four steps.
   Proved on the Stacks (three storeys, a ramp and a terrace): 32 zombies and four roaming bots for
   three minutes, worst stall 3 s, every floor reached by both. Found on the way: a sight line
   between two points in one column (one directly over the other) checked nothing between them.
-  Not done here, and step 2's business: the client draws only the ground layer and stands every
-  actor at height 0 (it carries `y` for its own player, the camera, remote players and pick-ups;
-  zombies, hit boxes, effects, the light bake, sound occlusion and the tour do not use it yet), so
-  a map with height cannot be *played in a browser* until step 2.
-- [ ] 2 Rendering and feel for height: `worldBuilder` (slopes, treads, ledge faces, slabs,
-  railings), bake, snow, exterior, mist and culling per storey; actors, hit boxes, effects and
-  sound at their heights.
+  (The client drew only the ground layer until step 2.)
+- [x] 2 Rendering and feel for height — done. `worldBuilder` walks every layer: a cell's walls are
+  its open interval less everything open in the column beside it, which now also yields stair
+  risers, the faces of ledges and the edges of the slabs between storeys (a face under 0.35 m is
+  drawn as floor: steps and kerbs). A ramp is walked as shallow steps but drawn, and stood on, as
+  one slope (`CompiledMap.slope0/1`, `groundIn`, `footAt`), with a triangle of wall under its side.
+  The bake is per cell on every layer (a light's `y` is above its storey's base; what it reaches
+  is judged chest to chest, so a floor stops it); props, lamps, doors, mist, drips, snow and roofs
+  go by their storey. Actors are drawn and hit at their heights (zombies, remote players, their
+  hit boxes, tracers, lightning, markers, planks, the Cache and the Forge), prompts and revives
+  go by floor, the view follows the floor smoothly, and a sound has the height of the floor it is
+  made on (distance and occlusion). The server measures a reported hit in 3D.
+  A server started with `ZH_MAP=stacks` plays the Stacks, and a client follows whatever map its
+  server is on (`?map=`). `npm run heights` is the browser walk-through there (ramp, ledge,
+  stairs, shots and prompts by floor, a zombie climbing from the cellar to the loft);
+  `npm run tour -- --stacks` photographs it. Harrow Ridge draws as it did: fifteen tour views
+  differ from the last commit's only by what moves (under 1% of pixels, the snow), and the seeded
+  campaigns are unchanged.
+  Not done: railings (a ledge is a bare drop; dressing, step 3); damage arcs still point in plan
+  only; the roofs, snow and pines have only been seen on the station, since the Stacks has no
+  yard.
 - [ ] 3 Rebuild Harrow Ridge: sloped site, rooms that are not boxes, a basement and an upstairs.
 - [ ] 4 Balance and acceptance (`campaign --runs=8` before and after, tour, soak, `ship`).
 

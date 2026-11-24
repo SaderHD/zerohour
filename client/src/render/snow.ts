@@ -18,7 +18,12 @@ export class Snow {
   private readonly seeds: Float32Array;
   private readonly pos: THREE.BufferAttribute;
 
+  /** For every column: the height of the ground that lies open to the sky there, or NaN under a roof. */
+  private readonly ground: Float32Array;
+
   constructor(private readonly map: CompiledMap) {
+    this.ground = new Float32Array(map.plane).fill(NaN);
+    for (let i = 0; i < map.kind.length; i++) if (map.sky[i] === 1) this.ground[i % map.plane] = map.lo[i]!;
     const rng = new Rng(1206);
     this.seeds = new Float32Array(FLAKES * 5);
     for (let i = 0; i < FLAKES; i++) this.seeds.set([rng.range(0, SPAN), rng.range(0, HEIGHT), rng.range(0, SPAN), rng.range(0.9, 1.9), rng.range(0, 6.28)], i * 5);
@@ -42,9 +47,10 @@ export class Snow {
       const y = ((((s[o + 1]! - time * s[o + 3]!) % HEIGHT) + HEIGHT) % HEIGHT);
       const cx = Math.floor(x / CELL_SIZE);
       const cz = Math.floor(z / CELL_SIZE);
-      const open = this.map.inBounds(cx, cz) ? this.map.sky[this.map.idx(cx, cz)] === 1 : true;
+      // Outside the map it falls to the ground; inside, onto whatever lies open to the sky.
+      const ground = this.map.inBounds(cx, cz) ? this.ground[cz * this.map.cols + cx]! : 0;
       p[i * 3] = x;
-      p[i * 3 + 1] = open || y > ROOF_CLEARANCE ? y : -100;
+      p[i * 3 + 1] = !Number.isNaN(ground) ? ground + y : y > ROOF_CLEARANCE ? y : -100;
       p[i * 3 + 2] = z;
     }
     this.pos.needsUpdate = true;

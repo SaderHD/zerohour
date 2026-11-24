@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BLEEDOUT_SECONDS, INTERACT_RANGE, MoveState, PLAYER_EYE_HEIGHT, lineOfSight, type CompiledMap, type PlayerId, type PlayerPublic, type PlayerSnap } from '@zh/shared';
+import { BLEEDOUT_SECONDS, FLOOR_GAP, INTERACT_RANGE, MoveState, PLAYER_EYE_HEIGHT, lineOfSight, type CompiledMap, type PlayerId, type PlayerPublic, type PlayerSnap } from '@zh/shared';
 import { PLAYER_COLOURS, PlayerModel } from '../models/player';
 import { InterpBuffer, type Pose } from '../net/interp';
 import type { World } from '../render/worldBuilder';
@@ -89,10 +89,10 @@ export class RemotePlayers {
       r.downFor = down ? r.downFor + dt : 0;
       if (!down) r.reviving = false;
       r.fall += ((down ? 1 : 0) - r.fall) * Math.min(1, dt * 7);
-      root.position.set(pose.x, pose.y + r.fall * 0.14, pose.z);
+      root.position.set(pose.x, this.map.footAt(pose.x, pose.y, pose.z) + r.fall * 0.14, pose.z);
       root.rotation.set(r.fall * 1.5, pose.yaw, 0, 'YXZ');
       r.model.update(dt, { speed: pose.speed, sprinting: pose.state === MoveState.Sprint, pitch: pose.pitch });
-      r.model.setLight(this.world.lightAt(pose.x, 1, pose.z));
+      r.model.setLight(this.world.lightAt(pose.x, pose.y + 1, pose.z));
 
       // Name tag: projected to the screen, hidden when behind us, far away or behind a wall.
       const v = this.v.set(pose.x, pose.y + 2.05 - r.fall * 1.4, pose.z);
@@ -129,11 +129,11 @@ export class RemotePlayers {
   }
 
   /** The nearest downed teammate within reach. */
-  revivable(x: number, z: number): { id: PlayerId; name: string } | null {
+  revivable(x: number, y: number, z: number): { id: PlayerId; name: string } | null {
     let best: Remote | null = null;
     let bestD = INTERACT_RANGE;
     for (const r of this.remotes.values()) {
-      if (r.pose?.state !== MoveState.Downed) continue;
+      if (r.pose?.state !== MoveState.Downed || Math.abs(r.pose.y - y) >= FLOOR_GAP) continue;
       const d = Math.hypot(r.pose.x - x, r.pose.z - z);
       if (d < bestD) {
         best = r;
@@ -156,6 +156,11 @@ export class RemotePlayers {
   /** How many teammates are on their feet. */
   standing(): number {
     return this.up().length;
+  }
+
+  /** Height of the floor a teammate stands on (0 if we have not seen them yet). */
+  floorOf(id: PlayerId): number {
+    return this.remotes.get(id)?.pose?.y ?? 0;
   }
 
   /** A teammate on their feet to watch while we are out of the game; `index` steps through them. */

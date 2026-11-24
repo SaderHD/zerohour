@@ -111,14 +111,14 @@ export class Autopilot {
     const moving = life === 'alive' && (it.moveX !== 0 || it.moveZ !== 0);
     player.wish = moving ? { x: it.moveX, z: it.moveZ, sprint: it.sprint } : { x: 0, z: 0, sprint: false };
     let lx = NaN;
-    let ly = 1.3;
+    let ly = player.y + 1.3;
     let lz = NaN;
     if (it.aim) {
       // For the head, as anyone who has played a while does.
       const head = this.entities.head(it.aim.id);
       lx = head?.x ?? it.aim.x;
       lz = head?.z ?? it.aim.z;
-      ly = head?.y ?? 1.2;
+      ly = head?.y ?? it.aim.y + 1.2;
     } else if (it.look) {
       lx = it.look.x;
       lz = it.look.z;
@@ -126,7 +126,7 @@ export class Autopilot {
     if (Number.isFinite(lx)) {
       const dx = lx - player.x;
       const dz = lz - player.z;
-      const eye = life === 'downed' ? 0.55 : PLAYER_EYE_HEIGHT;
+      const eye = player.y + (life === 'downed' ? 0.55 : PLAYER_EYE_HEIGHT);
       player.yaw = Math.atan2(-dx, -dz);
       // Hold the muzzle down against the climb, as a hand does.
       player.pitch = Math.atan2(ly - eye, Math.hypot(dx, dz)) - (it.aim ? player.viewPitch - player.pitch : 0);

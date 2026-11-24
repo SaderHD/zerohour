@@ -1,7 +1,7 @@
 // The sound of the game as a whole: owns the audio context, hears every game event and decides
 // what it sounds like and where, and each frame does the continuous things (feet, groans, air).
 import {
-  CELL_SIZE, FORGE_SECONDS, FLOOR_STYLES, MoveState, ZombieState, lineOfSight, weaponStats,
+  FORGE_SECONDS, FLOOR_STYLES, MoveState, ZombieState, lineOfSight, weaponStats,
   type CompiledMap, type DoorSet, type FloorStyle, type GameEvent, type PowerupId, type ProjectileSnap, type SyncState,
 } from '@zh/shared';
 import { Ambience } from './ambience';
@@ -12,7 +12,7 @@ import { Sfx } from './sfx';
 import { MAX_VOICES, Synth } from './synth';
 import { RATE, Recorder, renderSound } from './tools';
 
-type Spot = { x: number; z: number };
+type Spot = { x: number; z: number; y?: number };
 
 /** What the sounds need to know about the world; read when an event arrives. */
 export interface AudioWorld {
@@ -32,8 +32,9 @@ export interface AudioFrame {
   playing: boolean;
   alive: boolean;
   downed: boolean;
-  /** The listener: the camera. */
+  /** The listener: the camera, and the height of the floor under it. */
   x: number;
+  y: number;
   z: number;
   yaw: number;
   zone: string | null;
@@ -49,7 +50,7 @@ export interface AudioFrame {
   reviving: number;
   gameTime: number;
   entities: readonly { id: number; kind: string; x: number; z: number; state: number; gait: number }[];
-  remotes: readonly { id: number; x: number; z: number; state: number; connected: boolean }[];
+  remotes: readonly { id: number; x: number; y: number; z: number; state: number; connected: boolean }[];
 }
 
 const STORE_KEY = 'zh_audio';
@@ -84,12 +85,14 @@ export class GameAudio {
     this.music = new Music(this.synth);
     this.ambience = new Ambience(this.synth, this.sfx, w.map, w.drips);
     let lx = 0;
+    let ly = 0;
     let lz = 0;
-    this.listenerAt = (x, z) => {
+    this.listenerAt = (x, y, z) => {
       lx = x;
+      ly = y;
       lz = z;
     };
-    this.synth.occluded = (x, z) => !lineOfSight(w.map, lx, 0, lz, x, 0, z, w.openDoors);
+    this.synth.occluded = (x, z, y) => !lineOfSight(w.map, lx, ly, lz, x, y, z, w.openDoors);
     try {
       const saved = JSON.parse(localStorage.getItem(STORE_KEY) ?? '{}') as Partial<Synth['volumes']>;
       for (const k of ['master', 'sfx', 'music'] as const) if (typeof saved[k] === 'number') this.synth.setVolume(k, saved[k]);
@@ -105,7 +108,7 @@ export class GameAudio {
     });
   }
 
-  private readonly listenerAt: (x: number, z: number) => void;
+  private readonly listenerAt: (x: number, y: number, z: number) => void;
 
   unlock(): Promise<void> {
     return this.ctx.state === 'suspended' ? this.ctx.resume() : Promise.resolve();
@@ -135,18 +138,19 @@ export class GameAudio {
     this.projectiles = list;
   }
 
-  private floorAt(x: number, z: number): FloorStyle {
+  private floorAt(x: number, y: number, z: number): FloorStyle {
     const { map } = this.w;
-    return FLOOR_STYLES[map.floorStyle[map.idx(Math.floor(x / CELL_SIZE), Math.floor(z / CELL_SIZE))] ?? 0] ?? 'concrete';
+    return FLOOR_STYLES[map.floorStyle[map.cellAt(x, y, z)] ?? 0] ?? 'concrete';
   }
 
   private opening(id: string): Spot | undefined {
     const o = this.w.map.openingById(id);
-    return o && { x: o.x + o.w / 2, z: o.z + o.d / 2 };
+    return o && { x: o.x + o.w / 2, y: this.w.map.openingHeight(o), z: o.z + o.d / 2 };
   }
 
   private thing(id: string | undefined): Spot | undefined {
-    return this.w.map.def.interactables.find((i) => i.id === id);
+    const it = this.w.map.def.interactables.find((i) => i.id === id);
+    return it && { x: it.x, y: this.w.map.mountHeight(it), z: it.z };
   }
 
   /** Call for every game event *before* the game applies it (so the dead can still be found). */
@@ -253,7 +257,7 @@ export class GameAudio {
         if (ev.until !== undefined) this.effects.set(ev.kind, ev.until);
         break;
       case 'explosion':
-        guns.explosion(ev, ev.kind);
+        guns.explosion({ x: ev.x, y: this.w.map.floorUnder(ev.x, ev.y, ev.z), z: ev.z }, ev.kind);
         break;
       case 'mark':
         sfx.mark(ev.id === this.w.selfId() ? undefined : ev);
@@ -269,8 +273,8 @@ export class GameAudio {
   /** Once a frame. */
   frame(f: AudioFrame): void {
     const { sfx, guns } = this;
-    this.synth.setListener(f.x, f.z, f.yaw);
-    this.listenerAt(f.x, f.z);
+    this.synth.setListener(f.x, f.z, f.yaw, f.y);
+    this.listenerAt(f.x, f.y, f.z);
     this.ambience.update(f.dt, f.zone, f.power, f.x, f.z, f.playing ? f.hp : 1, f.playing && f.downed);
     if (!f.playing) return;
     this.hp = f.hpNow;
@@ -279,7 +283,7 @@ export class GameAudio {
     const stride = Math.floor(f.stride);
     if (stride !== this.lastStride) {
       this.lastStride = stride;
-      if (f.alive && f.speed > 1) sfx.step(this.floorAt(f.x, f.z), f.sprinting);
+      if (f.alive && f.speed > 1) sfx.step(this.floorAt(f.x, f.y, f.z), f.sprinting);
     }
     // Everyone else's, by the ground they cover.
     for (const r of f.remotes) {
@@ -294,7 +298,7 @@ export class GameAudio {
       if (moved > 2 || !r.connected || r.state === MoveState.Downed || r.state === MoveState.Dead) continue;
       if ((w.d += moved) >= REMOTE_STRIDE) {
         w.d -= REMOTE_STRIDE;
-        sfx.step(this.floorAt(r.x, r.z), r.state === MoveState.Sprint, r);
+        sfx.step(this.floorAt(r.x, r.y, r.z), r.state === MoveState.Sprint, r);
       }
     }
 

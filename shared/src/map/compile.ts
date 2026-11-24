@@ -77,6 +77,13 @@ export class CompiledMap {
   /** 1 + the direction index (n s e w) a ramp or stair cell climbs towards, +4 for stairs; 0 on level floor. */
   readonly rise: Uint8Array;
   /**
+   * How a floor is drawn: its height along the cell's downhill and uphill edges. The same as `lo`
+   * except on a ramp, which is walked as shallow steps but drawn (and stood on, see `groundAt`) as
+   * one slope from the floor at its foot to the floor at its head.
+   */
+  readonly slope0: Float32Array;
+  readonly slope1: Float32Array;
+  /**
    * For each cell, the cell a walker reaches by stepping to each of its eight NEIGHBOURS (-1: a
    * wall or a ledge). Heights only: doors and furniture are the caller's business.
    */
@@ -116,6 +123,8 @@ export class CompiledMap {
     this.block = new Uint8Array(n);
     this.propH = new Float32Array(n);
     this.rise = new Uint8Array(n);
+    this.slope0 = new Float32Array(n);
+    this.slope1 = new Float32Array(n);
     this.links = new Int32Array(n * 8).fill(-1);
     this.openingY = new Float32Array(def.openings.length);
     this.zones = def.zones;
@@ -219,6 +228,32 @@ export class CompiledMap {
       if (this.walkable(i, open) && !(Math.abs(this.lo[i]! - y) >= Math.abs(best - y))) best = this.lo[i]!;
     }
     return best;
+  }
+
+  /** Height of the drawn floor of cell `i` under (x, z): `lo`, or the point on a ramp's slope. */
+  groundIn(i: number, x: number, z: number): number {
+    const r = this.rise[i]!;
+    if (r === 0 || r > 4 || this.slope0[i] === this.slope1[i]) return this.kind[i] === Cell.Window ? this.lo[i]! - WINDOW_SILL : this.lo[i]!;
+    const v = DIR_VEC[DIRS[r - 1]!];
+    // How far across the cell towards its uphill edge, 0..1.
+    const u = v.x !== 0 ? x / CELL_SIZE - this.cxOf(i) : z / CELL_SIZE - this.czOf(i);
+    const k = Math.max(0, Math.min(1, v.x + v.z > 0 ? u : 1 - u));
+    return this.slope0[i]! + (this.slope1[i]! - this.slope0[i]!) * k;
+  }
+
+  /** Where the feet of someone standing at (x, z) on the floor at height `y` are drawn. */
+  groundAt(x: number, y: number, z: number): number {
+    const i = this.cellAt(x, y, z);
+    return i < 0 ? y : this.groundIn(i, x, z);
+  }
+
+  /**
+   * Where to draw the feet of a body whose (possibly smoothed) floor height is `y`: on a ramp, the
+   * slope under it; anywhere else `y` itself, so that a climb up stairs is as smooth as `y` is.
+   */
+  footAt(x: number, y: number, z: number): number {
+    const i = this.cellAt(x, y, z);
+    return i >= 0 && this.slope0[i] !== this.slope1[i] ? this.groundIn(i, x, z) : y;
   }
 
   /** Can a player stand in this cell? */
@@ -384,6 +419,12 @@ export function compileMap(def: MapDef): CompiledMap {
           m.rise[i] = 1 + DIRS.indexOf(r.to) + (r.stairs ? 4 : 0);
         }
         m.lo[i] = lo;
+        m.slope0[i] = m.slope1[i] = lo;
+        if (r && v && !r.stairs) {
+          const k = v.x > 0 ? cx - c.x0 : v.x < 0 ? c.x1 - 1 - cx : v.z > 0 ? cz - c.z0 : c.z1 - 1 - cz;
+          m.slope0[i] = base + (r.by * k) / n;
+          m.slope1[i] = base + (r.by * (k + 1)) / n;
+        }
         m.hi[i] = base + room.ceil;
         m.floorStyle[i] = FLOOR_STYLES.indexOf(room.floor);
         m.wallStyle[i] = WALL_STYLES.indexOf(room.wall);
@@ -445,6 +486,7 @@ export function compileMap(def: MapDef): CompiledMap {
         m.zone[i] = zi;
         m.opening[i] = oi;
         m.lo[i] = o.kind === 'window' ? floor + WINDOW_SILL : floor;
+        m.slope0[i] = m.slope1[i] = m.lo[i]!;
         m.hi[i] = Math.min(m.hi[src]!, floor + (o.kind === 'window' ? WINDOW_TOP : o.kind === 'door' ? DOOR_HEIGHT : ARCH_HEIGHT));
         m.floorStyle[i] = m.floorStyle[src]!;
         m.wallStyle[i] = m.wallStyle[src]!;
@@ -471,6 +513,7 @@ export function compileMap(def: MapDef): CompiledMap {
           m.kind[i] = Cell.Outside;
           m.opening[i] = oi;
           m.lo[i] = floor;
+          m.slope0[i] = m.slope1[i] = floor;
           m.hi[i] = floor + Math.max(3, m.hi[src]! - floor);
           m.floorStyle[i] = FLOOR_STYLES.indexOf('snow');
           m.wallStyle[i] = WALL_STYLES.indexOf('rock');

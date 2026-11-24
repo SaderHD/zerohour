@@ -1,7 +1,7 @@
 import {
   CELL_SIZE, MARK_RANGE, MOVE_BUDGET_CAP, MOVE_SPEED_SLACK, MoveState, PLAYER_MAX_HP, PLAYER_RADIUS, SNAPSHOT_EVERY_TICKS,
   Rng, SPRINT_SPEED, START_GRENADES, START_POINTS, START_WEAPON, STEP_HEIGHT, TICK_BUDGET_MS, TICK_DT, ZOMBIE_SPAWN_INTERVAL,
-  circleFits, compileMap, harrowRidge, isFiniteNum,
+  circleFits, compileMap, isFiniteNum, mapById,
   type ClientMsg, type CompiledMap, type GameEvent, type PlayerId, type PlayerPublic, type PlayerSnap,
   type ForgeState, type Interactable, type PowerupId, type ServerMsg, type Snapshot, type WeaponState,
 } from '@zh/shared';
@@ -21,7 +21,8 @@ import { updateSpawner, type Arrival, type SpawnOrder } from './spawner';
 import { updateZombies } from './zombies';
 
 let sharedMap: CompiledMap | null = null;
-export const gameMap = (): CompiledMap => (sharedMap ??= compileMap(harrowRidge));
+/** The map games are played on: the station, unless `ZH_MAP` names another (`ZH_MAP=stacks` for the height proving ground). */
+export const gameMap = (): CompiledMap => (sharedMap ??= compileMap(mapById(process.env.ZH_MAP)));
 
 export interface PlayerState {
   pub: PlayerPublic;

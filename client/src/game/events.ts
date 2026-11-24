@@ -85,16 +85,24 @@ export function wireEvents(d: EventDeps): void {
     for (let i = 0; i < def.pellets; i++) {
       const jitter = def.pellets > 1 ? def.spreadHip : 0;
       const [dx, dy, dz] = aimDir(yaw + (Math.random() - 0.5) * 2 * jitter, pitch + (Math.random() - 0.5) * 2 * jitter);
-      const wall = rayWorld(map, m.openDoors, from.x, PLAYER_EYE_HEIGHT, from.z, dx, dy, dz, def.range);
-      const body = entities.raycast(from.x, PLAYER_EYE_HEIGHT, from.z, dx, dy, dz, wall)[def.pierce];
+      const eye = remotes.floorOf(id) + PLAYER_EYE_HEIGHT;
+      const wall = rayWorld(map, m.openDoors, from.x, eye, from.z, dx, dy, dz, def.range);
+      const body = entities.raycast(from.x, eye, from.z, dx, dy, dz, wall)[def.pierce];
       const reach = body?.dist ?? wall;
-      shotTo.set(from.x + dx * reach, PLAYER_EYE_HEIGHT + dy * reach, from.z + dz * reach);
+      shotTo.set(from.x + dx * reach, eye + dy * reach, from.z + dz * reach);
       if (def.wonder?.kind === 'arclight') fx.bolts.arc(from, shotTo, ARC_COLOUR, 0.07, 0.4);
       else fx.tracer(from, shotTo);
     }
   }
 
   s.on('sync', (msg) => {
+    if (msg.map !== map.def.id) {
+      // The server is on another map than the one we built: load that one.
+      const url = new URL(location.href);
+      url.searchParams.set('map', msg.map);
+      location.replace(url);
+      return;
+    }
     player.teleport(msg.self.x, msg.self.z, msg.self.yaw, msg.self.y);
     player.pitch = 0;
     m.setDoors(msg.openDoors);
@@ -289,16 +297,16 @@ export function wireEvents(d: EventDeps): void {
         }
         case 'strike':
           // Lightning: a howler is a moment behind it.
-          fx.bolts.strike(ev.x, ev.z);
-          fx.flash(ev.x, 1.5, ev.z, 50);
-          fx.puff(ev.x, 0.1, ev.z, 0xbfe8ff, 10, 3, 0.05, 0.5);
+          fx.bolts.strike(ev.x, ev.z, undefined, ev.y);
+          fx.flash(ev.x, ev.y + 1.5, ev.z, 50);
+          fx.puff(ev.x, ev.y + 0.1, ev.z, 0xbfe8ff, 10, 3, 0.05, 0.5);
           shake.blast(Math.hypot(ev.x - player.x, ev.z - player.z), 4);
           debugState.strikes++;
           debugState.lastStrike = { x: ev.x, z: ev.z };
           break;
         case 'mark': {
           const who = scores.players.get(ev.id);
-          marks.add(ev.id, who?.name ?? 'Survivor', [...scores.players.keys()].sort((a, b) => a - b).indexOf(ev.id), ev.x, ev.z, clock.now);
+          marks.add(ev.id, who?.name ?? 'Survivor', [...scores.players.keys()].sort((a, b) => a - b).indexOf(ev.id), ev.x, ev.z, clock.now, ev.y);
           break;
         }
         case 'purchase':

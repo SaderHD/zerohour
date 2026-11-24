@@ -100,8 +100,8 @@ export class ZombieActor implements EntityModel {
     return isCrawlState(this.state) ? this.crawlBoxes : this.standBoxes;
   }
 
-  place(x: number, z: number, yaw: number, state: number, speed: number, gait: number): void {
-    this.root.position.set(x, 0, z);
+  place(x: number, z: number, yaw: number, state: number, speed: number, gait: number, y = 0): void {
+    this.root.position.set(x, y, z);
     this.root.rotation.y = yaw;
     if (this.dead >= 0) return;
     if (state !== this.state) {

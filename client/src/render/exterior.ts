@@ -47,7 +47,14 @@ export function buildExterior(map: CompiledMap, baker: Baker): Bucket {
   /** Where a shell wall may start: the top of the lowest open ground just outside it, else the floor. */
   const startOf = (cx0: number, cz0: number, cx1: number, cz1: number): number => {
     let lo = Infinity;
-    for (let cz = cz0; cz < cz1; cz++) for (let cx = cx0; cx < cx1; cx++) if (map.kindAt(cx, cz) !== Cell.Solid) lo = Math.min(lo, map.hi[map.idx(cx, cz)]!);
+    for (let cz = cz0; cz < cz1; cz++) {
+      for (let cx = cx0; cx < cx1; cx++) {
+        // The top of whatever is open highest in this column.
+        let top = -Infinity;
+        for (let layer = 0; layer < map.layers; layer++) if (map.kindAt(cx, cz, layer) !== Cell.Solid) top = Math.max(top, map.hi[map.idx(cx, cz, layer)]!);
+        if (top > -Infinity) lo = Math.min(lo, top);
+      }
+    }
     return lo === Infinity ? 0 : lo;
   };
   const cell = (v: number): number => Math.round(v / CELL_SIZE);
@@ -58,10 +65,15 @@ export function buildExterior(map: CompiledMap, baker: Baker): Bucket {
   for (const room of map.def.rooms) {
     const clad = CLADDING[room.wall];
     if (room.outdoor || clad === undefined) continue;
+    // A building is roofed over its top storey: nothing for a cellar, nor for a room with another over it.
+    const floor = map.levels[Math.max(0, map.layerOf(room.level ?? 0))]!.y + (room.y ?? 0);
+    const top = floor + room.ceil;
+    const under = map.def.rooms.some((r) => (r.level ?? 0) > (room.level ?? 0) && !r.outdoor && r.x < room.x + room.w && r.x + r.w > room.x && r.z < room.z + room.d && r.z + r.d > room.z);
+    if (top < 1 || under) continue;
     const [x0, z0, x1, z1] = [room.x - WALL, room.z - WALL, room.x + room.w + WALL, room.z + room.d + WALL];
     const side = linear(clad).map((c) => c * rng.range(0.9, 1.1)) as RGB;
     const snow = linear(SNOW).map((c) => c * rng.range(0.92, 1.04)) as RGB;
-    const eave = Math.max(YARD_WALL, room.ceil) + 0.25;
+    const eave = Math.max(YARD_WALL, top) + 0.25;
     const [cx0, cz0, cx1, cz1] = [cell(x0), cell(z0), cell(x1), cell(z1)];
     const starts: [number, number, number, number] = [
       startOf(cx0, cz0 - 1, cx1, cz0), startOf(cx0, cz1, cx1, cz1 + 1), startOf(cx1, cz0, cx1 + 1, cz1), startOf(cx0 - 1, cz0, cx0, cz1),
@@ -113,7 +125,7 @@ export function buildExterior(map: CompiledMap, baker: Baker): Bucket {
     const n = Math.ceil(TREE_CLEARANCE / CELL_SIZE);
     const cx = Math.floor(x / CELL_SIZE);
     const cz = Math.floor(z / CELL_SIZE);
-    for (let dz = -n; dz <= n; dz++) for (let dx = -n; dx <= n; dx++) if (map.inBounds(cx + dx, cz + dz) && map.kindAt(cx + dx, cz + dz) !== Cell.Solid) return false;
+    for (let dz = -n; dz <= n; dz++) for (let dx = -n; dx <= n; dx++) if (map.openColumn(cx + dx, cz + dz)) return false;
     return !roofs.some((q) => x > q.x0 - 1.5 && x < q.x1 + 1.5 && z > q.z0 - 1.5 && z < q.z1 + 1.5);
   };
   const needles = linear(0x1c3028);

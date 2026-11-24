@@ -64,6 +64,10 @@ the same commit as any change to what it describes.
 - `npm run tour [view...]` — after a build: screenshots of every zone to `test-results/tour-*.png`
   (views are listed in `scripts/tour.cjs`; add one when you add something worth looking at;
   views named `*-on` are taken with the power on).
+- `npm run heights` — after a build: one browser player on the Stacks (server started with `ZH_MAP=stacks`;
+  the client follows its server's map, or takes `?map=stacks`): up the ramp and the stairs, the ledge, shots
+  and prompts by floor, a zombie climbing three storeys. Writes `test-results/heights-*.png`.
+  `npm run tour -- --stacks` photographs every part of it (`tour-stacks-*.png`).
 - `npm run smoke` — after a build: boots the server, drives headless Chromium, checks handshake
   and rendering, writes `test-results/smoke.png`. Uses the globally installed `playwright`; do not
   add it as a dependency in the cloud environment.
@@ -79,8 +83,9 @@ the same commit as any change to what it describes.
   `y` (the floor underfoot) and every lookup takes it: `walkAt(cx, cz, y)`, `zoneAt(x, y, z)`,
   `moveCircle(map, open, x, y, z, ...)`, `lineOfSight(map, x0, y0, z0, x1, y1, z1)`,
   `field.costAt(x, y, z)`. Never test two bodies by x and z alone: compare `y` against `FLOOR_GAP`
-  as well. `map.idx(cx, cz)` without a layer is the ground. The client does not yet draw or place
-  actors by height (overhaul step 2 in PLAN section 9).
+  as well. `map.idx(cx, cz)` without a layer is the ground. On the client, draw things at
+  `map.footAt(x, y, z)` (a ramp is drawn as a slope), ask `world.lightAt` at the thing's real height,
+  and give a sound's `at` the `y` of the floor it is made on.
 - World lighting is baked into vertex colours by `client/src/render/bake.ts` (`Baker`); the scene's
   white ambient light only passes it through. Lights that change (mains lights before/after the
   power, flames, failing tubes) are extra baked attributes scaled by uniforms in `materials.ts`.

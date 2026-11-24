@@ -164,7 +164,7 @@ export class LocalPlayer {
     this.x = p.x;
     this.y = p.y;
     this.z = p.z;
-    this.viewY += (this.y - this.viewY) * (1 - Math.exp(-STEP_SMOOTHING * dt));
+    this.viewY += (map.groundAt(this.x, this.y, this.z) - this.viewY) * (1 - Math.exp(-STEP_SMOOTHING * dt));
     // Kill velocity into walls so we don't "stick" when turning away.
     if (dt > 0) {
       const ax = (this.x - before.x) / dt;

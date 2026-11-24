@@ -5,12 +5,12 @@
 import { WebSocket } from 'ws';
 import {
   BotMind, CLIENT_MOVE_SEND_HZ, FLOOR_GAP, KNIFE_COOLDOWN, MoveState, PLAYER_MAX_HP, PLAYER_RADIUS, PROTOCOL_VERSION, Rng, SPRINT_SPEED, STAMINA_REGEN_DELAY, STAMINA_SECONDS,
-  SWAP_SECONDS, WALK_SPEED, ZombieState, compileMap, decodeServer, encode, fireInterval, fireRateMultWith, harrowRidge, maxHpWith, moveCircle,
+  SWAP_SECONDS, WALK_SPEED, ZombieState, compileMap, decodeServer, encode, fireInterval, fireRateMultWith, mapById, maxHpWith, moveCircle,
   reloadMultWith, speedMultWith, staminaWith, weaponStats,
   type BotIntent, type BotTarget, type CacheState, type ClientMsg, type FireHit, type ForgeState, type GameEvent, type PlayerPublic, type ServerMsg, type WeaponState,
 } from '@zh/shared';
 
-const map = compileMap(harrowRidge);
+const map = compileMap(mapById(process.env.ZH_MAP));
 /** Seconds between presses of F. */
 const USE_EVERY = 0.6;
 /** Closest a player's centre gets to a zombie's. */

@@ -2,7 +2,7 @@
 import type { FloorStyle } from '@zh/shared';
 import { vary, type Synth } from './synth';
 
-type At = { x: number; z: number } | undefined;
+type At = { x: number; z: number; y?: number } | undefined;
 
 export class Sfx {
   private foot = 1;

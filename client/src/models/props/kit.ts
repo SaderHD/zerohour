@@ -72,9 +72,10 @@ export class Kit {
     readonly ceil: number,
   ) {}
 
-  static at(out: PropOut, inst: PropInst, cell: number, ceil: number): Kit {
+  /** `ceil` is the height of the ceiling over the prop's own floor, which is at `base`. */
+  static at(out: PropOut, inst: PropInst, cell: number, ceil: number, base = 0): Kit {
     const seed = (Math.round(inst.x * 4) * 73856093) ^ (Math.round(inst.z * 4) * 19349663) ^ ((inst.variant ?? 0) * 83492791);
-    return new Kit(out, rotation(inst.rot ?? 0), [inst.x, 0, inst.z], cell, new Rng(seed >>> 0), inst, ceil);
+    return new Kit(out, rotation(inst.rot ?? 0), [inst.x, base, inst.z], cell, new Rng(seed >>> 0), inst, ceil);
   }
 
   get variant(): number {

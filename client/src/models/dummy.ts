@@ -22,8 +22,8 @@ export interface EntityModel {
   readonly blood: number;
   /** Hit boxes for its current posture. */
   boxes(): HitBox[];
-  /** `speed` is how fast it is actually moving, `gait` its nominal speed. */
-  place(x: number, z: number, yaw: number, state: number, speed: number, gait: number): void;
+  /** `speed` is how fast it is actually moving, `gait` its nominal speed, `y` the height its feet are drawn at. */
+  place(x: number, z: number, yaw: number, state: number, speed: number, gait: number, y?: number): void;
   update(dt: number): void;
   hit(strength?: number): void;
   die(): void;
@@ -69,8 +69,8 @@ export class DummyModel implements EntityModel {
     return DUMMY_HITBOXES;
   }
 
-  place(x: number, z: number, yaw: number): void {
-    this.root.position.set(x, 0, z);
+  place(x: number, z: number, yaw: number, _state = 0, _speed = 0, _gait = 0, y = 0): void {
+    this.root.position.set(x, y, z);
     this.root.rotation.y = yaw;
   }
 

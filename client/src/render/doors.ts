@@ -61,7 +61,7 @@ export class Doors {
       const alongX = o.w > o.d;
       const x = o.x + o.w / 2;
       const z = o.z + o.d / 2;
-      const k = Kit.at(out, { type: 'door', x, z, rot: alongX ? 0 : 90 }, map.idx(Math.floor(x / CELL_SIZE), Math.floor(z / CELL_SIZE)), DOOR_HEIGHT);
+      const k = Kit.at(out, { type: 'door', x, z, rot: alongX ? 0 : 90 }, map.idx(Math.floor(x / CELL_SIZE), Math.floor(z / CELL_SIZE), Math.max(0, map.layerOf(o.level ?? 0))), DOOR_HEIGHT, map.openingHeight(o));
       if (o.style === 'debris') debris(k, Math.max(o.w, o.d));
       else shutter(k, o, Math.max(o.w, o.d));
       const group = new THREE.Group();

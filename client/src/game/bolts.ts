@@ -52,13 +52,14 @@ export class Bolts {
   }
 
   /** Lightning out of the sky onto a spot on the floor, with a couple of forks. */
-  strike(x: number, z: number, colour = 0xbfe8ff): void {
-    const ground = new THREE.Vector3(x, 0.05, z);
-    const sky = new THREE.Vector3(x + (Math.random() - 0.5) * 6, 26, z + (Math.random() - 0.5) * 6);
+  /** `y`: the height of the floor it strikes. */
+  strike(x: number, z: number, colour = 0xbfe8ff, y = 0): void {
+    const ground = new THREE.Vector3(x, y + 0.05, z);
+    const sky = new THREE.Vector3(x + (Math.random() - 0.5) * 6, y + 26, z + (Math.random() - 0.5) * 6);
     this.arc(sky, ground, colour, 0.11, 0.6, 0.9);
     for (let i = 0; i < 2; i++) {
       const from = sky.clone().lerp(ground, 0.75 + Math.random() * 0.15);
-      this.arc(from, new THREE.Vector3(x + (Math.random() - 0.5) * 3, 0.05, z + (Math.random() - 0.5) * 3), colour, 0.05, 0.45, 0.3);
+      this.arc(from, new THREE.Vector3(x + (Math.random() - 0.5) * 3, y + 0.05, z + (Math.random() - 0.5) * 3), colour, 0.05, 0.45, 0.3);
     }
   }
 

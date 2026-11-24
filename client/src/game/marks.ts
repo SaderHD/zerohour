@@ -9,6 +9,7 @@ interface Mark {
   id: PlayerId;
   name: string;
   x: number;
+  y: number;
   z: number;
   until: number;
   mesh: THREE.Mesh;
@@ -54,19 +55,20 @@ export class Marks {
 
   constructor(private readonly scene: THREE.Scene) {}
 
-  add(id: PlayerId, name: string, seat: number, x: number, z: number, now: number): void {
+  /** `y`: the height of the floor it marks. */
+  add(id: PlayerId, name: string, seat: number, x: number, z: number, now: number, y = 0): void {
     this.remove(id);
     const colour = COLOURS[seat % COLOURS.length]!;
     const mat = new THREE.MeshBasicMaterial({ color: colour, fog: false, depthTest: false, transparent: true, side: THREE.DoubleSide });
     const mesh = new THREE.Mesh(this.geometry, mat);
-    mesh.position.set(x, HEIGHT, z);
+    mesh.position.set(x, y + HEIGHT, z);
     mesh.renderOrder = 10;
     this.scene.add(mesh);
     const tag = document.createElement('div');
     tag.className = 'mark-tag';
     tag.style.color = `#${colour.toString(16).padStart(6, '0')}`;
     this.root.append(tag);
-    this.marks.set(id, { id, name, x, z, until: now + MARK_SECONDS, mesh, tag });
+    this.marks.set(id, { id, name, x, y, z, until: now + MARK_SECONDS, mesh, tag });
   }
 
   remove(id: PlayerId): void {
@@ -91,9 +93,9 @@ export class Marks {
         continue;
       }
       m.mesh.rotation.y = t * 2.4;
-      m.mesh.position.y = HEIGHT + Math.sin(t * 3) * 0.06;
+      m.mesh.position.y = m.y + HEIGHT + Math.sin(t * 3) * 0.06;
       (m.mesh.material as THREE.MeshBasicMaterial).opacity = Math.min(1, left);
-      const v = this.v.set(m.x, HEIGHT + 0.45, m.z).project(camera);
+      const v = this.v.set(m.x, m.y + HEIGHT + 0.45, m.z).project(camera);
       const visible = v.z < 1 && Math.abs(v.x) < 1.05 && Math.abs(v.y) < 1.05;
       m.tag.style.display = visible ? 'block' : 'none';
       if (!visible) continue;

@@ -1,5 +1,5 @@
 import type * as THREE from 'three';
-import { ZombieState, type EntityId, type HitZone, type ZombieKind, type ZombieSnap } from '@zh/shared';
+import { ZombieState, type CompiledMap, type EntityId, type HitZone, type ZombieKind, type ZombieSnap } from '@zh/shared';
 import { DummyModel, type EntityModel } from '../models/dummy';
 import { HowlerActor } from '../models/howler';
 import { ZombieActor } from '../models/zombie';
@@ -40,7 +40,7 @@ export class Entities {
   private readonly dead: Entity[] = [];
   private readonly horde: ZombieHorde;
 
-  constructor(private readonly scene: THREE.Scene, private readonly world: World) {
+  constructor(private readonly scene: THREE.Scene, private readonly world: World, private readonly map: CompiledMap) {
     this.horde = new ZombieHorde(scene);
   }
 
@@ -92,7 +92,13 @@ export class Entities {
     const e = this.live.get(id);
     if (!e) return null;
     const torso = e.model.boxes().find((b) => b.zone === 'torso');
-    return { x: e.pose.x, y: torso?.c[1] ?? 1, z: e.pose.z, colour: e.model.blood };
+    return { x: e.pose.x, y: e.pose.y + (torso?.c[1] ?? 1), z: e.pose.z, colour: e.model.blood };
+  }
+
+  /** Where it stands: the floor under it (for sounds). */
+  spot(id: EntityId): { x: number; y: number; z: number } | null {
+    const e = this.live.get(id);
+    return e ? { x: e.pose.x, y: e.pose.y, z: e.pose.z } : null;
   }
 
   /** The middle of its head, in the world: where a careful shot goes. */
@@ -102,12 +108,12 @@ export class Entities {
     if (!e || !b) return null;
     const c = Math.cos(e.pose.yaw);
     const s = Math.sin(e.pose.yaw);
-    return { x: e.pose.x + b.c[0]! * c + b.c[2]! * s, y: b.c[1]!, z: e.pose.z - b.c[0]! * s + b.c[2]! * c };
+    return { x: e.pose.x + b.c[0]! * c + b.c[2]! * s, y: e.pose.y + b.c[1]!, z: e.pose.z - b.c[0]! * s + b.c[2]! * c };
   }
 
   /** Zombies that are inside and in the way: the local player cannot walk through them. */
-  blockers(): { x: number; z: number }[] {
-    const list: { x: number; z: number }[] = [];
+  blockers(): { x: number; y: number; z: number }[] {
+    const list: { x: number; y: number; z: number }[] = [];
     for (const e of this.live.values()) {
       const s = e.pose.state as number;
       if (e.kind !== 'dummy' && s !== ZombieState.Approach && s !== ZombieState.Tear && s !== ZombieState.Vault) list.push(e.pose);
@@ -133,8 +139,8 @@ export class Entities {
   }
 
   private draw(e: Entity, dt: number): void {
-    e.model.place(e.pose.x, e.pose.z, e.pose.yaw, e.pose.state, e.pose.speed, e.gait);
-    e.model.setLight(this.world.lightAt(e.pose.x, 1, e.pose.z));
+    e.model.place(e.pose.x, e.pose.z, e.pose.yaw, e.pose.state, e.pose.speed, e.gait, this.map.footAt(e.pose.x, e.pose.y, e.pose.z));
+    e.model.setLight(this.world.lightAt(e.pose.x, e.pose.y + 1, e.pose.z));
     e.model.update(dt);
   }
 
@@ -155,7 +161,7 @@ export class Entities {
       // Into the entity's local frame (undo its yaw).
       const c = Math.cos(e.pose.yaw);
       const s = Math.sin(e.pose.yaw);
-      const lo = [px * c - pz * s, oy, px * s + pz * c] as const;
+      const lo = [px * c - pz * s, oy - e.pose.y, px * s + pz * c] as const;
       const ld = [dx * c - dz * s, dy, dx * s + dz * c] as const;
       let best = Infinity;
       let zone: HitZone = 'torso';

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CELL_SIZE, Cell, FLOOR_STYLES, NO_ZONE, WALL_STYLES, propDef, type CompiledMap, type FloorStyle, type WallStyle } from '@zh/shared';
+import { CELL_SIZE, Cell, FLOOR_STYLES, NO_ZONE, WALL_STYLES, WINDOW_SILL, propDef, type CompiledMap, type FloorStyle, type WallStyle } from '@zh/shared';
 import { PROP_BUILDERS, Kit, fixture } from '../models/props';
 import type { PropOut } from '../models/props/kit';
 import { Ambient } from './ambient';
@@ -43,7 +43,7 @@ const hash = (n: number): number => {
 };
 
 export function buildWorld(map: CompiledMap): World {
-  const { cols, rows } = map;
+  const { cols } = map;
   const baker = new Baker(map);
   const buckets = new Map<string, Bucket>();
   const bucket = (key: string): Bucket => {
@@ -55,17 +55,23 @@ export function buildWorld(map: CompiledMap): World {
 
   /** The zone a cell's surfaces are drawn with (window pockets and the like share one). */
   const zoneOf = (i: number): string => (map.zone[i] === NO_ZONE ? 'out' : map.zones[map.zone[i]!]!.id);
-  const open = (cx: number, cz: number): boolean => map.kindAt(cx, cz) !== Cell.Solid;
-  /** Corner AO: darker where a floor/ceiling corner touches solid, or (floors) furniture. */
-  const cornerAo = (vx: number, vz: number, floor = false): number => {
+  /** Is there open space beside a floor at height `y`: something to stand in, or a window to look through? */
+  const open = (cx: number, cz: number, y: number): boolean => map.holdAt(cx, cz, y + 0.5) >= 0 || map.holdAt(cx, cz, y + 1.2) >= 0;
+  /** Corner AO: darker where a floor/ceiling corner touches solid (or a ledge), or (floors) furniture. */
+  const cornerAo = (vx: number, vz: number, y: number, floor = false): number => {
     let solid = 0;
     let prop = 0;
     for (const [dx, dz] of [[-1, -1], [0, -1], [-1, 0], [0, 0]] as const) {
-      if (!open(vx + dx, vz + dz)) solid++;
-      else if (floor && map.block[map.idx(vx + dx, vz + dz)]) prop++;
+      if (!open(vx + dx, vz + dz, y)) solid++;
+      else if (floor) {
+        const j = map.standAt(vx + dx, vz + dz, y);
+        if (j >= 0 && map.block[j]) prop++;
+      }
     }
     return (solid === 0 ? 1 : solid === 1 ? 0.78 : 0.6) * (prop === 0 ? 1 : prop < 4 ? 0.7 : 0.5);
   };
+  /** Height of a cell's drawn floor at a point on its edge (a window's is the top of its sill). */
+  const floorAt = (i: number, x: number, z: number): number => (map.kind[i] === Cell.Window ? map.lo[i]! : map.groundIn(i, x, z));
 
   // Neighbour directions with the shared edge listed left->right as seen from inside the cell.
   const SIDES = [
@@ -74,13 +80,16 @@ export function buildWorld(map: CompiledMap): World {
     { dx: 0, dz: -1, n: [0, 0, 1], edge: (cx: number, cz: number) => [cx * S, cz * S, (cx + 1) * S, cz * S] },
     { dx: 0, dz: 1, n: [0, 0, -1], edge: (cx: number, cz: number) => [(cx + 1) * S, (cz + 1) * S, cx * S, (cz + 1) * S] },
   ] as const;
+  /** A face lower than this is a step or a kerb: it is drawn as floor, not as wall. */
+  const STEP_FACE = 0.35;
 
   let triangles = 0;
-  for (let cz = 0; cz < rows; cz++) {
-    for (let cx = 0; cx < cols; cx++) {
-      const i = map.idx(cx, cz);
-      const kind = map.kind[i] as Cell;
-      if (kind === Cell.Solid) continue;
+  for (let i = 0; i < map.kind.length; i++) {
+    const kind = map.kind[i] as Cell;
+    if (kind === Cell.Solid) continue;
+    {
+      const cx = map.cxOf(i);
+      const cz = map.czOf(i);
       const lo = map.lo[i]!;
       const hi = map.hi[i]!;
       const tint = linear(map.tint[i]!);
@@ -94,47 +103,66 @@ export function buildWorld(map: CompiledMap): World {
       const z1 = z0 + S;
       const t = TEX_METRES;
 
-      // Floor (a window's "floor" is the top of its sill, so it uses the wall surface)
+      // Floor (a window's "floor" is the top of its sill, so it uses the wall surface). A ramp's slopes.
       const floorB = kind === Cell.Window ? wallB : bucket(`floor:${floorStyle}|${zone}`);
-      const F = (x: number, z: number, vx: number, vz: number): Vert => ({ p: [x, lo, z], uv: [x / t, z / t], ao: cornerAo(vx, vz, true) });
+      const F = (x: number, z: number, vx: number, vz: number): Vert => ({ p: [x, floorAt(i, x, z), z], uv: [x / t, z / t], ao: cornerAo(vx, vz, lo, true) });
       quad(floorB, [F(x0, z0, cx, cz), F(x0, z1, cx, cz + 1), F(x1, z1, cx + 1, cz + 1), F(x1, z0, cx + 1, cz)], [0, 1, 0], i, tint);
 
       // Ceiling
       if (!map.sky[i]) {
-        const C = (x: number, z: number, vx: number, vz: number): Vert => ({ p: [x, hi, z], uv: [x / t, z / t], ao: 0.55 + 0.45 * cornerAo(vx, vz) });
+        const C = (x: number, z: number, vx: number, vz: number): Vert => ({ p: [x, hi, z], uv: [x / t, z / t], ao: 0.55 + 0.45 * cornerAo(vx, vz, lo) });
         quad(wallB, [C(x0, z0, cx, cz), C(x1, z0, cx + 1, cz), C(x1, z1, cx + 1, cz + 1), C(x0, z1, cx, cz + 1)], [0, -1, 0], i, tint);
       }
 
-      // Walls: wherever this cell's open interval is not matched by the neighbour's.
+      // Walls: wherever this cell's open interval is not matched by anything open in the column
+      // beside it (this one rule yields walls, lintels, sills, stair risers, the faces of ledges
+      // and the edges of the slabs between storeys).
       for (const side of SIDES) {
         const nx = cx + side.dx;
         const nz = cz + side.dz;
-        const nk = map.kindAt(nx, nz);
-        const j = map.idx(nx, nz);
-        const nlo = nk === Cell.Solid ? Infinity : map.lo[j]!;
-        const nhi = nk === Cell.Solid ? -Infinity : map.hi[j]!;
-        const spans: [number, number][] = [];
-        if (nk === Cell.Solid) spans.push([lo, hi]);
-        else {
-          if (nlo > lo) spans.push([lo, Math.min(hi, nlo)]);
-          if (nhi < hi) spans.push([Math.max(lo, nhi), hi]);
-        }
         const [ax, az, bx, bz] = side.edge(cx, cz);
+        // My own floor along this edge: the wall starts at its lower end (the rest is under the slope).
+        const bottom = Math.min(floorAt(i, ax, az), floorAt(i, bx, bz));
+        let spans: [number, number][] = [[bottom, hi]];
+        /** Sloping floors next door: the triangle between a ramp's low end and its surface. */
+        const skirts: [number, number, number][] = [];
+        if (map.inBounds(nx, nz)) {
+          for (let j = nz * cols + nx; j < map.kind.length; j += map.plane) {
+            if (map.kind[j] === Cell.Solid) continue;
+            const na = floorAt(j, ax, az);
+            const nb = floorAt(j, bx, bz);
+            const nlo = Math.min(na, nb);
+            const nhi = map.hi[j]!;
+            if (na !== nb && nlo >= bottom - 1e-4 && Math.max(na, nb) <= hi + 1e-4) skirts.push([nlo, na, nb]);
+            const next: [number, number][] = [];
+            for (const [s0, s1] of spans) {
+              if (nhi <= s0 || nlo >= s1) next.push([s0, s1]);
+              else {
+                if (nlo > s0) next.push([s0, nlo]);
+                if (nhi < s1) next.push([nhi, s1]);
+              }
+            }
+            spans = next;
+          }
+        }
         const u0 = (side.dx !== 0 ? az : ax) / t;
         const u1 = (side.dx !== 0 ? bz : bx) / t;
         const sky = !!map.sky[i];
-        const aoAt = (y: number) => (y < 0.6 ? 0.6 + (y / 0.6) * 0.4 : !sky && y > hi - 0.5 ? 1 - ((y - (hi - 0.5)) / 0.5) * 0.25 : 1);
+        const aoAt = (y: number) => (y - lo < 0.6 ? 0.6 + (Math.max(0, y - lo) / 0.6) * 0.4 : !sky && y > hi - 0.5 ? 1 - ((y - (hi - 0.5)) / 0.5) * 0.25 : 1);
+        const W = (x: number, y: number, z: number, u: number): Vert => ({ p: [x, y, z], uv: [u, y / t], ao: aoAt(y) });
+        const n = side.n as unknown as [number, number, number];
         for (const [s0, s1] of spans) {
           if (s1 - s0 < 1e-4) continue;
+          const into = s1 - s0 < STEP_FACE && s0 - bottom < 1e-4 && kind !== Cell.Window ? floorB : wallB;
           // Split at the AO breakpoints so the gradients interpolate correctly.
-          const ys = [s0, ...[0.6, hi - 0.5].filter((y) => y > s0 + 1e-4 && y < s1 - 1e-4), s1].sort((a, b) => a - b);
+          const ys = [s0, ...[lo + 0.6, hi - 0.5].filter((y) => y > s0 + 1e-4 && y < s1 - 1e-4), s1].sort((a, b) => a - b);
           for (let k = 0; k + 1 < ys.length; k++) {
             const y0 = ys[k]!;
             const y1 = ys[k + 1]!;
-            const W = (x: number, y: number, z: number, u: number): Vert => ({ p: [x, y, z], uv: [u, y / t], ao: aoAt(y) });
-            quad(wallB, [W(ax, y0, az, u0), W(bx, y0, bz, u1), W(bx, y1, bz, u1), W(ax, y1, az, u0)], side.n as unknown as [number, number, number], i, tint);
+            quad(into, [W(ax, y0, az, u0), W(bx, y0, bz, u1), W(bx, y1, bz, u1), W(ax, y1, az, u0)], n, i, tint);
           }
         }
+        for (const [y0, ya, yb] of skirts) quad(wallB, [W(ax, y0, az, u0), W(bx, y0, bz, u1), W(bx, yb, bz, u1), W(ax, ya, az, u0)], n, i, tint);
       }
     }
   }
@@ -163,19 +191,27 @@ export function buildWorld(map: CompiledMap): World {
     if (!o) outs.set(zone, (o = { ...all, prop: new Bucket() }));
     return o;
   };
-  const cellOf = (x: number, z: number): number => map.idx(Math.floor(x / S), Math.floor(z / S));
   for (const p of map.def.props) {
+    const layer = Math.max(0, map.layerOf(p.level ?? 0));
+    const cellOf = (x: number, z: number): number => map.idx(Math.floor(x / S), Math.floor(z / S), layer);
     const def = propDef(p.type);
     const build = (PROP_BUILDERS as Record<string, (k: Kit) => void>)[p.type];
     if (!def || !build) continue;
     // Wall-hung props are lit as part of the cell they face into.
     const a = ((p.rot ?? 0) * Math.PI) / 180;
     const cell = def.wall ? cellOf(p.x - Math.sin(a) * 0.25, p.z - Math.cos(a) * 0.25) : cellOf(p.x, p.z);
-    build(Kit.at(outFor(cell), p, cell, map.hi[cell] || 3));
+    // It stands on its cell's floor (on a ramp, where the slope is under its middle); wall-hung ones hang over it.
+    const open = map.kind[cell] !== Cell.Solid;
+    const base = !open ? map.levels[layer]!.y : map.kind[cell] === Cell.Window ? map.lo[cell]! - WINDOW_SILL : def.wall ? map.lo[cell]! : map.groundIn(cell, p.x, p.z);
+    build(Kit.at(outFor(cell), p, cell, open ? map.hi[cell]! - base : 3, base));
   }
   for (const l of baker.lights) {
-    const cell = cellOf(l.x, l.z);
-    fixture(Kit.at(outFor(cell), { type: 'light', x: l.x, z: l.z, rot: l.fixture === 'tube' ? Math.round(l.x + l.z) * 90 : 0 }, cell, map.sky[cell] ? l.y + 0.2 : map.hi[cell]!), l, l.rgb, l.mode);
+    // Lamps are placed, like everything in a prop's own space, from the floor they hang over.
+    const held = map.holdAt(Math.floor(l.x / S), Math.floor(l.z / S), l.y);
+    const cell = held >= 0 ? held : map.idx(Math.floor(l.x / S), Math.floor(l.z / S), Math.max(0, map.layerOf(l.level ?? 0)));
+    const base = l.floor;
+    const top = map.sky[cell] ? l.y + 0.2 : map.hi[cell]!;
+    fixture(Kit.at(outFor(cell), { type: 'light', x: l.x, z: l.z, rot: l.fixture === 'tube' ? Math.round(l.x + l.z) * 90 : 0 }, cell, top - base, base), { ...l, y: l.y - base }, l.rgb, l.mode);
   }
   for (const [zone, o] of outs) addMesh(`props|${zone}`, o.prop, propMaterial());
   // Lamps' glow and lettering are little: one mesh each for the whole map costs fewer draw calls than culling saves.
