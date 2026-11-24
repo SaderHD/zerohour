@@ -1,5 +1,5 @@
 import {
-  BARRICADE_PLANKS, DropCycle, FIRESTORM_POINTS, MAX_GRENADES, MoveState, PLAYER_RADIUS, POWERUP_DROP_CHANCE, POWERUP_DURATION, POWERUP_LIFETIME,
+  BARRICADE_PLANKS, DropCycle, FIRESTORM_POINTS, FLOOR_GAP, MAX_GRENADES, MoveState, PLAYER_RADIUS, POWERUP_DROP_CHANCE, POWERUP_DURATION, POWERUP_LIFETIME,
   POWERUP_MAX_PER_ROUND, POWERUP_PICKUP_RANGE, REBUILD_POINTS, circleFits, powerupDef, weaponStats,
   type PowerupDrop, type PowerupId, type WeaponState,
 } from '@zh/shared';
@@ -22,9 +22,9 @@ export interface Powerups {
 
 export const createPowerups = (): Powerups => ({ drops: [], cycle: new DropCycle(), dropped: 0 });
 
-export function dropPowerup(g: Game, kind: PowerupId, x: number, z: number): PowerupDrop | null {
+export function dropPowerup(g: Game, kind: PowerupId, x: number, y: number, z: number): PowerupDrop | null {
   if (!powerupDef(kind)) return null;
-  const drop: PowerupDrop = { id: g.nextEntityId++, kind, x: Math.round(x * 100) / 100, z: Math.round(z * 100) / 100, expiresAt: g.time + POWERUP_LIFETIME };
+  const drop: PowerupDrop = { id: g.nextEntityId++, kind, x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100, z: Math.round(z * 100) / 100, expiresAt: g.time + POWERUP_LIFETIME };
   g.powerups.drops.push(drop);
   g.emit({ e: 'powerupDrop', drop });
   return drop;
@@ -35,13 +35,13 @@ const allowed = (g: Game) => (id: PowerupId): boolean => id !== 'clearance' || g
 
 /** A zombie died: maybe it leaves something. Only kills by players, inside the walls, count. */
 export function onZombieKilled(g: Game, z: Zombie, by: number | undefined): void {
-  if (by === undefined || !z.ai || z.ai.windowId !== null || !circleFits(g.map, g.openDoors, z.x, z.z, PLAYER_RADIUS)) return;
+  if (by === undefined || !z.ai || z.ai.windowId !== null || !circleFits(g.map, g.openDoors, z.x, z.y, z.z, PLAYER_RADIUS)) return;
   // The last howler of its round always leaves a Resupply.
-  if (z.kind === 'howler' && g.rounds.special && g.rounds.phase === 'active' && zombiesToCome(g) === 0) return void dropPowerup(g, 'resupply', z.x, z.z);
+  if (z.kind === 'howler' && g.rounds.special && g.rounds.phase === 'active' && zombiesToCome(g) === 0) return void dropPowerup(g, 'resupply', z.x, z.y, z.z);
   const p = g.powerups;
   if (p.dropped >= POWERUP_MAX_PER_ROUND || !g.luck.chance(POWERUP_DROP_CHANCE)) return;
   p.dropped++;
-  dropPowerup(g, p.cycle.next(g.rng, allowed(g)), z.x, z.z);
+  dropPowerup(g, p.cycle.next(g.rng, allowed(g)), z.x, z.y, z.z);
 }
 
 const refill = (ws: WeaponState[]): void => ws.forEach((w) => (w.reserve = weaponStats(w.id, w.upgraded)?.reserve ?? w.reserve));
@@ -81,7 +81,7 @@ export function updatePowerups(g: Game): void {
     const d = drops[i]!;
     let taker = 0;
     for (const p of g.players.values()) {
-      if (p.pub.connected && standing(p) && Math.hypot(p.x - d.x, p.z - d.z) <= POWERUP_PICKUP_RANGE) taker = p.pub.id;
+      if (p.pub.connected && standing(p) && Math.abs(p.y - d.y) < FLOOR_GAP && Math.hypot(p.x - d.x, p.z - d.z) <= POWERUP_PICKUP_RANGE) taker = p.pub.id;
     }
     if (!taker && g.time < d.expiresAt) continue;
     drops.splice(i, 1);

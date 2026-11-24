@@ -72,7 +72,7 @@ export class Baker {
         const z = (cz + 0.5) * CELL_SIZE;
         const list: number[] = [];
         this.lights.forEach((l, li) => {
-          if (Math.hypot(l.x - x, l.z - z) < l.radius + 1 && lineOfSight(map, l.x, l.z, x, z, 'all')) list.push(li);
+          if (Math.hypot(l.x - x, l.z - z) < l.radius + 1 && lineOfSight(map, l.x, 0, l.z, x, 0, z, 'all')) list.push(li);
         });
         this.cellLights[i] = list;
       }

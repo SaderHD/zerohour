@@ -1,5 +1,5 @@
 import {
-  HOWLER_DAMAGE, SIREN_LURE_RANGE, SIREN_STANDOFF, CRAWLER_DAMAGE, CRAWLER_SPEED, PLANK_TEAR_SECONDS, UNREACHABLE, ZOMBIE_ATTACK_COOLDOWN, ZOMBIE_ATTACK_HIT_RANGE,
+  FLOOR_GAP, HOWLER_DAMAGE, SIREN_LURE_RANGE, SIREN_STANDOFF, CRAWLER_DAMAGE, CRAWLER_SPEED, PLANK_TEAR_SECONDS, UNREACHABLE, ZOMBIE_ATTACK_COOLDOWN, ZOMBIE_ATTACK_HIT_RANGE,
   ZOMBIE_ATTACK_RANGE, ZOMBIE_ATTACK_WINDUP, ZOMBIE_DAMAGE, ZOMBIE_DIRECT_CHASE_RANGE, ZOMBIE_QUEUE_GAP, ZOMBIE_RADIUS,
   ZOMBIE_RETARGET_SECONDS, ZOMBIE_SEPARATION, ZOMBIE_TURN_RATE, ZOMBIE_VAULT_SECONDS, ZombieState, lineOfSight, lineWalkable, moveCircle,
   wrapAngle, type WindowInfo, type ZombieKind,
@@ -32,17 +32,17 @@ const COST_PER_METRE = 20;
 const yawTo = (dx: number, dz: number): number => Math.atan2(-dx, -dz);
 const isOutside = (s: ZombieState): boolean => s === ZombieState.Approach || s === ZombieState.Tear || s === ZombieState.Vault;
 
-export function spawnZombie(g: Game, win: WindowInfo | null, x: number, z: number, hp: number, speed: number, kind: ZombieKind = 'zombie'): Zombie {
+export function spawnZombie(g: Game, win: WindowInfo | null, x: number, y: number, z: number, hp: number, speed: number, kind: ZombieKind = 'zombie'): Zombie {
   const ai: ZombieAI = {
     windowId: win?.id ?? null, target: 0, retargetAt: 0, swingAt: 0, readyAt: 0, vault: 0, crawler: false,
     weave: g.rng.range(0, Math.PI * 2), ax: x, az: z, progressAt: g.time,
   };
   const zb: Zombie = {
-    id: g.nextEntityId++, kind, seed: g.rng.int(0, 0xffff), x, z, yaw: win ? yawTo(-win.ox, -win.oz) : g.rng.range(-Math.PI, Math.PI),
+    id: g.nextEntityId++, kind, seed: g.rng.int(0, 0xffff), x, y, z, yaw: win ? yawTo(-win.ox, -win.oz) : g.rng.range(-Math.PI, Math.PI),
     state: win ? ZombieState.Approach : ZombieState.Chase, hp, maxHp: hp, speed, ai,
   };
   g.zombies.set(zb.id, zb);
-  g.emit({ e: 'zombieSpawn', id: zb.id, kind: zb.kind, seed: zb.seed, x, z });
+  g.emit({ e: 'zombieSpawn', id: zb.id, kind: zb.kind, seed: zb.seed, x, y, z });
   return zb;
 }
 
@@ -134,6 +134,7 @@ function outside(g: Game, z: Zombie, ai: ZombieAI, list: Zombie[], dt: number): 
   }
   // Vault: over the sill and down inside.
   ai.vault = Math.min(1, ai.vault + dt / ZOMBIE_VAULT_SECONDS);
+  z.y = w.y;
   z.x = w.outX + (w.inX - w.outX) * ai.vault;
   z.z = w.outZ + (w.inZ - w.outZ) * ai.vault;
   if (ai.vault >= 1) {
@@ -149,11 +150,12 @@ function dragged(g: Game, z: Zombie, ai: ZombieAI, wells: Projectile[], dt: numb
     const dx = w.x - z.x;
     const dz = w.z - z.z;
     const d = Math.hypot(dx, dz);
-    if (d > w.well!.radius || !lineOfSight(g.map, z.x, z.z, w.x, w.z, g.openDoors)) continue;
+    if (d > w.well!.radius || Math.abs(w.y - z.y - 1) > w.well!.radius || !lineOfSight(g.map, z.x, z.y, z.z, w.x, g.map.floorUnder(w.x, w.y, w.z), w.z, g.openDoors)) continue;
     if (d > 0.3) {
       const step = Math.min(d - 0.3, w.well!.pull * dt);
-      const moved = moveCircle(g.map, g.openDoors, z.x, z.z, (dx / d) * step, (dz / d) * step, ZOMBIE_RADIUS);
+      const moved = moveCircle(g.map, g.openDoors, z.x, z.y, z.z, (dx / d) * step, (dz / d) * step, ZOMBIE_RADIUS);
       z.x = moved.x;
+      z.y = moved.y;
       z.z = moved.z;
     }
     ai.swingAt = 0;
@@ -172,7 +174,7 @@ function retarget(g: Game, z: Zombie, ai: ZombieAI, avoid = 0): void {
   ai.target = 0;
   for (const p of g.players.values()) {
     if (p.pub.id === avoid) continue;
-    const cost = g.nav.fieldTo(p.pub.id)?.costAt(z.x, z.z) ?? UNREACHABLE;
+    const cost = g.nav.fieldTo(p.pub.id)?.costAt(z.x, z.y, z.z) ?? UNREACHABLE;
     if (cost < best) {
       best = cost;
       ai.target = p.pub.id;
@@ -184,7 +186,7 @@ function retarget(g: Game, z: Zombie, ai: ZombieAI, avoid = 0): void {
 function chase(g: Game, z: Zombie, ai: ZombieAI, list: Zombie[], dt: number): void {
   if (g.time >= ai.retargetAt) retarget(g, z, ai);
   // A Siren within earshot matters more than any player.
-  const lure = g.nav.lure && g.nav.lure.field.costAt(z.x, z.z) < SIREN_LURE_RANGE * COST_PER_METRE ? g.nav.lure : null;
+  const lure = g.nav.lure && g.nav.lure.field.costAt(z.x, z.y, z.z) < SIREN_LURE_RANGE * COST_PER_METRE ? g.nav.lure : null;
   const player = lure ? undefined : g.players.get(ai.target);
   const t = lure ?? player;
   const field = lure ? lure.field : player && g.nav.fieldTo(player.pub.id);
@@ -196,7 +198,7 @@ function chase(g: Game, z: Zombie, ai: ZombieAI, list: Zombie[], dt: number): vo
   const tz = t.z - z.z;
   const d = Math.hypot(tx, tz);
   // "Sees" means a clear run: a table between them is as good as a wall.
-  const sees = d < ZOMBIE_DIRECT_CHASE_RANGE && lineWalkable(g.map, z.x, z.z, t.x, t.z, g.openDoors);
+  const sees = d < ZOMBIE_DIRECT_CHASE_RANGE && Math.abs(t.y - z.y) < FLOOR_GAP && lineWalkable(g.map, z.x, z.y, z.z, t.x, t.y, t.z, g.openDoors);
   if (lure && d <= SIREN_STANDOFF && sees) {
     turn(z, yawTo(tx, tz), dt);
     progress(g, z, ai); // crowding round the noise
@@ -214,10 +216,10 @@ function chase(g: Game, z: Zombie, ai: ZombieAI, list: Zombie[], dt: number): vo
     ai.retargetAt = g.time + BLOCKED_SECONDS * 2;
     ai.progressAt = g.time - BLOCKED_SECONDS + 1;
   }
-  if (sees || field.costAt(z.x, z.z) === 0) {
+  if (sees || field.costAt(z.x, z.y, z.z) === 0) {
     dir.x = tx / (d || 1);
     dir.z = tz / (d || 1);
-  } else if (field.dir(z.x, z.z, dir)) {
+  } else if (field.dir(z.x, z.y, z.z, dir)) {
     // A slow sideways weave so a horde does not walk in single file.
     const w = Math.sin(g.time * 1.3 + ai.weave) * WEAVE;
     const wx = dir.x - dir.z * w;
@@ -237,7 +239,7 @@ function chase(g: Game, z: Zombie, ai: ZombieAI, list: Zombie[], dt: number): vo
     const nx = z.x + (pass ? mx : 0);
     const nz = z.z + (pass ? mz : 0);
     for (const o of list) {
-      if (o === z || isOutside(o.state)) continue;
+      if (o === z || isOutside(o.state) || Math.abs(o.y - z.y) >= FLOOR_GAP) continue;
       let ox = nx - o.x;
       let oz = nz - o.z;
       let od = Math.hypot(ox, oz);
@@ -254,8 +256,9 @@ function chase(g: Game, z: Zombie, ai: ZombieAI, list: Zombie[], dt: number): vo
       mz += (oz / od) * push;
     }
   }
-  const moved = moveCircle(g.map, g.openDoors, z.x, z.z, mx, mz, ZOMBIE_RADIUS);
+  const moved = moveCircle(g.map, g.openDoors, z.x, z.y, z.z, mx, mz, ZOMBIE_RADIUS);
   z.x = moved.x;
+  z.y = moved.y;
   z.z = moved.z;
   turn(z, yawTo(dir.x, dir.z), dt);
   if (Math.hypot(z.x - ai.ax, z.z - ai.az) > PROGRESS_DIST) progress(g, z, ai);
@@ -268,7 +271,7 @@ function attack(g: Game, z: Zombie, ai: ZombieAI, dt: number): void {
     if (g.time < ai.swingAt) return;
     ai.swingAt = 0;
     ai.readyAt = g.time + ZOMBIE_ATTACK_COOLDOWN;
-    if (t && g.targetable(t) && Math.hypot(t.x - z.x, t.z - z.z) <= ZOMBIE_ATTACK_HIT_RANGE && lineOfSight(g.map, z.x, z.z, t.x, t.z, g.openDoors)) {
+    if (t && g.targetable(t) && Math.hypot(t.x - z.x, t.z - z.z) <= ZOMBIE_ATTACK_HIT_RANGE && Math.abs(t.y - z.y) < FLOOR_GAP && lineOfSight(g.map, z.x, z.y, z.z, t.x, t.y, t.z, g.openDoors)) {
       damagePlayer(g, t, ai.crawler ? CRAWLER_DAMAGE : z.kind === 'howler' ? HOWLER_DAMAGE : ZOMBIE_DAMAGE, z.x, z.z);
     }
     return;

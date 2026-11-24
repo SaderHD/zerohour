@@ -101,7 +101,7 @@ export function runCampaign(opts: CampaignOpts): CampaignResult {
         let close = 0;
         for (const z of game.zombies.values()) if (Math.hypot(z.x - p.x, z.z - p.z) < 3) close++;
         const w = p.stash?.weapons[p.stash.slot];
-        opts.onDown(`${(b.intent?.goal ?? '').split(':')[0] || 'idle'} ${game.map.zoneAt(p.x, p.z)} ${w && w.mag > 0 ? 'loaded' : 'empty'} close${Math.min(close, 5)}`);
+        opts.onDown(`${(b.intent?.goal ?? '').split(':')[0] || 'idle'} ${game.map.zoneAt(p.x, p.y, p.z)} ${w && w.mag > 0 ? 'loaded' : 'empty'} close${Math.min(close, 5)}`);
       }
       res.downs++;
       roundDowns++;

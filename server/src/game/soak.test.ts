@@ -19,7 +19,7 @@ function soak(seconds: number, openDoors: boolean) {
     const p = game.addPlayer(id, `Bot${id}`);
     p.god = true;
     const brain = new BotBrain(game.map, rng.fork());
-    brain.place(p.x, p.z);
+    brain.place(p.x, p.y, p.z);
     return { id, brain };
   });
   if (openDoors) for (const o of game.map.def.openings) if (o.kind === 'door') game.openDoor(o.id, 1);
@@ -37,7 +37,7 @@ function soak(seconds: number, openDoors: boolean) {
       const zombies = [...game.zombies.values()];
       for (const b of bots) {
         b.brain.step(TICK_DT, zombies, game.openDoors);
-        t.move(b.id, b.brain.x, b.brain.z, b.brain.yaw);
+        t.move(b.id, b.brain.x, b.brain.z, b.brain.yaw, b.brain.y);
       }
       // The bots "shoot": every second the zombie nearest to one of them drops, so fresh ones keep arriving.
       if (i % 30 === 0) {
@@ -59,7 +59,7 @@ function soak(seconds: number, openDoors: boolean) {
         worstIdle = idle;
         worst = `zombie ${z.id} state ${z.state} at (${z.x.toFixed(2)}, ${z.z.toFixed(2)}) target ${z.ai?.target} t=${game.time.toFixed(1)}`;
       }
-      if (z.state === ZombieState.Chase) zones.add(game.map.zoneAt(z.x, z.z) ?? '?');
+      if (z.state === ZombieState.Chase) zones.add(game.map.zoneAt(z.x, 0, z.z) ?? '?');
     }
   }
   const hits = t.of("playerHurt").length;

@@ -20,8 +20,8 @@ We do **not** reuse any existing game's names, characters, maps, weapon designs,
 names/jingles/machine designs, logos, UI look, or audio. Everything in this doc already uses
 original names — keep it that way and never "fix" a name to match a known game.
 
-**Cuts made on purpose** (do not add unless asked): jumping/mantling, multi-floor walkable
-geometry, PvP, persistent accounts/progression, easter-egg quests, mobile/touch controls,
+**Cuts made on purpose** (do not add unless asked): jumping/mantling (and dropping off ledges:
+height is walked, by ramps and stairs), PvP, persistent accounts/progression, easter-egg quests, mobile/touch controls,
 matchmaking (room codes only), host migration.
 
 **Targets:** 60 fps on an integrated-GPU laptop in Chrome/Firefox; 4 players + 32 live zombies;
@@ -348,7 +348,8 @@ aim.** This is co-op with friends, so we optimise for feel and simplicity over c
   jitter, but the schedule advances by a full interval per shot, so the average rate can never
   exceed the weapon's rpm.
 - **Wire format:** JSON to start, with compact arrays for entity lists in snapshots
-  (`[id, x, z, yaw, state, hpFrac]`). Static/slow state (doors, power, barricades, perks owned,
+  (`[id, x, z, yaw, state, hpFrac, speed, y]`; `y` is the height of the floor underfoot, last so
+  that older fields keep their places). Static/slow state (doors, power, barricades, perks owned,
   Cache site) is sent on change + in a full `sync` on join. Only switch to binary if profiling
   demands it.
 - **Protocol** is defined once in `shared/protocol.ts` as discriminated unions
@@ -406,19 +407,48 @@ yields both the prop players see (`wallbuy`, `tonic`, `cache_site`) and the `Int
 will press F at; the power switch is the lever on a `switchgear` and the Forge is its own prop.
 `TONICS` there fixes the tonic ids, their order (= the dispenser's `variant`) and glow colours.
 
+**Height.** A room has a `level` (storey: -1 a basement, 0 the ground, 1 upstairs; `MapDef.levels`
+names the others and gives each its base height), a floor height `y` above that base, and
+optionally a `rise` (`{to, by, stairs?}`: the floor climbs `by` metres towards `to` in equal
+risers, one a cell, meeting the floors at both ends). Openings, props, interactables, lights and
+player spawns take a `level` too. The compiled grid is a stack of layers, one per storey
+(`idx(cx, cz, layer)`; without a layer, the ground), and rooms on different levels may lie over
+each other as long as what is open in one column never overlaps (the compiler checks this, a
+slab's thickness between, and 2 m of headroom everywhere). A storey is only where a cell is
+*stored*. What joins two cells is their floors lying within `STEP_HEIGHT` (0.3 m) of each other:
+`CompiledMap.links` holds, for every cell, the cell reached by a step to each of its eight
+neighbours, whatever layer that is on. So a staircase is a run of cells each a riser above the
+last, its head can stand beside a cell of the storey above, and anything taller than a step is a
+ledge - a wall to whoever walks, in both directions. Everything that stands somewhere carries the
+height of the floor under it (`y`), and the lookups take it: `standAt`/`walkAt(cx, cz, y)` (the
+cell someone at that height is on), `holdAt(cx, cz, y)` (the cell whose air holds a point),
+`zoneAt(x, y, z)`, `floorOn(level, x, z)` for things placed by level. The Stacks
+(`map/stacks.ts`; `npm run map -- stacks` prints it) is a small proving ground with a ramp, a
+terrace, a loft over a hall and a cellar under it; `stacks.test.ts` in shared and server run the
+map machinery and a full-horde soak on it. Harrow Ridge itself is still one flat storey.
+
 `validate.ts` runs in tests and fails the build if: a prop blocks the floor inside a window; any zone is unreachable with all doors open;
 any window/spawn can't path to the player spawn; a prop seals a lane (<1.5 m); interactables are
 not adjacent to floor; rooms overlap. `npm run map` validates and writes an ASCII top-down dump to
-`docs/MAP.txt` — **agents must look
+`docs/MAP.txt` (a sheet per storey when there are several; `^ v < >` mark ramps and stairs, pointing
+uphill) — **agents must look
 at that dump (and a screenshot) after any map edit.**
 
 ### 6.2 Collision
-2D only. Players and zombies are circles against the cell grid + prop AABBs (slide along walls).
-Hitscan: client rays against zombie hit boxes (head/torso/limb boxes on the rig) and world meshes;
-server LOS is a grid DDA (`los.ts`). Closed doors and unbroken windows are solid cells.
+Players and zombies are circles against the cells + prop AABBs (slide along walls), each standing
+at the height of the floor under its centre: `moveCircle` treats every cell whose floor is more
+than a step from that height as a wall, and follows the floor up and down as the centre crosses
+treads. Nobody jumps or falls. Bodies whose feet are more than `FLOOR_GAP` (1.5 m) apart in height
+are on different floors and do not touch (attacks, separation, revives, pick-ups, purchases).
+Hitscan: client rays against zombie hit boxes (head/torso/limb boxes on the rig) and `rayWorld`
+(every storey's floors, ceilings, sills and props); server LOS is a grid DDA (`los.ts`) run chest
+to chest in 3D, so the floors between storeys hide and shield. Closed doors and unbroken windows
+are solid cells. The server accepts a reported move only onto a floor that exists and is no
+further up or down than stairs could have taken the player over that distance.
 
 ### 6.3 Navigation
-`flowfield.ts`: Dijkstra over walkable cells from each living player's cell (cells touching a wall
+`flowfield.ts`: Dijkstra over walkable cells, along `CompiledMap.links` (so across storeys by their
+stairs), from each living player's cell (cells touching a wall or a ledge
 cost more, so paths keep to the middle of lanes), recomputed every 250 ms (staggered across ticks)
 and, when a door opens, one field a tick over the next few ticks. Each zombie samples the field of its target player a few cells
 ahead, adds separation from neighbours (a plain pair loop — 32 bodies need no spatial hash) and a
@@ -888,6 +918,28 @@ each player's controls.)
   frame rate above is software rendering; the 60 fps target is unmeasured); the bots do not throw
   grenades or decoys, rebuild barricades or use the wonder weapons well; lobby host controls, AFK
   handling and the other items deferred in sessions 11-13 remain deferred.
+
+### After the 14 sessions: the map overhaul
+Asked for by the owner: terrain with elevation, a layout that is not all rectangles, more than one
+floor. Four steps.
+- [x] 1 Height in the engine — done (sections 6.1-6.3 describe it). Storeys as layers of the
+  grid joined by step links; ramps and stairs as `rise` rooms; movement, sight, shots, blasts,
+  flow fields, the spawner, purchases, the bots and the validator all take the height of the floor
+  underfoot; the wire carries it (protocol 9: `y` in `move`, `mark`, `correct`, the spawn events
+  and at the end of the snapshot tuples). Harrow Ridge is untouched and plays as it did: three
+  seeded 25-round bot campaigns give the same rounds, downs and purchases before and after.
+  Proved on the Stacks (three storeys, a ramp and a terrace): 32 zombies and four roaming bots for
+  three minutes, worst stall 3 s, every floor reached by both. Found on the way: a sight line
+  between two points in one column (one directly over the other) checked nothing between them.
+  Not done here, and step 2's business: the client draws only the ground layer and stands every
+  actor at height 0 (it carries `y` for its own player, the camera, remote players and pick-ups;
+  zombies, hit boxes, effects, the light bake, sound occlusion and the tour do not use it yet), so
+  a map with height cannot be *played in a browser* until step 2.
+- [ ] 2 Rendering and feel for height: `worldBuilder` (slopes, treads, ledge faces, slabs,
+  railings), bake, snow, exterior, mist and culling per storey; actors, hit boxes, effects and
+  sound at their heights.
+- [ ] 3 Rebuild Harrow Ridge: sloped site, rooms that are not boxes, a basement and an upstairs.
+- [ ] 4 Balance and acceptance (`campaign --runs=8` before and after, tour, soak, `ship`).
 
 ## 10. Risks to watch
 - **Map authoring by hand in code** is the biggest schedule risk → mitigated by the carved-rect

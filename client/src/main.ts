@@ -259,8 +259,11 @@ wireEvents({ net, match, map, world, player, remotes, entities, barricades, scor
 /** Drop a marker where we are looking, for the team. */
 function ping(): void {
   const [dx, dy, dz] = aimDir(player.yaw, player.viewPitch);
-  const d = Math.min(rayWorld(map, match.openDoors, player.x, PLAYER_EYE_HEIGHT, player.z, dx, dy, dz, MARK_RANGE - 1), MARK_RANGE - 1);
-  s.send({ t: 'mark', x: player.x + dx * d * 0.98, z: player.z + dz * d * 0.98 });
+  const eye = player.y + PLAYER_EYE_HEIGHT;
+  const d = Math.min(rayWorld(map, match.openDoors, player.x, eye, player.z, dx, dy, dz, MARK_RANGE - 1), MARK_RANGE - 1) * 0.98;
+  const x = player.x + dx * d;
+  const z = player.z + dz * d;
+  s.send({ t: 'mark', x, y: map.floorUnder(x, eye + dy * d, z), z });
 }
 
 const autopilot = new Autopilot(map, player, input, entities, remotes, weapons, {
@@ -327,7 +330,7 @@ renderer.gl.setAnimationLoop((now) => {
     if (sendTimer >= 1 / CLIENT_MOVE_SEND_HZ && !player.freeCam && match.life !== 'dead' && !match.over) {
       sendTimer = 0;
       const state = player.sprinting ? MoveState.Sprint : player.speed > 0.3 ? MoveState.Walk : MoveState.Idle;
-      s.send({ t: 'move', seq: ++moveSeq, x: player.x, z: player.z, yaw: player.yaw, pitch: player.pitch, state });
+      s.send({ t: 'move', seq: ++moveSeq, x: player.x, y: player.y, z: player.z, yaw: player.yaw, pitch: player.pitch, state });
     }
   } else {
     // Menu backdrop: a slow pan around the courtyard.
@@ -350,7 +353,7 @@ renderer.gl.setAnimationLoop((now) => {
   pickups.update(dt, gameTime);
   hud.setEffects(live() ? [...match.effects].map(([kind, until]) => ({ kind, left: until - gameTime })) : []);
   world.update(dt, now / 1000);
-  atmosphere.update(dt, camera.position.x, camera.position.z);
+  atmosphere.update(dt, camera.position.x, camera.position.y - PLAYER_EYE_HEIGHT, camera.position.z);
   sky.position.set(camera.position.x, 0, camera.position.z);
   snow.update(now / 1000, camera.position);
   // A scoped rifle swaps the viewmodel for a scope overlay once the sights are up.
@@ -363,13 +366,13 @@ renderer.gl.setAnimationLoop((now) => {
   const gapPx = (Math.tan(weapons.spread()) / Math.tan((camera.fov * Math.PI) / 360)) * (window.innerHeight / 2);
   hud.setCrosshair(gapPx, weapons.aim < 0.5);
 
-  const zoneId = map.zoneAt(player.x, player.z);
+  const zoneId = map.zoneAt(player.x, player.y, player.z);
   hud.setZone(map.zones.find((z) => z.id === zoneId)?.name ?? '');
   hud.setStamina(player.stamina, player.staminaMax);
   const maxHp = maxHpWith(match.perks);
   audio.frame({
     dt, playing: live(), alive: match.life === 'alive', downed: match.life === 'downed', x: camera.position.x, z: camera.position.z, yaw: camera.rotation.y,
-    zone: map.zoneAt(camera.position.x, camera.position.z), power: match.power, hp: match.life === 'dead' ? 1 : match.hp / maxHp, hpNow: match.hp, speed: player.speed, sprinting: player.sprinting,
+    zone: map.zoneAt(camera.position.x, camera.position.y - PLAYER_EYE_HEIGHT, camera.position.z), power: match.power, hp: match.life === 'dead' ? 1 : match.hp / maxHp, hpNow: match.hp, speed: player.speed, sprinting: player.sprinting,
     stride: player.stride, reviving: interact.progress, gameTime, entities: ents, remotes: mates,
   });
   arcs.update(dt, player.x, player.z, player.yaw);

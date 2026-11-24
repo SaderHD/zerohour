@@ -55,9 +55,9 @@ export type DebugCmd =
   /** Stop (clearing every zombie) or resume the round loop. */
   | { cmd: 'rounds'; on: boolean }
   /** Queue zombies at the windows; with x/z they appear at that spot instead. `interval` sets the spawn spacing. */
-  | { cmd: 'spawnZombies'; count: number; hp?: number; speed?: number; interval?: number; x?: number; z?: number; kind?: ZombieKind }
+  | { cmd: 'spawnZombies'; count: number; hp?: number; speed?: number; interval?: number; x?: number; y?: number; z?: number; kind?: ZombieKind }
   /** Drop a power-up at the player's feet (or at x/z). */
-  | { cmd: 'powerup'; kind: PowerupId; x?: number; z?: number }
+  | { cmd: 'powerup'; kind: PowerupId; x?: number; y?: number; z?: number }
   /** Fix what the Cache's next roll gives: a weapon id, or the Jinx. */
   | { cmd: 'cache'; weapon?: WeaponId; jinx?: boolean }
   | { cmd: 'killZombies' }
@@ -65,8 +65,9 @@ export type DebugCmd =
   | { cmd: 'openAllDoors' }
   | { cmd: 'openDoor'; id: InteractableId }
   | { cmd: 'powerOn' }
-  | { cmd: 'teleport'; x: number; z: number }
-  | { cmd: 'dummy'; x: number; z: number; yaw: number };
+  /** `y` picks the floor where storeys lie over each other (default: the one nearest the player's own height). */
+  | { cmd: 'teleport'; x: number; z: number; y?: number }
+  | { cmd: 'dummy'; x: number; z: number; yaw: number; y?: number };
 
 export type ClientMsg =
   | { t: 'hello'; v: number; name: string; token?: string }
@@ -76,7 +77,8 @@ export type ClientMsg =
   | { t: 'ready'; ready: boolean }
   | { t: 'start' }
   | { t: 'again' } // after a game over: take the room back to the lobby
-  | { t: 'move'; seq: number; x: number; z: number; yaw: number; pitch: number; state: MoveState }
+  /** `y` is the height of the floor underfoot. */
+  | { t: 'move'; seq: number; x: number; y: number; z: number; yaw: number; pitch: number; state: MoveState }
   | { t: 'fire'; seq: number; slot: number; yaw: number; pitch: number; aim: boolean; hits: FireHit[] }
   | { t: 'reload' }
   | { t: 'swap'; slot: number }
@@ -85,7 +87,7 @@ export type ClientMsg =
   | { t: 'interact'; id: InteractableId; hold: boolean } // hold=false cancels a held interaction
   | { t: 'revive'; target: PlayerId; hold: boolean }
   | { t: 'chat'; text: string }
-  | { t: 'mark'; x: number; z: number }
+  | { t: 'mark'; x: number; y: number; z: number }
   | { t: 'ping'; c: number }
   | ({ t: 'debug' } & DebugCmd);
 
@@ -156,6 +158,8 @@ export interface PowerupDrop {
   id: EntityId;
   kind: PowerupId;
   x: number;
+  /** Height of the floor it lies on. */
+  y: number;
   z: number;
   expiresAt: number; // server time, seconds
 }
@@ -195,20 +199,20 @@ export interface SyncState {
   barricades: BarricadeState[];
   players: PlayerPublic[];
   /** Live enemies (their positions follow in snapshots). */
-  zombies: { id: EntityId; kind: ZombieKind; seed: number; x: number; z: number }[];
+  zombies: { id: EntityId; kind: ZombieKind; seed: number; x: number; y: number; z: number }[];
   powerups: PowerupDrop[];
   activeEffects: { kind: PowerupId; until: number }[];
   /** The site the Cache stands at, and every site where it is doing something. */
   cache: { home: InteractableId; boxes: CacheState[] };
   forge: ForgeState;
   /** Where the receiving player is standing (spawn point, or last position on reconnect). */
-  self: { x: number; z: number; yaw: number };
+  self: { x: number; y: number; z: number; yaw: number };
 }
 
-/** [id, x, z, yaw, pitch, moveState, hp, slot] */
-export type PlayerSnap = [PlayerId, number, number, number, number, MoveState, number, number];
-/** [id, x, z, yaw, state, hpFrac(0..1), speed] */
-export type ZombieSnap = [EntityId, number, number, number, ZombieState, number, number];
+/** [id, x, z, yaw, pitch, moveState, hp, slot, y] (y: the height of the floor underfoot) */
+export type PlayerSnap = [PlayerId, number, number, number, number, MoveState, number, number, number];
+/** [id, x, z, yaw, state, hpFrac(0..1), speed, y] */
+export type ZombieSnap = [EntityId, number, number, number, ZombieState, number, number, number];
 /** [id, kind, x, y, z] server-simulated projectiles (grenades, orbs, decoys) */
 export type ProjectileSnap = [EntityId, string, number, number, number];
 
@@ -229,7 +233,7 @@ export interface Snapshot {
 export type GameEvent =
   | { e: 'player'; player: PlayerPublic }
   | { e: 'points'; id: PlayerId; delta: number; total: number; reason: string }
-  | { e: 'zombieSpawn'; id: EntityId; kind: ZombieKind; seed: number; x: number; z: number }
+  | { e: 'zombieSpawn'; id: EntityId; kind: ZombieKind; seed: number; x: number; y: number; z: number }
   | { e: 'zombieHit'; id: EntityId; by: PlayerId; zone: HitZone; dmg: number }
   | { e: 'zombieDied'; id: EntityId; by?: PlayerId; zone?: HitZone; cause: string }
   | { e: 'fired'; id: PlayerId; weapon: WeaponId; yaw: number; pitch: number }
@@ -240,7 +244,7 @@ export type GameEvent =
   /** Someone started (`by`) or stopped (`by` 0) reviving downed player `id`; `by` = `id` is a solo Second Wind. */
   | { e: 'reviving'; id: PlayerId; by: PlayerId }
   | { e: 'playerDied'; id: PlayerId }
-  | { e: 'playerSpawned'; id: PlayerId; x: number; z: number }
+  | { e: 'playerSpawned'; id: PlayerId; x: number; y: number; z: number }
   | { e: 'playerLeft'; id: PlayerId }
   | { e: 'roundStart'; round: number; special: boolean; total: number }
   | { e: 'roundEnd'; round: number }
@@ -261,8 +265,8 @@ export type GameEvent =
   /** An Arclight bolt: from `by`'s gun to the first target, then on down the list. */
   | { e: 'chain'; by: PlayerId; targets: EntityId[] }
   /** Lightning at a spot where a howler is about to appear. */
-  | { e: 'strike'; x: number; z: number }
-  | { e: 'mark'; id: PlayerId; x: number; z: number }
+  | { e: 'strike'; x: number; y: number; z: number }
+  | { e: 'mark'; id: PlayerId; x: number; y: number; z: number }
   | { e: 'gameOver'; round: number; players: PlayerPublic[] };
 
 export type ServerMsg =
@@ -272,7 +276,7 @@ export type ServerMsg =
   | { t: 'left' }
   | ({ t: 'sync' } & SyncState)
   | Snapshot
-  | { t: 'correct'; x: number; z: number; seq: number }
+  | { t: 'correct'; x: number; y: number; z: number; seq: number }
   | { t: 'ev'; tick: number; events: GameEvent[] }
   | { t: 'chat'; from: PlayerId; name: string; text: string }
   | { t: 'pong'; c: number; time: number };

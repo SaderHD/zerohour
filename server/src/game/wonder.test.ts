@@ -14,12 +14,12 @@ function setup(weapon: string, upgraded = false) {
   t.game.openDoor('d_mess_yard', 1);
   t.teleport(1, 22, 49);
   t.send(1, { t: 'debug', cmd: 'give', weapon, upgraded });
-  const sees = (x: number, z: number) => lineOfSight(t.game.map, p.x, p.z, x, z, t.game.openDoors);
+  const sees = (x: number, z: number) => lineOfSight(t.game.map, p.x, p.y, p.z, x, 0, z, t.game.openDoors);
   const hp = zombieHpForRound(30);
   /** `n` zombies in a rank across the yard, `gap` metres apart, barely moving. */
   const rank = (n: number, gap: number, x0 = 25) => Array.from({ length: n }, (_, i) => {
     expect(sees(x0 + i * gap, 49)).toBe(true);
-    return spawnZombie(t.game, null, x0 + i * gap, 49, hp, 0.01);
+    return spawnZombie(t.game, null, x0 + i * gap, 0, 49, hp, 0.01);
   });
   const east = -Math.PI / 2;
   let seq = 0;
@@ -54,7 +54,7 @@ describe('the Arclight', () => {
   it('does nothing without a first target, and stops where the horde thins out', () => {
     const { t, rank, fire } = setup('arclight');
     const near = rank(3, 2);
-    const far = spawnZombie(t.game, null, 40, 49, 150, 0.01);
+    const far = spawnZombie(t.game, null, 40, 0, 49, 150, 0.01);
     fire();
     t.wait(1);
     expect(t.of('chain')).toHaveLength(0);
@@ -80,7 +80,7 @@ describe('the Gravewell', () => {
   it('opens a singularity that drags a 24-zombie horde in, then implodes on them', () => {
     const { t, p, rank, fire, hp } = setup('gravewell');
     const horde = [...rank(8, 0.6, 28), ...rank(8, 0.6, 28).map((z) => ((z.z = 48), z)), ...rank(8, 0.6, 28).map((z) => ((z.z = 50), z))];
-    const out = spawnZombie(t.game, null, 44, 40, hp, 0.01); // well out of reach
+    const out = spawnZombie(t.game, null, 44, 0, 40, hp, 0.01); // well out of reach
     fire();
     t.wait(0.2);
     expect(t.snaps.at(-1)!.projectiles.map((pr) => pr[1])).toEqual(['orb']);

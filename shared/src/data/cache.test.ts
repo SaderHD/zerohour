@@ -70,7 +70,7 @@ describe('the power-up drop cycle (PLAN 4.10)', () => {
 });
 
 describe('chain targeting (PLAN 4.5, the Arclight)', () => {
-  const at = (id: number, x: number, z = 0) => ({ id, x, z });
+  const at = (id: number, x: number, z = 0, y = 0) => ({ id, x, y, z });
 
   it('hops to the nearest body not yet struck, up to the limit', () => {
     const row = Array.from({ length: 12 }, (_, i) => at(i, i * 3));

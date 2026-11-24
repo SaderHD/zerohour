@@ -15,7 +15,7 @@ describe('zombie life cycle', () => {
   it('walks to its window, tears every plank, climbs in, chases and hits the player', () => {
     const t = makeGame();
     const p = t.game.addPlayer(1, 'Ada'); // (28, 26)
-    const z = spawnZombie(t.game, north, north.spawnX, north.spawnZ, 150, ZOMBIE_SPEED_WALK);
+    const z = spawnZombie(t.game, north, north.spawnX, 0, north.spawnZ, 150, ZOMBIE_SPEED_WALK);
     expect(z.state).toBe(ZombieState.Approach);
     t.wait(2);
     expect(z.state).toBe(ZombieState.Tear);
@@ -30,7 +30,7 @@ describe('zombie life cycle', () => {
     expect(z.state).toBe(ZombieState.Vault);
     t.wait(1.2);
     expect(z.state).toBe(ZombieState.Chase);
-    expect(t.game.map.zoneAt(z.x, z.z)).toBe('mess');
+    expect(t.game.map.zoneAt(z.x, 0, z.z)).toBe('mess');
     t.wait(3);
     expect(Math.hypot(z.x - p.x, z.z - p.z)).toBeLessThan(1.05);
     expect(t.of('playerHurt').length).toBeGreaterThan(0);
@@ -40,7 +40,7 @@ describe('zombie life cycle', () => {
   it('a swing misses a player who steps back in time', () => {
     const t = makeGame();
     const p = t.game.addPlayer(1, 'Ada');
-    const z = spawnZombie(t.game, null, p.x, p.z - 3, 150, ZOMBIE_SPEED_WALK);
+    const z = spawnZombie(t.game, null, p.x, 0, p.z - 3, 150, ZOMBIE_SPEED_WALK);
     t.wait(5, () => {
       if (z.state === ZombieState.Attack) t.teleport(1, 28, 30);
       else if (Math.hypot(z.x - p.x, z.z - p.z) > 4) t.teleport(1, z.x, z.z + 0.9);
@@ -52,7 +52,7 @@ describe('zombie life cycle', () => {
   it('two hits kill; health regenerates after a quiet spell; god mode ignores damage', () => {
     const t = makeGame();
     const p = t.game.addPlayer(1, 'Ada');
-    const z = spawnZombie(t.game, null, p.x, p.z - 1.5, 150, ZOMBIE_SPEED_RUN);
+    const z = spawnZombie(t.game, null, p.x, 0, p.z - 1.5, 150, ZOMBIE_SPEED_RUN);
     t.wait(1);
     expect(p.hp).toBe(PLAYER_MAX_HP - ZOMBIE_DAMAGE);
     t.game.zombies.delete(z.id);
@@ -64,7 +64,7 @@ describe('zombie life cycle', () => {
 
     t.send(1, { t: 'debug', cmd: 'god', on: true });
     t.teleport(1, 33, 30);
-    spawnZombie(t.game, null, 33, 28.5, 150, ZOMBIE_SPEED_RUN);
+    spawnZombie(t.game, null, 33, 0, 28.5, 150, ZOMBIE_SPEED_RUN);
     const hurts = t.of('playerHurt').length;
     t.wait(6);
     expect(t.of('playerHurt')).toHaveLength(hurts);
@@ -74,7 +74,7 @@ describe('zombie life cycle', () => {
     const t = makeGame();
     const p = t.game.addPlayer(1, 'Ada');
     t.send(1, { t: 'debug', cmd: 'god', on: true });
-    for (let i = 0; i < 12; i++) spawnZombie(t.game, null, p.x + 5, p.z + (i % 3) * 0.01, 150, ZOMBIE_SPEED_WALK);
+    for (let i = 0; i < 12; i++) spawnZombie(t.game, null, p.x + 5, 0, p.z + (i % 3) * 0.01, 150, ZOMBIE_SPEED_WALK);
     t.wait(8);
     const zs = [...t.game.zombies.values()];
     let closest = Infinity;
@@ -87,7 +87,7 @@ describe('zombie life cycle', () => {
     const t = makeGame();
     const p = t.game.addPlayer(1, 'Ada');
     t.send(1, { t: 'debug', cmd: 'god', on: true });
-    const z = spawnZombie(t.game, null, p.x, p.z - 3.5, 5000, 0.01);
+    const z = spawnZombie(t.game, null, p.x, 0, p.z - 3.5, 5000, 0.01);
     t.send(1, { t: 'throw', kind: 'frag', yaw: 0, pitch: -0.9 });
     t.wait(GRENADE_FUSE + 0.2);
     expect(t.of('explosion')).toHaveLength(1);
@@ -133,7 +133,7 @@ describe('barricades', () => {
     expect(b.planks).toBe(4);
     // A zombie tearing at it blocks the rebuild.
     p.god = true;
-    const z = spawnZombie(t.game, north, north.outX, north.outZ - 0.2, 150, ZOMBIE_SPEED_WALK);
+    const z = spawnZombie(t.game, north, north.outX, 0, north.outZ - 0.2, 150, ZOMBIE_SPEED_WALK);
     t.wait(0.5);
     expect(z.state).toBe(ZombieState.Tear);
     t.send(1, { t: 'interact', id: north.id, hold: true });

@@ -26,6 +26,8 @@ export class ServerClock {
 
 export interface Pose {
   x: number;
+  /** Height of the floor underfoot. */
+  y: number;
   z: number;
   yaw: number;
   pitch: number;
@@ -42,10 +44,10 @@ interface Sample extends Omit<Pose, 'speed'> {
 export class InterpBuffer {
   private readonly samples: Sample[] = [];
 
-  push(t: number, x: number, z: number, yaw: number, pitch: number, state: MoveState): void {
+  push(t: number, x: number, z: number, yaw: number, pitch: number, state: MoveState, y = 0): void {
     const last = this.samples[this.samples.length - 1];
     if (last && t <= last.t) return;
-    this.samples.push({ t, x, z, yaw, pitch, state });
+    this.samples.push({ t, x, y, z, yaw, pitch, state });
     if (this.samples.length > 24) this.samples.shift();
   }
 
@@ -71,6 +73,7 @@ export class InterpBuffer {
     if (jump > 4) return { ...b, speed: 0 }; // teleport: snap, don't slide
     return {
       x: lerp(a.x, b.x, k),
+      y: lerp(a.y, b.y, k),
       z: lerp(a.z, b.z, k),
       yaw: lerpAngle(a.yaw, b.yaw, k),
       pitch: lerp(a.pitch, b.pitch, k),

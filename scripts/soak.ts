@@ -57,7 +57,7 @@ while (Date.now() - began < seconds * 1000) {
       worstIdle = idle;
       worst = `zombie ${z.id} in state ${z.state} at (${z.x.toFixed(1)}, ${z.z.toFixed(1)})`;
     }
-    const zone = game.map.zoneAt(z.x, z.z);
+    const zone = game.map.zoneAt(z.x, 0, z.z);
     if (zone) zones.add(zone);
   }
   const t = Math.floor((Date.now() - began) / 1000);

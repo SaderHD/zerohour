@@ -1,4 +1,4 @@
-import { BARRICADE_PLANKS, INTERACT_RANGE, PLANK_REBUILD_SECONDS, mapWindows, type BarricadeState, type ClientMsg, type WindowInfo } from '@zh/shared';
+import { BARRICADE_PLANKS, FLOOR_GAP, INTERACT_RANGE, PLANK_REBUILD_SECONDS, mapWindows, type BarricadeState, type ClientMsg, type WindowInfo } from '@zh/shared';
 import { scorePlank } from './economy';
 import type { Game, PlayerState } from './Game';
 import { standing } from './players';
@@ -21,7 +21,7 @@ export function setPlanks(g: Game, b: Barricade, planks: number, by?: number): v
   g.emit({ e: 'barricade', id: b.win.id, planks: b.planks, by });
 }
 
-const inReach = (p: PlayerState, b: Barricade): boolean => Math.hypot(p.x - b.win.inX, p.z - b.win.inZ) <= INTERACT_RANGE;
+const inReach = (p: PlayerState, b: Barricade): boolean => Math.abs(p.y - b.win.y) < FLOOR_GAP && Math.hypot(p.x - b.win.inX, p.z - b.win.inZ) <= INTERACT_RANGE;
 
 /** F held or released at a window: start or stop rebuilding it. */
 export function onInteract(g: Game, p: PlayerState, m: Extract<ClientMsg, { t: 'interact' }>): void {

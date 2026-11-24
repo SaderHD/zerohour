@@ -95,7 +95,7 @@ export function wireEvents(d: EventDeps): void {
   }
 
   s.on('sync', (msg) => {
-    player.teleport(msg.self.x, msg.self.z, msg.self.yaw);
+    player.teleport(msg.self.x, msg.self.z, msg.self.yaw, msg.self.y);
     player.pitch = 0;
     m.setDoors(msg.openDoors);
     world.setPower((m.power = msg.power));
@@ -135,7 +135,7 @@ export function wireEvents(d: EventDeps): void {
     weapons.onAmmo(msg.ammo);
   });
   s.on('correct', (msg) => {
-    player.teleport(msg.x, msg.z);
+    player.teleport(msg.x, msg.z, undefined, msg.y);
     debugState.corrections++;
   });
   s.on('ev', (msg) => {
@@ -176,7 +176,7 @@ export function wireEvents(d: EventDeps): void {
           break;
         case 'playerSpawned':
           if (ev.id !== net.id) break;
-          player.teleport(ev.x, ev.z);
+          player.teleport(ev.x, ev.z, undefined, ev.y);
           m.setLife('alive');
           break;
         case 'gameOver':
@@ -185,7 +185,7 @@ export function wireEvents(d: EventDeps): void {
           m.setOver(true);
           break;
         case 'zombieSpawn':
-          entities.spawn(ev.id, ev.kind, ev.seed, ev.x, ev.z);
+          entities.spawn(ev.id, ev.kind, ev.seed, ev.x, ev.z, ev.y);
           break;
         case 'zombieHit':
           if (ev.by === net.id) hud.hit(ev.zone === 'head' ? 'head' : 'hit');

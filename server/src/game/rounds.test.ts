@@ -99,7 +99,7 @@ describe('points (PLAN 4.2)', () => {
     const t = makeGame();
     const p = t.game.addPlayer(1, 'Ada');
     p.god = true;
-    const zombie = (hp = 150) => spawnZombie(t.game, null, p.x, p.z - 4, hp, 0.1);
+    const zombie = (hp = 150) => spawnZombie(t.game, null, p.x, 0, p.z - 4, hp, 0.1);
     return { t, p, zombie };
   };
 
@@ -199,7 +199,7 @@ describe('downs, revives and game over (PLAN 4.1)', () => {
     expect([b.x, b.z]).toEqual([29, 26]);
     expect(t.corrections.at(-1)).toMatchObject({ id: 2, x: 29, z: 26 });
     // Still shoots from the floor.
-    const z = spawnZombie(t.game, null, 29, 23, 150, 0.1);
+    const z = spawnZombie(t.game, null, 29, 0, 23, 150, 0.1);
     t.send(2, { t: 'fire', seq: 1, slot: 0, yaw: 0, pitch: 0, aim: false, hits: [{ id: z.id, zone: 'torso', dist: 3 }] });
     expect(z.hp).toBe(120);
     t.send(2, { t: 'melee', hit: z.id });

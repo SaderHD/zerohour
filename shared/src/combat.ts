@@ -41,7 +41,7 @@ export function aimDir(yaw: number, pitch: number): [number, number, number] {
  * Who a chaining bolt strikes: `first`, then from each body struck the nearest one not yet struck
  * within `radius` (and `canReach`, if given), up to `max` in all.
  */
-export function chainTargets<T extends { x: number; z: number }>(
+export function chainTargets<T extends { x: number; y: number; z: number }>(
   first: T, all: Iterable<T>, max: number, radius: number, canReach?: (from: T, to: T) => boolean,
 ): T[] {
   const chain = [first];
@@ -52,7 +52,7 @@ export function chainTargets<T extends { x: number; z: number }>(
     let next: T | undefined;
     let best = radius;
     for (const t of rest) {
-      const d = Math.hypot(t.x - from.x, t.z - from.z);
+      const d = Math.hypot(t.x - from.x, t.y - from.y, t.z - from.z);
       if (d > best || (canReach && !canReach(from, t))) continue;
       best = d;
       next = t;

@@ -1,4 +1,4 @@
-import { DIR_VEC, INTERACT_RANGE, INTERACT_SLACK, ammoCost, weaponDef, weaponStats, type ClientMsg, type Interactable } from '@zh/shared';
+import { DIR_VEC, FLOOR_GAP, INTERACT_RANGE, INTERACT_SLACK, ammoCost, weaponDef, weaponStats, type ClientMsg, type Interactable } from '@zh/shared';
 import { onInteract as onBarricade } from './barricades';
 import { useCache } from './cache';
 import { giveWeapon } from './combat';
@@ -44,7 +44,7 @@ export function onInteract(g: Game, p: PlayerState, m: Extract<ClientMsg, { t: '
       const deny: Deny = (reason) => g.emitTo(p.pub.id, { e: 'denied', reason });
       // In reach, and on the side it faces (not through the wall it hangs on).
       const front = (p.x - it.x) * DIR_VEC[it.facing].x + (p.z - it.z) * DIR_VEC[it.facing].z;
-      if (Math.hypot(p.x - it.x, p.z - it.z) > INTERACT_RANGE + INTERACT_SLACK || front < -0.1) return deny('range');
+      if (Math.hypot(p.x - it.x, p.z - it.z) > INTERACT_RANGE + INTERACT_SLACK || front < -0.1 || Math.abs(p.y - g.map.mountHeight(it)) >= FLOOR_GAP) return deny('range');
       if (it.kind === 'wallbuy') return wallBuy(g, p, it, deny);
       if (it.kind === 'tonic') return buyTonic(g, p, it, deny);
       if (it.kind === 'forge') return useForge(g, p, deny);

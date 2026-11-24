@@ -37,6 +37,23 @@ export interface Room {
   tint?: number;
   /** Cold enough that mist lies on the floor. */
   mist?: boolean;
+  /** Storey: -1 a basement, 0 the ground (default), 1 upstairs. Rooms on different levels may lie over each other. */
+  level?: number;
+  /** Floor height in metres above the level's base (default 0; negative for a pit). `ceil` is measured from here. */
+  y?: number;
+  /**
+   * A ramp or staircase: the floor climbs `by` metres in all towards `to`, in equal risers a cell
+   * apart, meeting floor at `y` at its foot and at `y + by` at its head. The ceiling stays flat.
+   */
+  rise?: { to: Dir; by: number; stairs?: boolean };
+}
+
+/** A storey of the map: where its floors sit unless a room says otherwise. */
+export interface LevelDef {
+  level: number;
+  name: string;
+  /** Height of the level's base floor, metres. */
+  y: number;
 }
 
 /**
@@ -61,6 +78,8 @@ export interface Opening {
   pocket?: number;
   /** Doors only: a heap of wreckage to clear instead of a door to open. */
   style?: 'debris';
+  /** The storey it is cut on (default 0). It stands at the floor height of the room it touches. */
+  level?: number;
 }
 
 /**
@@ -81,6 +100,8 @@ export interface PropInst {
   s?: number;
   /** Lettering, for signs. */
   text?: string;
+  /** The storey it stands on (default 0). */
+  level?: number;
 }
 
 export type InteractableKind = 'wallbuy' | 'tonic' | 'cacheSite' | 'powerSwitch' | 'forge';
@@ -93,12 +114,17 @@ export interface Interactable {
   x: number;
   z: number;
   facing: Dir;
+  /** The storey it is on (default 0). */
+  level?: number;
 }
 
 export interface LightDef {
   x: number;
+  /** Height above the base of its level. */
   y: number;
   z: number;
+  /** The storey it lights (default 0). */
+  level?: number;
   color: number;
   radius: number;
   intensity: number;
@@ -117,11 +143,13 @@ export interface MapDef {
   name: string;
   size: { w: number; d: number };
   zones: ZoneDef[];
+  /** Storeys other than the ground (level 0 at y 0 is always there). */
+  levels?: LevelDef[];
   rooms: Room[];
   openings: Opening[];
   props: PropInst[];
   interactables: Interactable[];
-  playerSpawns: { x: number; z: number; yaw: number }[];
+  playerSpawns: { x: number; z: number; yaw: number; level?: number }[];
   lights: LightDef[];
 }
 
@@ -129,6 +157,7 @@ export interface MapDef {
 export interface ZSpawn {
   id: string;
   x: number;
+  y: number;
   z: number;
   windowId: string;
 }

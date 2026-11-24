@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BLEEDOUT_SECONDS, INTERACT_RANGE, MoveState, lineOfSight, type CompiledMap, type PlayerId, type PlayerPublic, type PlayerSnap } from '@zh/shared';
+import { BLEEDOUT_SECONDS, INTERACT_RANGE, MoveState, PLAYER_EYE_HEIGHT, lineOfSight, type CompiledMap, type PlayerId, type PlayerPublic, type PlayerSnap } from '@zh/shared';
 import { PLAYER_COLOURS, PlayerModel } from '../models/player';
 import { InterpBuffer, type Pose } from '../net/interp';
 import type { World } from '../render/worldBuilder';
@@ -71,7 +71,7 @@ export class RemotePlayers {
   }
 
   onSnapshot(time: number, players: PlayerSnap[]): void {
-    for (const [id, x, z, yaw, pitch, state] of players) this.remotes.get(id)?.buffer.push(time, x, z, yaw, pitch, state);
+    for (const [id, x, z, yaw, pitch, state, , , y] of players) this.remotes.get(id)?.buffer.push(time, x, z, yaw, pitch, state, y);
   }
 
   update(dt: number, renderTime: number, camera: THREE.PerspectiveCamera, viewW: number, viewH: number): void {
@@ -89,18 +89,18 @@ export class RemotePlayers {
       r.downFor = down ? r.downFor + dt : 0;
       if (!down) r.reviving = false;
       r.fall += ((down ? 1 : 0) - r.fall) * Math.min(1, dt * 7);
-      root.position.set(pose.x, r.fall * 0.14, pose.z);
+      root.position.set(pose.x, pose.y + r.fall * 0.14, pose.z);
       root.rotation.set(r.fall * 1.5, pose.yaw, 0, 'YXZ');
       r.model.update(dt, { speed: pose.speed, sprinting: pose.state === MoveState.Sprint, pitch: pose.pitch });
       r.model.setLight(this.world.lightAt(pose.x, 1, pose.z));
 
       // Name tag: projected to the screen, hidden when behind us, far away or behind a wall.
-      const v = this.v.set(pose.x, 2.05 - r.fall * 1.4, pose.z);
+      const v = this.v.set(pose.x, pose.y + 2.05 - r.fall * 1.4, pose.z);
       const dist = v.distanceTo(camera.position);
       v.project(camera);
       // A downed teammate's revive icon shows through walls and at any distance.
       const visible = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1
-        && (down || (dist < TAG_RANGE && lineOfSight(this.map, camera.position.x, camera.position.z, pose.x, pose.z, 'all')));
+        && (down || (dist < TAG_RANGE && lineOfSight(this.map, camera.position.x, camera.position.y - PLAYER_EYE_HEIGHT, camera.position.z, pose.x, pose.y, pose.z, 'all')));
       r.tag.style.display = visible ? 'block' : 'none';
       const text = down ? `\u271a ${r.name}` : r.connected ? r.name : `${r.name} (lost)`;
       if (r.tag.textContent !== text) r.tag.textContent = text;
@@ -166,9 +166,9 @@ export class RemotePlayers {
   }
 
   /** For tests/debug. `state` is a MoveState. */
-  list(): { id: PlayerId; name: string; x: number; z: number; visible: boolean; connected: boolean; weapon: string | null; shots: number; state: number }[] {
+  list(): { id: PlayerId; name: string; x: number; y: number; z: number; visible: boolean; connected: boolean; weapon: string | null; shots: number; state: number }[] {
     return [...this.remotes.values()].map((r) => ({
-      id: r.id, name: r.name, x: r.pose?.x ?? NaN, z: r.pose?.z ?? NaN, visible: r.model.root.visible, connected: r.connected,
+      id: r.id, name: r.name, x: r.pose?.x ?? NaN, y: r.pose?.y ?? 0, z: r.pose?.z ?? NaN, visible: r.model.root.visible, connected: r.connected,
       weapon: r.weapon, shots: r.shots, state: r.pose?.state ?? MoveState.Idle,
     }));
   }

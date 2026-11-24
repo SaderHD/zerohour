@@ -8,6 +8,8 @@ import type { CacheState, ForgeState, WeaponState } from '../protocol';
 export interface BotTarget {
   id: number;
   x: number;
+  /** Height of the floor it stands on. */
+  y: number;
   z: number;
 }
 
@@ -16,6 +18,8 @@ export interface BotView {
   time: number;
   id: number;
   x: number;
+  /** Height of the floor we stand on. */
+  y: number;
   z: number;
   hp: number;
   maxHp: number;
@@ -27,8 +31,8 @@ export interface BotView {
   reloading: boolean;
   zombies: Iterable<BotTarget>;
   /** The other players still in the game (not dead). */
-  mates: Iterable<{ id: number; x: number; z: number; downed: boolean }>;
-  drops: Iterable<{ x: number; z: number }>;
+  mates: Iterable<{ id: number; x: number; y: number; z: number; downed: boolean }>;
+  drops: Iterable<{ x: number; y: number; z: number }>;
   open: ReadonlySet<string>;
   power: boolean;
   solo: boolean;

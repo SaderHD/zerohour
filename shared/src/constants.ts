@@ -1,6 +1,6 @@
 // Every tunable number in the game lives here or in shared/src/data. See docs/PLAN.md section 4.
 
-export const PROTOCOL_VERSION = 8;
+export const PROTOCOL_VERSION = 9;
 
 // --- Networking ---
 export const TICK_RATE = 30; // server sim Hz
@@ -34,6 +34,14 @@ export const MARK_RANGE = 60;
 
 // --- World ---
 export const CELL_SIZE = 0.5; // metres per nav/collision cell
+/** Tallest change of floor height between neighbouring cells that can be walked over; anything more is a ledge. */
+export const STEP_HEIGHT = 0.3;
+/** Least open height over a floor that anyone walks on. */
+export const MIN_HEADROOM = 2;
+/** Bodies whose feet are further apart in height than this are on different floors: they do not touch. */
+export const FLOOR_GAP = 1.5;
+/** Height above the feet from which sight lines are taken (chest height). */
+export const SIGHT_HEIGHT = 1.2;
 export const MIN_LANE_WIDTH = 1.5;
 export const POWER_OFF_LIGHT = 0.4; // share of a mains light's glow before the power is on
 

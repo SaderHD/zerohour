@@ -1,4 +1,4 @@
-import { INTERACT_RANGE, INTERACT_SLACK, openingDistance } from '@zh/shared';
+import { FLOOR_GAP, INTERACT_RANGE, INTERACT_SLACK, openingDistance } from '@zh/shared';
 import { award } from './economy';
 import type { Game, PlayerState } from './Game';
 import { standing } from './players';
@@ -12,7 +12,7 @@ export function buyDoor(g: Game, p: PlayerState, id: string): boolean {
   if (!o || o.kind !== 'door') return false;
   if (g.openDoors.has(id) || !standing(p)) return true;
   const deny = (reason: 'points' | 'power' | 'range') => void g.emitTo(p.pub.id, { e: 'denied', reason });
-  if (openingDistance(o, p.x, p.z) > INTERACT_RANGE + INTERACT_SLACK) return deny('range'), true;
+  if (openingDistance(o, p.x, p.z) > INTERACT_RANGE + INTERACT_SLACK || Math.abs(p.y - g.map.openingHeight(o)) >= FLOOR_GAP) return deny('range'), true;
   if (o.needsPower) return deny('power'), true; // these open by themselves when the power comes on
   const cost = o.cost ?? 0;
   if (p.pub.points < cost) return deny('points'), true;

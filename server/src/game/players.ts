@@ -1,5 +1,5 @@
 import {
-  BLEEDOUT_SECONDS, INTERACT_RANGE, MOVE_BUDGET_CAP, MoveState, PLAYER_REGEN_DELAY, PLAYER_REGEN_RATE, POINTS_REVIVE,
+  BLEEDOUT_SECONDS, FLOOR_GAP, INTERACT_RANGE, MOVE_BUDGET_CAP, MoveState, PLAYER_REGEN_DELAY, PLAYER_REGEN_RATE, POINTS_REVIVE,
   RESPAWN_MIN_POINTS, REVIVE_GRACE_SECONDS, REVIVE_RANGE_SLACK, SELF_REVIVE_SECONDS, START_GRENADES, START_WEAPON, maxHpWith, reviveSecondsWith,
   type ClientMsg,
 } from '@zh/shared';
@@ -81,6 +81,7 @@ export function sitOut(p: PlayerState): void {
 export function respawn(g: Game, p: PlayerState): void {
   const s = g.nextSpawn();
   p.x = s.x;
+  p.y = s.y;
   p.z = s.z;
   p.yaw = s.yaw;
   p.vx = p.vz = 0;
@@ -97,7 +98,7 @@ export function respawn(g: Game, p: PlayerState): void {
   p.pub.grenades = START_GRENADES;
   p.pub.tactical = 0;
   award(g, p, Math.max(0, RESPAWN_MIN_POINTS - p.pub.points), 'respawn');
-  g.emit({ e: 'playerSpawned', id: p.pub.id, x: p.x, z: p.z });
+  g.emit({ e: 'playerSpawned', id: p.pub.id, x: p.x, y: p.y, z: p.z });
   g.emit({ e: 'player', player: p.pub });
   g.correct(p);
 }
@@ -108,7 +109,7 @@ export function onRevive(_g: Game, p: PlayerState, m: Extract<ClientMsg, { t: 'r
 }
 
 const canRevive = (r: PlayerState, p: PlayerState): boolean =>
-  r.reviving === p.pub.id && r.pub.connected && standing(r) && Math.hypot(r.x - p.x, r.z - p.z) <= INTERACT_RANGE + REVIVE_RANGE_SLACK;
+  r.reviving === p.pub.id && r.pub.connected && standing(r) && Math.abs(r.y - p.y) < FLOOR_GAP && Math.hypot(r.x - p.x, r.z - p.z) <= INTERACT_RANGE + REVIVE_RANGE_SLACK;
 
 export function updatePlayers(g: Game, dt: number): void {
   for (const p of g.players.values()) {

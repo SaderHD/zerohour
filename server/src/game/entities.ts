@@ -32,6 +32,8 @@ export interface Zombie {
   kind: ZombieKind;
   seed: number;
   x: number;
+  /** Height of the floor it stands on. */
+  y: number;
   z: number;
   yaw: number;
   state: ZombieState;
@@ -42,13 +44,13 @@ export interface Zombie {
   ai?: ZombieAI;
 }
 
-export function spawnDummy(g: Game, x: number, z: number, yaw: number): Zombie {
+export function spawnDummy(g: Game, x: number, y: number, z: number, yaw: number): Zombie {
   const d: Zombie = {
-    id: g.nextEntityId++, kind: 'dummy', seed: g.rng.int(0, 0xffff), x, z, yaw,
+    id: g.nextEntityId++, kind: 'dummy', seed: g.rng.int(0, 0xffff), x, y, z, yaw,
     state: ZombieState.Idle, hp: DUMMY_HP, maxHp: DUMMY_HP, speed: 0,
   };
   g.zombies.set(d.id, d);
-  g.emit({ e: 'zombieSpawn', id: d.id, kind: d.kind, seed: d.seed, x, z });
+  g.emit({ e: 'zombieSpawn', id: d.id, kind: d.kind, seed: d.seed, x, y, z });
   return d;
 }
 
@@ -70,7 +72,7 @@ export function killZombie(g: Game, z: Zombie, by: PlayerId | undefined, zone: H
   g.zombies.delete(z.id);
   g.emit({ e: 'zombieDied', id: z.id, by, zone, cause });
   // A destroyed dummy stands back up so damage tests can continue.
-  if (z.kind === 'dummy') g.dummyResets.push({ at: g.time + DUMMY_RESET_SECONDS, x: z.x, z: z.z, yaw: z.yaw });
+  if (z.kind === 'dummy') g.dummyResets.push({ at: g.time + DUMMY_RESET_SECONDS, x: z.x, y: z.y, z: z.z, yaw: z.yaw });
   else if (cause !== 'debug' && cause !== 'firestorm') onZombieKilled(g, z, by);
 }
 
@@ -79,11 +81,11 @@ export function updateEntities(g: Game): void {
     const r = g.dummyResets[i]!;
     if (g.time < r.at) continue;
     g.dummyResets.splice(i, 1);
-    spawnDummy(g, r.x, r.z, r.yaw);
+    spawnDummy(g, r.x, r.y, r.z, r.yaw);
   }
 }
 
 const r2 = (n: number): number => Math.round(n * 100) / 100;
 
 export const zombieSnap = (z: Zombie): ZombieSnap =>
-  [z.id, r2(z.x), r2(z.z), r2(z.yaw), z.state, Math.max(0, Math.round((z.hp / z.maxHp) * 1000) / 1000), z.speed];
+  [z.id, r2(z.x), r2(z.z), r2(z.yaw), z.state, Math.max(0, Math.round((z.hp / z.maxHp) * 1000) / 1000), z.speed, r2(z.y)];

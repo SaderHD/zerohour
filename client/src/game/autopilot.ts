@@ -15,7 +15,7 @@ export interface AutopilotWorld {
   power(): boolean;
   forge(): ForgeState;
   openDoors: ReadonlySet<string>;
-  drops(): { x: number; z: number }[];
+  drops(): { x: number; y: number; z: number }[];
   cacheHome(): string;
   cacheAt(site: string): CacheState | null;
 }
@@ -96,10 +96,10 @@ export class Autopilot {
       }
       const mates = this.remotes.list().filter((r) => r.connected && Number.isFinite(r.x) && r.state !== MoveState.Dead);
       this.intent = this.mind.think({
-        time: this.time, id, x: player.x, z: player.z, hp: world.hp(), maxHp: maxHpWith(perks), life, points: world.points(),
+        time: this.time, id, x: player.x, y: player.y, z: player.z, hp: world.hp(), maxHp: maxHpWith(perks), life, points: world.points(),
         weapons: weapons.slots, slot: weapons.slot, perks, reloading: weapons.reloading,
         zombies: this.entities.list().filter((e) => e.kind !== 'dummy' && e.state !== ZOMBIE_DYING && e.hp > 0),
-        mates: mates.map((r) => ({ id: r.id, x: r.x, z: r.z, downed: r.state === MoveState.Downed })),
+        mates: mates.map((r) => ({ id: r.id, x: r.x, y: r.y, z: r.z, downed: r.state === MoveState.Downed })),
         drops: world.drops(), open: world.openDoors, power: world.power(), solo: mates.length === 0, forge: world.forge(),
         cache: { home: world.cacheHome(), boxes },
       });

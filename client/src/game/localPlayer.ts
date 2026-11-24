@@ -1,6 +1,6 @@
 import type * as THREE from 'three';
 import {
-  PLAYER_EYE_HEIGHT, PLAYER_RADIUS, SPRINT_SPEED, STAMINA_REGEN_DELAY, STAMINA_SECONDS, WALK_SPEED,
+  FLOOR_GAP, PLAYER_EYE_HEIGHT, PLAYER_RADIUS, SPRINT_SPEED, STAMINA_REGEN_DELAY, STAMINA_SECONDS, WALK_SPEED,
   clamp, moveCircle, type CompiledMap, type DoorSet,
 } from '@zh/shared';
 import type { Input } from '../input/input';
@@ -14,6 +14,8 @@ const BODY_GAP = 0.6;
 /** How far the view sinks, and tilts, when downed. */
 const DOWNED_DROP = 1.05;
 const DOWNED_ROLL = 0.28;
+/** How quickly the view follows the floor up and down steps (1/s). */
+const STEP_SMOOTHING = 14;
 
 /**
  * The player's own body. Movement is simulated locally with the shared collision code and (from
@@ -21,6 +23,8 @@ const DOWNED_ROLL = 0.28;
  */
 export class LocalPlayer {
   x = 0;
+  /** Height of the floor underfoot. */
+  y = 0;
   z = 0;
   yaw = 0;
   pitch = 0;
@@ -55,6 +59,8 @@ export class LocalPlayer {
   /** Sideways recoil still to be fed into the yaw (it does not come back; the player corrects). */
   private yawKick = 0;
   private flyY = PLAYER_EYE_HEIGHT;
+  /** The floor height the view rides at: it follows `y` smoothly, so stairs are a climb and not a judder. */
+  private viewY = 0;
   private sinceSprint = STAMINA_REGEN_DELAY;
   private bob = 0;
   private bobAmount = 0;
@@ -80,14 +86,15 @@ export class LocalPlayer {
     return this.bob / Math.PI + 0.25;
   }
 
-  teleport(x: number, z: number, yaw = this.yaw): void {
+  teleport(x: number, z: number, yaw = this.yaw, y = this.y): void {
     this.x = x;
+    this.y = this.viewY = y;
     this.z = z;
     this.yaw = yaw;
     this.vx = this.vz = 0;
   }
 
-  update(dt: number, input: Input, map: CompiledMap, open: DoorSet, blockers: readonly { x: number; z: number }[] = []): void {
+  update(dt: number, input: Input, map: CompiledMap, open: DoorSet, blockers: readonly { x: number; z: number; y?: number }[] = []): void {
     const mouse = input.consumeMouse();
     const sens = this.sensitivity * this.zoom;
     this.lookX = mouse.dx;
@@ -145,17 +152,19 @@ export class LocalPlayer {
     this.vz += (wz * target - this.vz) * k;
 
     const before = { x: this.x, z: this.z };
-    let p = moveCircle(map, open, this.x, this.z, this.vx * dt, this.vz * dt, PLAYER_RADIUS);
+    let p = moveCircle(map, open, this.x, this.y, this.z, this.vx * dt, this.vz * dt, PLAYER_RADIUS);
     // Zombies are in the way: slide out of any we overlap (walls still win).
     for (const b of blockers) {
       const ox = p.x - b.x;
       const oz = p.z - b.z;
       const d = Math.hypot(ox, oz);
-      if (d >= BODY_GAP || d < 1e-4) continue;
-      p = moveCircle(map, open, p.x, p.z, (ox / d) * (BODY_GAP - d), (oz / d) * (BODY_GAP - d), PLAYER_RADIUS);
+      if (d >= BODY_GAP || d < 1e-4 || Math.abs((b.y ?? p.y) - p.y) >= FLOOR_GAP) continue;
+      p = moveCircle(map, open, p.x, p.y, p.z, (ox / d) * (BODY_GAP - d), (oz / d) * (BODY_GAP - d), PLAYER_RADIUS);
     }
     this.x = p.x;
+    this.y = p.y;
     this.z = p.z;
+    this.viewY += (this.y - this.viewY) * (1 - Math.exp(-STEP_SMOOTHING * dt));
     // Kill velocity into walls so we don't "stick" when turning away.
     if (dt > 0) {
       const ax = (this.x - before.x) / dt;
@@ -173,7 +182,7 @@ export class LocalPlayer {
   applyTo(camera: THREE.PerspectiveCamera): void {
     const bobY = this.freeCam ? 0 : Math.sin(this.bob * 2) * 0.035 * this.bobAmount;
     const bobX = this.freeCam ? 0 : Math.cos(this.bob) * 0.02 * this.bobAmount;
-    const y = this.freeCam ? this.flyY : PLAYER_EYE_HEIGHT + bobY - DOWNED_DROP * this.drop;
+    const y = this.freeCam ? this.flyY : this.viewY + PLAYER_EYE_HEIGHT + bobY - DOWNED_DROP * this.drop;
     camera.position.set(this.x + Math.cos(this.yaw) * bobX, y, this.z - Math.sin(this.yaw) * bobX);
     camera.rotation.set(this.freeCam ? this.pitch : this.viewPitch, this.yaw, this.freeCam ? 0 : bobX * 0.4 + DOWNED_ROLL * this.drop, 'YXZ');
     if (Math.abs(camera.fov - this.fov) > 0.01) {
@@ -184,6 +193,6 @@ export class LocalPlayer {
 
   setFreeCam(on: boolean): void {
     this.freeCam = on;
-    this.flyY = PLAYER_EYE_HEIGHT;
+    this.flyY = this.y + PLAYER_EYE_HEIGHT;
   }
 }

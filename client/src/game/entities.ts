@@ -44,14 +44,14 @@ export class Entities {
     this.horde = new ZombieHorde(scene);
   }
 
-  reset(list: { id: EntityId; kind: ZombieKind; seed: number; x: number; z: number }[]): void {
+  reset(list: { id: EntityId; kind: ZombieKind; seed: number; x: number; y: number; z: number }[]): void {
     for (const e of [...this.live.values(), ...this.dead]) this.discard(e);
     this.live.clear();
     this.dead.length = 0;
-    for (const z of list) this.spawn(z.id, z.kind, z.seed, z.x, z.z);
+    for (const z of list) this.spawn(z.id, z.kind, z.seed, z.x, z.z, z.y);
   }
 
-  spawn(id: EntityId, kind: ZombieKind, seed: number, x: number, z: number): void {
+  spawn(id: EntityId, kind: ZombieKind, seed: number, x: number, z: number, y = 0): void {
     if (this.live.has(id)) return;
     let model: EntityModel;
     if (kind === 'dummy') {
@@ -60,14 +60,14 @@ export class Entities {
       model = dummy;
     } else model = kind === 'howler' ? new HowlerActor(seed, this.horde) : new ZombieActor(seed, this.horde);
     const state = (kind === 'dummy' ? ZombieState.Idle : kind === 'howler' ? ZombieState.Chase : ZombieState.Approach) as never;
-    this.live.set(id, { id, kind, model, buffer: new InterpBuffer(), hp: 1, gait: 1, dying: 0, pose: { x, z, yaw: 0, pitch: 0, state, speed: 0 } });
+    this.live.set(id, { id, kind, model, buffer: new InterpBuffer(), hp: 1, gait: 1, dying: 0, pose: { x, y, z, yaw: 0, pitch: 0, state, speed: 0 } });
   }
 
   onSnapshot(time: number, zombies: ZombieSnap[]): void {
-    for (const [id, x, z, yaw, state, hp, gait] of zombies) {
+    for (const [id, x, z, yaw, state, hp, gait, y] of zombies) {
       const e = this.live.get(id);
       if (!e) continue;
-      e.buffer.push(time, x, z, yaw, 0, state as never);
+      e.buffer.push(time, x, z, yaw, 0, state as never, y);
       e.hp = hp;
       e.gait = gait;
     }
@@ -185,7 +185,7 @@ export class Entities {
   }
 
   /** For tests/debug. */
-  list(): { id: EntityId; kind: ZombieKind; x: number; z: number; hp: number; state: number; gait: number }[] {
-    return [...this.live.values()].map((e) => ({ id: e.id, kind: e.kind, x: e.pose.x, z: e.pose.z, hp: e.hp, state: e.pose.state, gait: e.gait }));
+  list(): { id: EntityId; kind: ZombieKind; x: number; y: number; z: number; hp: number; state: number; gait: number }[] {
+    return [...this.live.values()].map((e) => ({ id: e.id, kind: e.kind, x: e.pose.x, y: e.pose.y, z: e.pose.z, hp: e.hp, state: e.pose.state, gait: e.gait }));
   }
 }

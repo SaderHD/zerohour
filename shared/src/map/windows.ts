@@ -13,8 +13,9 @@ export function openingDistance(o: Opening, x: number, z: number): number {
 export interface WindowInfo {
   id: string;
   zone: string;
-  /** Centre of the hole. */
+  /** Centre of the hole, and the height of the floor it opens onto (zombies outside stand at the same height). */
   x: number;
+  y: number;
   z: number;
   /** Unit vector pointing outside. */
   ox: number;
@@ -46,7 +47,7 @@ export function mapWindows(map: CompiledMap): WindowInfo[] {
     const x = o.x + o.w / 2;
     const z = o.z + o.d / 2;
     list.push({
-      id: o.id, zone: o.zones[0], x, z, ox: v.x, oz: v.z, len: Math.max(o.w, o.d), alongX: o.w > o.d,
+      id: o.id, zone: o.zones[0], x, y: map.openingHeight(o), z, ox: v.x, oz: v.z, len: Math.max(o.w, o.d), alongX: o.w > o.d,
       outX: x + v.x * WINDOW_STANDOFF, outZ: z + v.z * WINDOW_STANDOFF,
       inX: x - v.x * WINDOW_STANDOFF, inZ: z - v.z * WINDOW_STANDOFF,
       spawnX: sp.x, spawnZ: sp.z,

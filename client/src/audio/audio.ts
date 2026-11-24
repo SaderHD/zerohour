@@ -89,7 +89,7 @@ export class GameAudio {
       lx = x;
       lz = z;
     };
-    this.synth.occluded = (x, z) => !lineOfSight(w.map, lx, lz, x, z, w.openDoors);
+    this.synth.occluded = (x, z) => !lineOfSight(w.map, lx, 0, lz, x, 0, z, w.openDoors);
     try {
       const saved = JSON.parse(localStorage.getItem(STORE_KEY) ?? '{}') as Partial<Synth['volumes']>;
       for (const k of ['master', 'sfx', 'music'] as const) if (typeof saved[k] === 'number') this.synth.setVolume(k, saved[k]);

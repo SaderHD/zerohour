@@ -18,9 +18,9 @@ export class Atmosphere {
     for (const z of map.def.zones) if (z.fog) this.byZone.set(z.id, z.fog);
   }
 
-  /** Call each frame with where the camera is. */
-  update(dt: number, x: number, z: number): void {
-    const want = this.byZone.get(this.map.zoneAt(x, z) ?? '') ?? DEFAULT;
+  /** Call each frame with where the viewer stands (`y`: about the height of their feet). */
+  update(dt: number, x: number, y: number, z: number): void {
+    const want = this.byZone.get(this.map.zoneAt(x, y, z) ?? '') ?? DEFAULT;
     const k = 1 - Math.exp(-dt * BLEND_RATE);
     this.fog.color.lerp(this.target.set(want.color), k);
     this.fog.near += (want.near - this.fog.near) * k;

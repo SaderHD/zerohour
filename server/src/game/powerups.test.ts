@@ -17,11 +17,11 @@ function setup() {
   p.god = true;
   /** Drop one at the player's feet and let them walk into it. */
   const take = (kind: string) => {
-    dropPowerup(t.game, kind, p.x, p.z);
+    dropPowerup(t.game, kind, p.x, 0, p.z);
     t.wait(0.1);
   };
   /** A zombie standing three metres in front of the player. */
-  const zombie = (hp = 150) => spawnZombie(t.game, null, p.x, p.z - 3, hp, 0.001);
+  const zombie = (hp = 150) => spawnZombie(t.game, null, p.x, 0, p.z - 3, hp, 0.001);
   const hit = (id: number, seq: number) => t.send(1, { t: 'fire', seq, slot: 0, yaw: 0, pitch: 0, aim: false, hits: [{ id, zone: 'torso', dist: 3 }] });
   return { t, p, take, zombie, hit };
 }
@@ -35,9 +35,9 @@ describe('drops', () => {
     for (let i = 0; i < n; i++) {
       t.game.powerups.dropped = 0;
       const before = t.game.powerups.drops.length;
-      damageZombie(t.game, spawnZombie(t.game, null, 30, 45, 10, 1), 10, 1, 'torso', 'bullet');
+      damageZombie(t.game, spawnZombie(t.game, null, 30, 0, 45, 10, 1), 10, 1, 'torso', 'bullet');
       drops += t.game.powerups.drops.length - before;
-      damageZombie(t.game, spawnZombie(t.game, win, win.spawnX, win.spawnZ, 10, 1), 10, 1, 'torso', 'bullet');
+      damageZombie(t.game, spawnZombie(t.game, win, win.spawnX, 0, win.spawnZ, 10, 1), 10, 1, 'torso', 'bullet');
       expect(t.game.powerups.drops.length - before).toBeLessThanOrEqual(1);
     }
     expect(drops / n).toBeGreaterThan(POWERUP_DROP_CHANCE * 0.6);
@@ -51,7 +51,7 @@ describe('drops', () => {
     // Within one round: no more than four.
     t.game.powerups.drops.length = 0;
     t.game.powerups.dropped = 0;
-    for (let i = 0; i < n; i++) damageZombie(t.game, spawnZombie(t.game, null, 30, 45, 10, 1), 10, 1, 'torso', 'bullet');
+    for (let i = 0; i < n; i++) damageZombie(t.game, spawnZombie(t.game, null, 30, 0, 45, 10, 1), 10, 1, 'torso', 'bullet');
     expect(t.game.powerups.drops).toHaveLength(POWERUP_MAX_PER_ROUND);
   });
 
@@ -65,7 +65,7 @@ describe('drops', () => {
 
   it('float for 30 seconds, then go', () => {
     const { t } = setup();
-    const d = dropPowerup(t.game, 'reaper', 30, 45)!;
+    const d = dropPowerup(t.game, 'reaper', 30, 0, 45)!;
     expect(t.of('powerupDrop')).toHaveLength(0);
     t.wait(POWERUP_LIFETIME - 0.2);
     expect(t.of('powerupDrop')).toEqual([{ e: 'powerupDrop', drop: d }]);
@@ -78,7 +78,7 @@ describe('drops', () => {
 
   it('are taken by walking into them, by a player on their feet', () => {
     const { t, p } = setup();
-    const d = dropPowerup(t.game, 'double', p.x + 3, p.z)!;
+    const d = dropPowerup(t.game, 'double', p.x + 3, 0, p.z)!;
     t.wait(0.5);
     expect(t.game.powerups.drops).toHaveLength(1);
     t.move(1, p.x + 2.5, p.z);
@@ -139,7 +139,7 @@ describe('effects', () => {
     const q = t.game.addPlayer(2, 'Bo');
     for (let i = 0; i < 5; i++) zombie();
     const win = mapWindows(t.game.map)[0]!;
-    spawnZombie(t.game, win, win.spawnX, win.spawnZ, 150, 1);
+    spawnZombie(t.game, win, win.spawnX, 0, win.spawnZ, 150, 1);
     take('firestorm');
     expect(t.game.zombies.size).toBe(0);
     expect([p.pub.points, q.pub.points]).toEqual([START_POINTS + FIRESTORM_POINTS, START_POINTS + FIRESTORM_POINTS]);
@@ -159,7 +159,7 @@ describe('effects', () => {
   it('are in the sync a late joiner gets', () => {
     const { t, take } = setup();
     take('double');
-    const d = dropPowerup(t.game, 'reaper', 30, 45)!;
+    const d = dropPowerup(t.game, 'reaper', 30, 0, 45)!;
     const sync = t.game.syncFor(1);
     if (sync.t !== 'sync') throw new Error('no sync');
     expect(sync.powerups).toEqual([d]);

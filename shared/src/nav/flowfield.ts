@@ -8,19 +8,17 @@ const DIAG = 14;
 const WALL_COST = 8;
 /** How many cells ahead along the path a mover aims for (smooths the 8-direction staircase). */
 const LOOK_AHEAD = 3;
-const NEIGHBOURS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]] as const;
 
 const wallCostCache = new WeakMap<CompiledMap, Uint8Array>();
 function wallCosts(map: CompiledMap): Uint8Array {
   let w = wallCostCache.get(map);
   if (w) return w;
-  w = new Uint8Array(map.cols * map.rows);
-  const open = (cx: number, cz: number) => { const k = map.kindAt(cx, cz); return (k === Cell.Floor || k === Cell.Door) && !map.block[map.idx(cx, cz)]; };
-  for (let cz = 0; cz < map.rows; cz++) {
-    for (let cx = 0; cx < map.cols; cx++) {
-      if (!open(cx, cz)) continue;
-      for (const [dx, dz] of NEIGHBOURS) if (!open(cx + dx, cz + dz)) { w[map.idx(cx, cz)] = WALL_COST; break; }
-    }
+  w = new Uint8Array(map.kind.length);
+  const open = (i: number) => i >= 0 && (map.kind[i] === Cell.Floor || map.kind[i] === Cell.Door) && !map.block[i];
+  for (let i = 0; i < w.length; i++) {
+    if (!open(i)) continue;
+    // A wall, a ledge or furniture on any side.
+    for (let n = 0; n < 8; n++) if (!open(map.links[i * 8 + n]!)) { w[i] = WALL_COST; break; }
   }
   wallCostCache.set(map, w);
   return w;
@@ -38,10 +36,11 @@ export class FlowField {
   private heapSize = 0;
   private readonly wall: Uint8Array;
   goalX = 0;
+  goalY = 0;
   goalZ = 0;
 
   constructor(readonly map: CompiledMap) {
-    const n = map.cols * map.rows;
+    const n = map.kind.length;
     this.dist = new Uint16Array(n).fill(UNREACHABLE);
     this.walk = new Uint8Array(n);
     this.heap = new Int32Array(n * 16); // room for every relaxation of every cell
@@ -84,30 +83,28 @@ export class FlowField {
     return top;
   }
 
-  /** Recompute for a goal at (x, z). Returns false if the goal is not on walkable ground. */
-  compute(open: DoorSet, x: number, z: number): boolean {
+  /** Recompute for a goal standing at (x, z) with its feet at `y`. Returns false if the goal is not on walkable ground. */
+  compute(open: DoorSet, x: number, y: number, z: number): boolean {
     const { map, dist, walk } = this;
-    const { cols, rows } = map;
+    const links = map.links;
     this.goalX = x;
+    this.goalY = y;
     this.goalZ = z;
     dist.fill(UNREACHABLE);
-    for (let cz = 0, i = 0; cz < rows; cz++) for (let cx = 0; cx < cols; cx++, i++) walk[i] = map.isWalkable(cx, cz, open) ? 1 : 0;
-    const gx = Math.floor(x / CELL_SIZE);
-    const gz = Math.floor(z / CELL_SIZE);
-    if (!map.inBounds(gx, gz) || !walk[map.idx(gx, gz)]) return false;
+    for (let i = 0; i < walk.length; i++) walk[i] = map.walkable(i, open) ? 1 : 0;
+    const goal = map.cellAt(x, y, z);
+    if (goal < 0 || !walk[goal]) return false;
     this.heapSize = 0;
-    dist[map.idx(gx, gz)] = 0;
-    this.push(0, map.idx(gx, gz));
+    dist[goal] = 0;
+    this.push(0, goal);
     while (this.heapSize > 0) {
       const d = this.heap[0]!;
       const i = this.pop();
       if (d > dist[i]!) continue;
       for (let n = 0; n < 8; n++) {
-        const dx = NEIGHBOURS[n]![0];
-        const dz = NEIGHBOURS[n]![1];
-        const j = i + dx + dz * cols; // the solid border keeps this in bounds
-        if (!walk[j]) continue;
-        if (n >= 4 && (!walk[i + dx] || !walk[i + dz * cols])) continue; // no cutting corners
+        const j = links[i * 8 + n]!;
+        if (j < 0 || !walk[j]) continue;
+        if (n >= 4 && !this.cornerOpen(i, n)) continue; // no cutting corners
         const nd = d + (n < 4 ? ORTH : DIAG) + this.wall[j]!;
         if (nd < dist[j]! && nd < UNREACHABLE) {
           dist[j] = nd;
@@ -118,24 +115,28 @@ export class FlowField {
     return true;
   }
 
-  /** Cost from (x, z) to the goal, or UNREACHABLE. */
-  costAt(x: number, z: number): number {
-    const cx = Math.floor(x / CELL_SIZE);
-    const cz = Math.floor(z / CELL_SIZE);
-    return this.map.inBounds(cx, cz) ? this.dist[this.map.idx(cx, cz)]! : UNREACHABLE;
+  /** Both cells round the corner of diagonal step `n` (4..7) from `i` are walkable. */
+  private cornerOpen(i: number, n: number): boolean {
+    const links = this.map.links;
+    // NEIGHBOURS 4..7 are (+,+) (+,-) (-,+) (-,-): the orthogonal steps sharing their signs.
+    return this.walk[links[i * 8 + (n < 6 ? 0 : 1)]!] === 1 && this.walk[links[i * 8 + (n % 2 === 0 ? 2 : 3)]!] === 1;
+  }
+
+  /** Cost from (x, z), feet at `y`, to the goal, or UNREACHABLE. */
+  costAt(x: number, y: number, z: number): number {
+    const i = this.map.cellAt(x, y, z);
+    return i < 0 ? UNREACHABLE : this.dist[i]!;
   }
 
   private downhill(i: number): number {
-    const { dist, walk } = this;
-    const cols = this.map.cols;
+    const dist = this.dist;
+    const links = this.map.links;
     let best = i;
     let bestD = dist[i]!;
     for (let n = 0; n < 8; n++) {
-      const dx = NEIGHBOURS[n]![0];
-      const dz = NEIGHBOURS[n]![1];
-      const j = i + dx + dz * cols;
-      if (j < 0 || j >= dist.length || dist[j]! >= bestD) continue;
-      if (n >= 4 && (!walk[i + dx] || !walk[i + dz * cols])) continue;
+      const j = links[i * 8 + n]!;
+      if (j < 0 || dist[j]! >= bestD) continue;
+      if (n >= 4 && !this.cornerOpen(i, n)) continue;
       best = j;
       bestD = dist[j]!;
     }
@@ -143,16 +144,13 @@ export class FlowField {
   }
 
   /**
-   * Unit direction to walk from (x, z) towards the goal, written to `out`. Returns false when
+   * Unit direction to walk from (x, z), feet at `y`, towards the goal, written to `out`. Returns false when
    * there is no path (or the mover already shares the goal's cell: steer at the goal itself).
    */
-  dir(x: number, z: number, out: { x: number; z: number }): boolean {
+  dir(x: number, y: number, z: number, out: { x: number; z: number }): boolean {
     const map = this.map;
-    const cx = Math.floor(x / CELL_SIZE);
-    const cz = Math.floor(z / CELL_SIZE);
-    if (!map.inBounds(cx, cz)) return false;
-    let i = map.idx(cx, cz);
-    if (this.dist[i] === 0) return false;
+    let i = map.cellAt(x, y, z);
+    if (i < 0 || this.dist[i] === 0) return false;
     let first = -1;
     for (let step = 0; step < LOOK_AHEAD; step++) {
       const next = this.downhill(i);
@@ -163,8 +161,8 @@ export class FlowField {
       if (first < 0) first = next;
     }
     if (first < 0) return false;
-    const tx = ((i % map.cols) + 0.5) * CELL_SIZE - x;
-    const tz = (Math.floor(i / map.cols) + 0.5) * CELL_SIZE - z;
+    const tx = (map.cxOf(i) + 0.5) * CELL_SIZE - x;
+    const tz = (map.czOf(i) + 0.5) * CELL_SIZE - z;
     const len = Math.hypot(tx, tz);
     if (len < 1e-6) return false;
     out.x = tx / len;

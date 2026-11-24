@@ -59,7 +59,8 @@ the same commit as any change to what it describes.
   killed and restarted). Writes `test-results/ux-*.png`.
 - URL flags for quick testing: `?autostart=1` (straight into a solo game), `?room=ABCD&autostart=1`
   (shared room across tabs), `?name=X`, `?debug=1`, `?auto=1` (the autopilot plays for you).
-- `npm run map` — validate the map and rewrite the ASCII dump `docs/MAP.txt`.
+- `npm run map` — validate the map and rewrite the ASCII dump `docs/MAP.txt` (`npm run map -- stacks`
+  checks and prints the Stacks, the three-storey proving ground, without writing anything).
 - `npm run tour [view...]` — after a build: screenshots of every zone to `test-results/tour-*.png`
   (views are listed in `scripts/tour.cjs`; add one when you add something worth looking at;
   views named `*-on` are taken with the power on).
@@ -72,6 +73,14 @@ the same commit as any change to what it describes.
   (`vite.config.ts`) cannot import it.
 - Coordinates: metres, x east, z south, y up, 0.5 m cells. Yaw 0 looks north (−z), positive turns
   left.
+- Height (PLAN 6.1-6.3): the grid is a stack of layers, one per storey (`Room.level`, floor height
+  `Room.y`, ramps and stairs as `Room.rise`). Cells join where their floors are within `STEP_HEIGHT`
+  (`CompiledMap.links`); anything taller is a ledge nobody crosses. Whatever stands somewhere has a
+  `y` (the floor underfoot) and every lookup takes it: `walkAt(cx, cz, y)`, `zoneAt(x, y, z)`,
+  `moveCircle(map, open, x, y, z, ...)`, `lineOfSight(map, x0, y0, z0, x1, y1, z1)`,
+  `field.costAt(x, y, z)`. Never test two bodies by x and z alone: compare `y` against `FLOOR_GAP`
+  as well. `map.idx(cx, cz)` without a layer is the ground. The client does not yet draw or place
+  actors by height (overhaul step 2 in PLAN section 9).
 - World lighting is baked into vertex colours by `client/src/render/bake.ts` (`Baker`); the scene's
   white ambient light only passes it through. Lights that change (mains lights before/after the
   power, flames, failing tubes) are extra baked attributes scaled by uniforms in `materials.ts`.
