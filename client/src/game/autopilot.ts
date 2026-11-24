@@ -21,10 +21,11 @@ export interface AutopilotWorld {
 }
 
 const THINK_EVERY = 0.05;
-const TAP_EVERY = 0.6;
+const USE_EVERY = 0.6;
 /** A finger on a trigger: taps a second for a gun that is not automatic. */
 const TRIGGER_EVERY = 0.2;
 const ZOMBIE_DYING = 6;
+const SIGHTS_BEYOND = 6;
 
 /**
  * A computer at the controls (`?auto=1`, `__zh.auto(true)`): the shared `BotMind` decides, and this
@@ -41,6 +42,7 @@ export class Autopilot {
   private time = 0;
   private thinkAt = 0;
   private tapAt = 0;
+  private useAt = 0;
   private triggerAt = 0;
   private readonly taps: string[] = [];
   private readonly held = new Set<string>();
@@ -125,7 +127,8 @@ export class Autopilot {
       const dz = lz - player.z;
       const eye = life === 'downed' ? 0.55 : PLAYER_EYE_HEIGHT;
       player.yaw = Math.atan2(-dx, -dz);
-      player.pitch = Math.atan2(ly - eye, Math.hypot(dx, dz));
+      // Hold the muzzle down against the climb, as a hand does.
+      player.pitch = Math.atan2(ly - eye, Math.hypot(dx, dz)) - (it.aim ? player.viewPitch - player.pitch : 0);
     } else if (moving) {
       player.yaw = Math.atan2(-it.moveX, -it.moveZ);
       player.pitch = 0;
@@ -135,18 +138,22 @@ export class Autopilot {
     const auto = weapons.def?.auto === true;
     const cur = weapons.current;
     this.hold('Mouse0', it.fire && auto);
+    // Sights up for a target that is not on top of us (it slows the feet).
+    this.hold('Mouse2', it.fire && !!it.aim && it.aim.dist > SIGHTS_BEYOND && life === 'alive');
     if (it.fire && !auto && this.time >= this.triggerAt) {
       this.triggerAt = this.time + TRIGGER_EVERY;
       this.tap('Mouse0');
     }
     this.hold('KeyF', it.revive !== 0);
+    // One key at a time, the urgent ones first; a reload outranks the knife or it would never happen.
     if (this.time >= this.tapAt) {
       const press = it.swap >= 0 && it.swap !== weapons.slot ? `Digit${it.swap + 1}`
-        : it.use && !it.revive ? 'KeyF'
-        : it.melee ? 'KeyV'
-        : it.reload && cur && !weapons.reloading ? 'KeyR' : '';
+        : it.reload && cur && !weapons.reloading ? 'KeyR'
+        : it.use && !it.revive && this.time >= this.useAt ? 'KeyF'
+        : it.melee ? 'KeyV' : '';
       if (press) {
-        this.tapAt = this.time + (press === 'KeyF' ? TAP_EVERY : 0.3);
+        this.tapAt = this.time + 0.15;
+        if (press === 'KeyF') this.useAt = this.time + USE_EVERY;
         this.tap(press);
       }
     }

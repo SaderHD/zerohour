@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CELL_SIZE, Cell, FLOOR_STYLES, WALL_STYLES, propDef, type CompiledMap, type FloorStyle, type WallStyle } from '@zh/shared';
+import { CELL_SIZE, Cell, FLOOR_STYLES, NO_ZONE, WALL_STYLES, propDef, type CompiledMap, type FloorStyle, type WallStyle } from '@zh/shared';
 import { PROP_BUILDERS, Kit, fixture } from '../models/props';
 import type { PropOut } from '../models/props/kit';
 import { Ambient } from './ambient';
@@ -9,8 +9,9 @@ import { buildExterior } from './exterior';
 import { glowMaterial, linear, propMaterial, setLightLevels, signMaterial, surfaceMaterial } from './materials';
 import { signTexture } from './signs';
 
-// Turns the compiled map into meshes: one per surface style for the cells, three for all the
-// props (lit, glowing, lettered), a small group per door and one per moving part (ambient.ts). Lighting is baked (see bake.ts);
+// Turns the compiled map into meshes: for each zone one per surface style for its cells and three
+// for its props (lit, glowing, lettered), so the renderer can leave out the zones that are not in
+// view; a small group per door and one per moving part (ambient.ts). Lighting is baked (see bake.ts);
 // the scene's only realtime light for the world is a white ambient that passes it through.
 
 const S = CELL_SIZE;
@@ -52,6 +53,8 @@ export function buildWorld(map: CompiledMap): World {
   };
   const quad = (b: Bucket, v: [Vert, Vert, Vert, Vert], n: [number, number, number], cell: number, tint: RGB) => baker.quad(b, v, n, cell, tint);
 
+  /** The zone a cell's surfaces are drawn with (window pockets and the like share one). */
+  const zoneOf = (i: number): string => (map.zone[i] === NO_ZONE ? 'out' : map.zones[map.zone[i]!]!.id);
   const open = (cx: number, cz: number): boolean => map.kindAt(cx, cz) !== Cell.Solid;
   /** Corner AO: darker where a floor/ceiling corner touches solid, or (floors) furniture. */
   const cornerAo = (vx: number, vz: number, floor = false): number => {
@@ -83,7 +86,8 @@ export function buildWorld(map: CompiledMap): World {
       const tint = linear(map.tint[i]!);
       const wallStyle = WALL_STYLES[map.wallStyle[i]!] as WallStyle;
       const floorStyle = FLOOR_STYLES[map.floorStyle[i]!] as FloorStyle;
-      const wallB = bucket(`wall:${wallStyle}`);
+      const zone = zoneOf(i);
+      const wallB = bucket(`wall:${wallStyle}|${zone}`);
       const x0 = cx * S;
       const x1 = x0 + S;
       const z0 = cz * S;
@@ -91,7 +95,7 @@ export function buildWorld(map: CompiledMap): World {
       const t = TEX_METRES;
 
       // Floor (a window's "floor" is the top of its sill, so it uses the wall surface)
-      const floorB = kind === Cell.Window ? wallB : bucket(`floor:${floorStyle}`);
+      const floorB = kind === Cell.Window ? wallB : bucket(`floor:${floorStyle}|${zone}`);
       const F = (x: number, z: number, vx: number, vz: number): Vert => ({ p: [x, lo, z], uv: [x / t, z / t], ao: cornerAo(vx, vz, true) });
       quad(floorB, [F(x0, z0, cx, cz), F(x0, z1, cx, cz + 1), F(x1, z1, cx + 1, cz + 1), F(x1, z0, cx + 1, cz)], [0, 1, 0], i, tint);
 
@@ -146,12 +150,19 @@ export function buildWorld(map: CompiledMap): World {
     triangles += b.triangles;
   };
   for (const [key, b] of buckets) {
-    const [kind, style] = key.split(':') as ['floor' | 'wall', FloorStyle | WallStyle];
+    const [kind, style] = key.split('|')[0]!.split(':') as ['floor' | 'wall', FloorStyle | WallStyle];
     addMesh(key, b, surfaceMaterial(kind, style));
   }
 
-  // Props and lamp fixtures, merged into three meshes for the whole map.
-  const out: PropOut = { baker, prop: new Bucket(), glow: new Bucket(), sign: new Bucket(), movers: [], drips: [] };
+  // Props and lamp fixtures, merged into three meshes a zone.
+  const all: PropOut = { baker, prop: new Bucket(), glow: new Bucket(), sign: new Bucket(), movers: [], drips: [] };
+  const outs = new Map<string, PropOut>();
+  const outFor = (cell: number): PropOut => {
+    const zone = zoneOf(cell);
+    let o = outs.get(zone);
+    if (!o) outs.set(zone, (o = { baker, prop: new Bucket(), glow: new Bucket(), sign: new Bucket(), movers: all.movers, drips: all.drips }));
+    return o;
+  };
   const cellOf = (x: number, z: number): number => map.idx(Math.floor(x / S), Math.floor(z / S));
   for (const p of map.def.props) {
     const def = propDef(p.type);
@@ -160,20 +171,23 @@ export function buildWorld(map: CompiledMap): World {
     // Wall-hung props are lit as part of the cell they face into.
     const a = ((p.rot ?? 0) * Math.PI) / 180;
     const cell = def.wall ? cellOf(p.x - Math.sin(a) * 0.25, p.z - Math.cos(a) * 0.25) : cellOf(p.x, p.z);
-    build(Kit.at(out, p, cell, map.hi[cell] || 3));
+    build(Kit.at(outFor(cell), p, cell, map.hi[cell] || 3));
   }
   for (const l of baker.lights) {
     const cell = cellOf(l.x, l.z);
-    fixture(Kit.at(out, { type: 'light', x: l.x, z: l.z, rot: l.fixture === 'tube' ? Math.round(l.x + l.z) * 90 : 0 }, cell, map.sky[cell] ? l.y + 0.2 : map.hi[cell]!), l, l.rgb, l.mode);
+    fixture(Kit.at(outFor(cell), { type: 'light', x: l.x, z: l.z, rot: l.fixture === 'tube' ? Math.round(l.x + l.z) * 90 : 0 }, cell, map.sky[cell] ? l.y + 0.2 : map.hi[cell]!), l, l.rgb, l.mode);
   }
-  addMesh('props', out.prop, propMaterial());
-  addMesh('glow', out.glow, glowMaterial);
-  addMesh('signs', out.sign, signMaterial(signTexture()));
+  const signs = signMaterial(signTexture());
+  for (const [zone, o] of outs) {
+    addMesh(`props|${zone}`, o.prop, propMaterial());
+    addMesh(`glow|${zone}`, o.glow, glowMaterial);
+    addMesh(`signs|${zone}`, o.sign, signs);
+  }
 
   addMesh('exterior', buildExterior(map, baker), propMaterial());
 
   // Whatever moves by itself: fans, flywheels, swinging lamps, drips, mist.
-  const ambient = new Ambient(map, baker, out.movers!, out.drips!);
+  const ambient = new Ambient(map, baker, all.movers!, all.drips!);
   group.add(ambient.group);
   triangles += ambient.triangles;
 
@@ -189,7 +203,7 @@ export function buildWorld(map: CompiledMap): World {
     group,
     triangles,
     movers: ambient.movers,
-    drips: out.drips!,
+    drips: all.drips!,
     lightAt: (x, y, z) => baker.lightAt(x, y, z),
     setDoors: (open) => {
       const want = new Set(open);

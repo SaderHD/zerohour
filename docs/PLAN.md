@@ -57,6 +57,7 @@ zerohour/
     map/                  types.ts  harrowRidge.ts  dressing/*.ts (props + lights per wing, mounts.ts =
                           interactables and what stands at them)  compile.ts  validate.ts
     nav/                  grid.ts  flowfield.ts  los.ts  ray.ts (3D ray vs cell grid)  collide.ts
+    bot/                  mind.ts (what a computer-run player decides; no networking, no rendering)
     math/                 vec.ts  rng.ts (seeded)
   server/src/
     index.ts              http static + ws upgrade, heartbeat
@@ -66,7 +67,9 @@ zerohour/
                           players, zombies, spawner, rounds, combat, economy,
                           doors (and power), barricades, interact (the F path), perks, forge,
                           cache, powerups
-    bot.ts                headless bot client for load/soak tests
+    bot.ts                BotPlayer (the mind, speaking the wire protocol) and Bot (one on a WebSocket)
+    botBrain.ts           the wander-only brain the fake-clock soak test still uses
+    game/campaign.ts      a whole game played by bots on a fake clock (npm run campaign)
   client/src/
     main.ts (builds everything, the frame loop)  settings.ts (the saved choices, key bindings)
     net/ (socket, lobby state machine, interpolation)  input/ (keys through the bindings)
@@ -74,6 +77,7 @@ zerohour/
                           exterior.ts (roofs, stacks, pines), snow.ts, sky.ts, ambient.ts, atmosphere.ts
     models/               zombie.ts player.ts weapons/*.ts props/*.ts  rig.ts anim.ts
     game/                 localPlayer.ts viewmodel.ts entities.ts interact.ts forgeView.ts fx.ts
+                          autopilot.ts (the bot mind at the keys: ?auto=1)
                           feel.ts (screen shake, recoil curves)  match.ts (round, life, doors as the
                           server reports them)  events.ts (sync / snap / ev applied)  marks.ts (pings)
     audio/                synth.ts (engine, 24 voices)  guns.ts sfx.ts music.ts (the library)
@@ -124,7 +128,8 @@ zerohour/
   one generated reverb. At most 24 voices sound at once; the least important is cut for a new one.
   Two buses (effects; music, which also carries the zone drones and the heartbeat) sum into a
   limiter, then the master volume. Tunes are note lists in `music.ts`.
-- **Static world** is merged into a few meshes per zone (see map compile). Zombies/props that
+- **Static world** is merged into a few meshes per zone (one per surface style, three for its
+  props), so zones out of view are culled whole (see map compile). Zombies/props that
   repeat use shared geometries. The few world parts that move (fans, flywheels, a swinging lamp)
   are one small mesh each (`render/ambient.ts`), as are all drips together and the floor mist.
 
@@ -207,7 +212,7 @@ Start with 500.
 | **"Gravewell"** | wonder weapon | box only | — | slow orb; on impact a 3 s singularity pulls zombies in, then implodes |
 | "Siren" decoy | tactical (its own slot beside the grenades: 3 from a roll, E throws) | box only | — | thrown lure; zombies within 30 m of walking chase it 6 s, then it explodes |
 
-Wall buys also sell ammo (half price; upgraded ammo 4,500). Weapon stats schema:
+Wall buys also sell ammo (half price; upgraded ammo 2,500). Weapon stats schema:
 `damage, headMult, rpm, auto, magSize, reserve, reloadTime, spreadHip, spreadAim, pellets, range,
 falloff, pierce, moveSpeedMult, recoil, projectile?, forged {name, damage, magSize, reserve}`.
 Every weapon has an upgraded variant
@@ -240,7 +245,7 @@ starting pistol - Cache-only ones weighted above the wall guns - and the Siren.
 In the Vault behind the Comms Bunker; the vault door only opens when power is on. 5,000 points
 and the weapon in your hands (not one already upgraded): it lies in the cradle for 3 s, then its
 upgraded form floats there for its owner alone, and is lost if not collected within 15 s. One
-weapon at a time; ammo for an upgraded weapon comes from its wall buy (4,500) if it has one.
+weapon at a time; ammo for an upgraded weapon comes from its wall buy (2,500) if it has one.
 
 ### 4.9 Power
 Master switch in the Generator Hall. Turning it on: lights/emissives up, tonic dispensers and the
@@ -349,7 +354,8 @@ aim.** This is co-op with friends, so we optimise for feel and simplicity over c
   (`ClientMsg`, `ServerMsg`); both ends import it. Bump `PROTOCOL_VERSION` on breaking change;
   server rejects mismatches.
 - **Deployment:** `npm run build` then `node server/dist/index.js` serves `client/dist` and `/ws`
-  on one port (`PORT`, default 8080). Include a small Dockerfile. In dev, Vite proxies `/ws`.
+  on one port (`PORT`, default 8080). The Dockerfile builds the same thing into a small image
+  (`README.md` has the hosting notes). In dev, Vite proxies `/ws`.
 
 ---
 
@@ -373,8 +379,8 @@ interface MapDef {
 `compile.ts` (shared, pure) rasterises this to a `CompiledMap`: a cell grid (solid / floor / door /
 window / outside-pocket) with per-cell zone, open height interval, surface styles and tint, plus
 the zone adjacency graph and generated zombie spawns. The **server** uses it for collision
-validation, nav and LOS. The **client** `worldBuilder.ts` turns it into one mesh per surface
-style: floors, ceilings and wall quads wherever a cell's open height interval is not matched by
+validation, nav and LOS. The **client** `worldBuilder.ts` turns it into one mesh per zone and
+surface style: floors, ceilings and wall quads wherever a cell's open height interval is not matched by
 its neighbour (this one rule yields walls, door lintels, window sills and jambs), with all
 lighting baked into vertex colours (zone ambient + light pools with grid line of sight + fake AO).
 
@@ -413,7 +419,7 @@ server LOS is a grid DDA (`los.ts`). Closed doors and unbroken windows are solid
 ### 6.3 Navigation
 `flowfield.ts`: Dijkstra over walkable cells from each living player's cell (cells touching a wall
 cost more, so paths keep to the middle of lanes), recomputed every 250 ms (staggered across ticks)
-and immediately when a door opens. Each zombie samples the field of its target player a few cells
+and, when a door opens, one field a tick over the next few ticks. Each zombie samples the field of its target player a few cells
 ahead, adds separation from neighbours (a plain pair loop — 32 bodies need no spatial hash) and a
 little per-zombie lateral noise so hordes don't single-file. Within 3 m and in sight it runs
 straight at the player. Zombies re-pick target every 1 s (nearest by field distance;
@@ -445,9 +451,18 @@ wall buys, tonics, Cache, Forge, power switch, barricade rebuild and revive.
   `debug` messages, enabled only when `ZH_DEBUG=1`.
 - URL flags: `?name=X`, `?room=CODE` (join; with `autostart` the room is created if missing —
   debug servers only), `?autostart=1` (skip menu and lobby), `?debug=1` (stats overlay).
-- `server/src/bot.ts`: headless WS client that joins a room, walks to random spots along a flow
-  field and shoots the zombies it sees — used for 4-player soak tests and perf checks. Its brain
-  (`botBrain.ts`) has no networking, so sim tests drive it directly.
+- Bots. `shared/src/bot/mind.ts` (`BotMind`) decides what a computer-run player does from what
+  that player can know: shoot the nearest zombie in sight, back away from what is close, reload,
+  knife when dry, buy a wall gun, then better ones, ammunition, the doors on the cheapest way to
+  what it wants, the master switch, tonics, the Forge, a roll of the Cache; fetch drops; get a
+  downed teammate up. Three things drive it: `server/src/bot.ts` (`BotPlayer` speaks the wire
+  protocol with a modelled aim; `Bot` puts one on a WebSocket - `npm run bot`, `npm run soak`),
+  `server/src/game/campaign.ts` (a whole game on a fake clock: `npm run campaign`, and a short one
+  in `npm test`) and `client/src/game/autopilot.ts` (`?auto=1` or `__zh.auto(true)`: the mind's
+  wishes become key presses and looks, so the real client code shoots, reloads and buys).
+  `server/src/botBrain.ts` is the older wander-only brain the fake-clock soak test still uses.
+- `npm run ship`: the acceptance run - fresh clone, `npm ci`, build, `npm start` without debug
+  commands, four browser players on autopilot through ten rounds, no errors in any log.
 - Vitest for sim (rounds maths, points, damage, flow field, map validation, cache weights).
 - Playwright smoke test: boot server, load client, start solo, assert canvas renders and HUD shows
   round 1; save a screenshot. Agents should also take and *look at* screenshots when changing

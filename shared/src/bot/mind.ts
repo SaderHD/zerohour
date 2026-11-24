@@ -95,6 +95,7 @@ const NEAR = 9;
 /** Back away from anything this close; further out when we cannot shoot or are hurt. */
 const FLEE_RANGE = 3.4;
 const PANIC_RANGE = 6.5;
+const RESCUE_RANGE = 1.8;
 const KNIFE_REACH = 1.5;
 const REPLAN_SECONDS = 0.5;
 const FLEE_DIRS = 12;
@@ -384,7 +385,7 @@ export class BotMind {
     const w = v.weapons[v.slot];
     const stats = w && weaponStats(w.id, w.upgraded);
     const loaded = !!w && w.mag > 0 && !v.reloading;
-    if (w && stats && !v.reloading && w.reserve > 0 && (w.mag === 0 || (w.mag < stats.magSize * 0.35 && nearD > NEAR))) o.reload = true;
+    if (w && stats && !v.reloading && w.reserve > 0 && (w.mag === 0 || (w.mag < stats.magSize * 0.35 && nearD > NEAR) || (w.mag < stats.magSize * 0.7 && !o.aim))) o.reload = true;
     if (o.aim && stats && nearD > stats.range) o.aim = null;
     o.fire = !!o.aim && loaded && o.swap < 0;
     if (v.life === 'downed') return o;
@@ -455,7 +456,8 @@ export class BotMind {
 
     // Walk there, unless something is too close for that.
     const helpless = !loaded || v.hp < v.maxHp * 0.45;
-    const range = helpless ? PANIC_RANGE : FLEE_RANGE;
+    // On the way to someone on the floor we give less ground: shoot and keep coming.
+    const range = g?.revive && loaded ? RESCUE_RANGE : helpless ? PANIC_RANGE : FLEE_RANGE;
     const holdFast = o.revive !== 0 && v.hp > 55;
     if (nearD < range && !holdFast) {
       this.flee(v, towardX, towardZ);

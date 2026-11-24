@@ -42,7 +42,8 @@ const BAD = /error|uncaught|unhandled|failed|exception/i;
     const serverLog = [];
     const env = { ...process.env, PORT: String(port) };
     delete env.ZH_DEBUG;
-    server = spawn('npm', ['start'], { cwd: dir, env, stdio: ['ignore', 'pipe', 'pipe'] });
+    // Its own process group, so stopping npm stops the server under it too.
+    server = spawn('npm', ['start'], { cwd: dir, env, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
     const keep = (stream, err) => stream.on('data', (d) => {
       for (const line of String(d).split('\n')) if (line.trim()) serverLog.push({ line, err });
     });
@@ -134,7 +135,7 @@ const BAD = /error|uncaught|unhandled|failed|exception/i;
     console.error(`[ship] FAILED: ${err.message}`);
   } finally {
     await browser?.close();
-    server?.kill('SIGTERM');
+    if (server?.pid) try { process.kill(-server.pid, 'SIGTERM'); } catch {}
     if (!here && dir !== root) rmSync(dir, { recursive: true, force: true });
   }
   process.exit(failed ? 1 : 0);

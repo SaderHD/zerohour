@@ -4,8 +4,9 @@ Browser-based, first-person, round-based co-op zombie survival game (1–4 playe
 all assets generated in code. TypeScript + Three.js client, Node + `ws` authoritative server.
 
 **Read `docs/PLAN.md` before doing anything.** It holds the design, architecture, the 14 build
-sessions and the progress checklist (section 9). Work exactly one session at a time and tick it off
-when its acceptance checks pass.
+sessions and the progress checklist (section 9). All 14 sessions are done: the game is shipped
+(`README.md` is the player's and host's guide). Later work is maintenance: keep the plan true in
+the same commit as any change to what it describes.
 
 ## Rules
 - Original content only: reuse genre mechanics, never another game's names, characters, maps,
@@ -27,10 +28,18 @@ when its acceptance checks pass.
 - `npm run e2e` — after a build: two browser players + two bots in one room; checks lobby flow,
   smooth remote motion, shooting (exact dummy damage, remote shots, ammo), reconnect and room-full
   handling. Writes `test-results/mp-*.png`.
-- `npm run bot -- <ROOM> [count]` — headless bot players that join a room, roam and shoot zombies.
+- `npm run bot -- <ROOM> [count]` — headless bot players that join a room and play (shoot, shop, revive).
 - `npm run soak -- [seconds] [--shut]` — in-process server + 4 WebSocket bots + 32 zombies; fails if
   a zombie stops making progress for 10 s or the tick goes over budget. (`npm test` runs the same
   soak on a fake clock.)
+- `npm run campaign -- [rounds=25] [--god] [--runs=n] [--seed=n] [--players=n] [--accuracy=0.75]` — a whole
+  game played by bots on a fake clock (an hour of play in about a minute). `--god`: the endurance
+  run, fails on a stuck zombie, slow tick or fat snapshot. Without it the bots are mortal and it
+  reports how far a team gets: run it with `--runs=8` before and after any balance change.
+- `npm run ship [-- --here]` — the acceptance run: fresh clone of the last commit, `npm ci`, build,
+  `npm start` (no debug commands), four browser players on the autopilot through ten rounds, nothing
+  that looks like an error in any console or the server log. About 20 minutes. `--here` uses this
+  checkout's build. Writes `test-results/ship-*.png`.
 - `npm run rounds` — after a build: two browser players through the round loop (round 1, points,
   late join, down, revive, scoreboard, game over, back to lobby). Writes `test-results/rounds-*.png`.
 - `npm run economy` — after a build: one browser player through the purchases (wall gun and ammo,
@@ -49,7 +58,7 @@ when its acceptance checks pass.
   client killed and restarted mid-round while raw sockets throw junk at the server; the server
   killed and restarted). Writes `test-results/ux-*.png`.
 - URL flags for quick testing: `?autostart=1` (straight into a solo game), `?room=ABCD&autostart=1`
-  (shared room across tabs), `?name=X`, `?debug=1`.
+  (shared room across tabs), `?name=X`, `?debug=1`, `?auto=1` (the autopilot plays for you).
 - `npm run map` — validate the map and rewrite the ASCII dump `docs/MAP.txt`.
 - `npm run tour [view...]` — after a build: screenshots of every zone to `test-results/tour-*.png`
   (views are listed in `scripts/tour.cjs`; add one when you add something worth looking at;
@@ -81,6 +90,12 @@ when its acceptance checks pass.
   swing; `powered` spins wait for the mains) and marks a roof leak with `k.drip(...)`;
   `render/ambient.ts` animates them and the floor mist of rooms with `mist: true`. Keep movers
   few: each is a draw call. `ZoneDef.fog` sets a zone's air (`render/atmosphere.ts`).
+- Bots: `shared/src/bot/mind.ts` (`BotMind.think(view) -> intent`) is the only place a bot decides
+  anything; teach it there when the game gains something to buy or do. It is driven by
+  `server/src/bot.ts` (`BotPlayer`: wire messages, modelled aim), `server/src/game/campaign.ts` (fake
+  clock) and `client/src/game/autopilot.ts` (key presses through the real client code).
+- World meshes are one per zone and surface style plus three per zone for props (`worldBuilder.ts`),
+  so three.js culls whole zones; keep new static geometry in those buckets.
 - Server: `lobby.ts` (rooms, seats, reconnect, chat; transport-agnostic via `Peer`) and `game/Game.ts`
   (the match; `step(dt)` is pure so tests drive it without timers). Client: `net/net.ts` is the
   connection/lobby state machine, `main.ts` builds everything and runs the frame loop,
@@ -144,7 +159,7 @@ when its acceptance checks pass.
   `__zh.spawnZombies(3, { kind: 'howler' })`,
   `__zh.spawnZombies(8, { interval: 0.3 })`, `__zh.god(true)`, `__zh.killZombies()`, `__zh.setRound(10)`, `__zh.rounds(false)`,
   `__zh.openDoor('d_mess_bunk')`, `__zh.powerOn()`, `__zh.chat('hi')`, `__zh.ping()`,
-  `__zh.settings.set({ fov: 90 })`, `__zh.settings.bind('use', 'KeyE')`, `__zh.screens.setPaused(true)`.
+  `__zh.auto(true)`, `__zh.settings.set({ fov: 90 })`, `__zh.settings.bind('use', 'KeyE')`, `__zh.screens.setPaused(true)`.
 - Sound (`client/src/audio`): `synth.ts` is the engine (a `Voice` of `tone`/`noise` layers; 24 at once,
   by `priority`; `at` places it in the world); the library is `guns.ts`, `sfx.ts`, `music.ts` (tunes as
   note lists) and `ambience.ts` (zone drones, heartbeat). `audio.ts` turns game events and each frame's
