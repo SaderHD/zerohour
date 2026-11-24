@@ -97,7 +97,9 @@ const FLEE_RANGE = 4.5;
 const PANIC_RANGE = 6.5;
 const RESCUE_RANGE = 1.8;
 const BODY_WIDTH = 0.75;
-const QUIET = 8;
+const QUIET = 12;
+const HOT = 5;
+const HOT_RANGE = 8;
 const SAVE_FOR: ReadonlySet<string> = new Set(['power', 'tonic:ironhide']);
 const RESCUE_CLEAR = 5;
 /** This many within this range and we move before they close the ring. */
@@ -313,6 +315,10 @@ export class BotMind {
       for (const w of this.wants(v)) {
         if ((this.blocked.get(w.key) ?? 0) > v.time) continue;
         const s = this.spot(w.it);
+        // Not into a room full of them: it will still be there when they have come to us.
+        let hot = 0;
+        for (const zb of this.all) if (Math.hypot(zb.x - s.x, zb.z - s.z) < HOT_RANGE) hot++;
+        if (hot >= HOT && Math.hypot(s.x - v.x, s.z - v.z) > HOT_RANGE) continue;
         const way = this.doorsTo(zone, this.map.zoneAt(s.x, s.z) ?? '', v);
         if (!way) continue;
         if (way.cost + w.cost > v.points) {
