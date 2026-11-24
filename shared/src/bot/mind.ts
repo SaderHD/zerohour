@@ -93,9 +93,13 @@ interface Want {
 const SIGHT = 20;
 const NEAR = 9;
 /** Back away from anything this close; further out when we cannot shoot or are hurt. */
-const FLEE_RANGE = 3.4;
+const FLEE_RANGE = 4.5;
 const PANIC_RANGE = 6.5;
 const RESCUE_RANGE = 1.8;
+const BODY_WIDTH = 0.75;
+/** This many within this range and we move before they close the ring. */
+const CROWD = 4;
+const CROWD_RANGE = 6;
 const KNIFE_REACH = 1.5;
 const REPLAN_SECONDS = 0.5;
 const FLEE_DIRS = 12;
@@ -327,7 +331,14 @@ export class BotMind {
       if (went < 0.8) continue;
       const q = moveCircle(this.map, v.open, p.x, p.z, dx * 3, dz * 3, PLAYER_RADIUS);
       let nearest = Infinity;
-      for (const zb of this.near) nearest = Math.min(nearest, Math.hypot(zb.x - p.x, zb.z - p.z), Math.hypot(zb.x - q.x, zb.z - q.z) + 1);
+      let barred = false;
+      for (const zb of this.near) {
+        nearest = Math.min(nearest, Math.hypot(zb.x - p.x, zb.z - p.z), Math.hypot(zb.x - q.x, zb.z - q.z) + 1);
+        // A body on the first stride is a wall: we would only push against it.
+        const along = (zb.x - v.x) * dx + (zb.z - v.z) * dz;
+        barred ||= along > 0 && along < 1.6 && Math.abs((zb.x - v.x) * dz - (zb.z - v.z) * dx) < BODY_WIDTH;
+      }
+      if (barred) continue;
       const score = nearest + 0.25 * Math.hypot(q.x - v.x, q.z - v.z) + 0.5 * (dx * this.fleeX + dz * this.fleeZ) + 0.3 * (dx * towardX + dz * towardZ);
       if (score > best) {
         best = score;
@@ -359,10 +370,12 @@ export class BotMind {
     // Who is close, and who to shoot.
     this.near.length = 0;
     let nearD = Infinity;
+    let crowd = 0;
     for (const zb of v.zombies) {
       const d = Math.hypot(zb.x - v.x, zb.z - v.z);
       if (d > SIGHT || !lineOfSight(this.map, v.x, v.z, zb.x, zb.z, v.open)) continue;
       if (d < NEAR) this.near.push(zb);
+      if (d < CROWD_RANGE) crowd++;
       if (d < nearD) {
         nearD = d;
         o.aim = { id: zb.id, x: zb.x, z: zb.z, dist: d };
@@ -402,6 +415,7 @@ export class BotMind {
     let towardX = 0;
     let towardZ = 0;
     let arrived = true;
+    let swamped = false;
     if (g) {
       o.goal = g.key;
       if (!this.routed) {
@@ -441,7 +455,14 @@ export class BotMind {
         if (ready && !waiting) o.use = g.it.id;
         o.look = { x: g.it.x, z: g.it.z };
       }
-      if (g.revive && d < INTERACT_RANGE - 0.3) o.revive = g.revive;
+      if (g.revive) {
+        // Not into a crowd standing over them: hang back and thin it out first.
+        let over = 0;
+        for (const zb of v.zombies) if (Math.hypot(zb.x - g.x, zb.z - g.z) < 4) over++;
+        swamped = over >= 3 && d > 2;
+        if (swamped && d < 10) arrived = true;
+        else if (d < INTERACT_RANGE - 0.3) o.revive = g.revive;
+      }
       // Pressing and nothing happens (someone else is at it, the price changed): leave it for now.
       const key = o.use ? `${g.key}>${o.use}` : '';
       if (key !== this.usingKey) {
@@ -457,7 +478,7 @@ export class BotMind {
     // Walk there, unless something is too close for that.
     const helpless = !loaded || v.hp < v.maxHp * 0.45;
     // On the way to someone on the floor we give less ground: shoot and keep coming.
-    const range = g?.revive && loaded ? RESCUE_RANGE : helpless ? PANIC_RANGE : FLEE_RANGE;
+    const range = g?.revive && loaded && !swamped ? RESCUE_RANGE : helpless || crowd >= CROWD ? PANIC_RANGE : FLEE_RANGE;
     const holdFast = o.revive !== 0 && v.hp > 55;
     if (nearD < range && !holdFast) {
       this.flee(v, towardX, towardZ);

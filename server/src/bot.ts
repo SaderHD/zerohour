@@ -5,7 +5,7 @@
 import { WebSocket } from 'ws';
 import {
   BotMind, CLIENT_MOVE_SEND_HZ, KNIFE_COOLDOWN, MoveState, PLAYER_MAX_HP, PLAYER_RADIUS, PROTOCOL_VERSION, Rng, SPRINT_SPEED, STAMINA_REGEN_DELAY, STAMINA_SECONDS,
-  SWAP_SECONDS, WALK_SPEED, compileMap, decodeServer, encode, fireInterval, fireRateMultWith, harrowRidge, maxHpWith, moveCircle,
+  SWAP_SECONDS, WALK_SPEED, ZombieState, compileMap, decodeServer, encode, fireInterval, fireRateMultWith, harrowRidge, maxHpWith, moveCircle,
   reloadMultWith, speedMultWith, staminaWith, weaponStats,
   type BotIntent, type BotTarget, type CacheState, type ClientMsg, type FireHit, type ForgeState, type GameEvent, type PlayerPublic, type ServerMsg, type WeaponState,
 } from '@zh/shared';
@@ -13,6 +13,8 @@ import {
 const map = compileMap(harrowRidge);
 /** Seconds between presses of F. */
 const USE_EVERY = 0.6;
+/** Closest a player's centre gets to a zombie's. */
+const BODY_GAP = 0.6;
 
 export interface BotSkill {
   /** Share of shots that land at close range; it falls off with distance. */
@@ -48,7 +50,7 @@ export class BotPlayer {
   readonly mind: BotMind;
   private readonly rng: Rng;
   private readonly open = new Set<string>();
-  private readonly zombies = new Map<number, BotTarget>();
+  private readonly zombies = new Map<number, BotTarget & { inside?: boolean }>();
   private readonly mates = new Map<number, Mate>();
   private readonly connected = new Map<number, boolean>();
   private readonly drops = new Map<number, { x: number; z: number }>();
@@ -128,11 +130,12 @@ export class BotPlayer {
             this.hp = hp;
           } else if (state !== MoveState.Dead && this.connected.get(id) !== false) this.mates.set(id, { id, x, z, state, downed: state === MoveState.Downed });
         }
-        for (const [id, x, z] of msg.zombies) {
+        for (const [id, x, z, , zs] of msg.zombies) {
           const zb = this.zombies.get(id);
           if (zb) {
             zb.x = x;
             zb.z = z;
+            zb.inside = zs !== ZombieState.Approach && zs !== ZombieState.Tear && zs !== ZombieState.Vault;
           }
         }
         // Trust the server's count once it has seen our last shot and no reload is under way.
@@ -240,7 +243,16 @@ export class BotPlayer {
     } else if ((this.sinceSprint += dt) >= STAMINA_REGEN_DELAY) this.stamina = Math.min(staminaWith(perks), this.stamina + dt);
     if (moving) {
       const speed = (sprint ? SPRINT_SPEED : WALK_SPEED) * (stats?.moveSpeedMult ?? 1) * speedMultWith(perks);
-      const p = moveCircle(map, this.open, this.x, this.z, it.moveX * speed * dt, it.moveZ * speed * dt, PLAYER_RADIUS);
+      let p = moveCircle(map, this.open, this.x, this.z, it.moveX * speed * dt, it.moveZ * speed * dt, PLAYER_RADIUS);
+      // Bodies are in the way, as they are for a player at a screen (client/src/game/localPlayer.ts).
+      for (const zb of this.zombies.values()) {
+        if (!zb.inside) continue;
+        const ox = p.x - zb.x;
+        const oz = p.z - zb.z;
+        const d = Math.hypot(ox, oz);
+        if (d >= BODY_GAP || d < 1e-4) continue;
+        p = moveCircle(map, this.open, p.x, p.z, (ox / d) * (BODY_GAP - d), (oz / d) * (BODY_GAP - d), PLAYER_RADIUS);
+      }
       this.x = p.x;
       this.z = p.z;
       state = sprint ? MoveState.Sprint : MoveState.Walk;

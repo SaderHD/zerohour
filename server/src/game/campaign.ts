@@ -18,6 +18,8 @@ export interface CampaignOpts {
   /** Give up after this much game time. */
   maxSeconds?: number;
   onRound?: (r: RoundReport) => void;
+  /** Told what each bot was doing when it went down (for tuning the bots). */
+  onDown?: (what: string) => void;
 }
 
 export interface RoundReport {
@@ -93,6 +95,14 @@ export function runCampaign(opts: CampaignOpts): CampaignResult {
     } else if (ev.e === 'purchase') res.purchases[ev.what] = (res.purchases[ev.what] ?? 0) + 1;
     else if (ev.e === 'powerOn') res.purchases.power = 1;
     else if (ev.e === 'playerDowned') {
+      const b = bots.get(ev.id);
+      const p = game.players.get(ev.id);
+      if (b && p && opts.onDown) {
+        let close = 0;
+        for (const z of game.zombies.values()) if (Math.hypot(z.x - p.x, z.z - p.z) < 3) close++;
+        const w = p.stash?.weapons[p.stash.slot];
+        opts.onDown(`${(b.intent?.goal ?? '').split(':')[0] || 'idle'} ${game.map.zoneAt(p.x, p.z)} ${w && w.mag > 0 ? 'loaded' : 'empty'} close${Math.min(close, 5)}`);
+      }
       res.downs++;
       roundDowns++;
     } else if (ev.e === 'playerRevived') res.revives++;

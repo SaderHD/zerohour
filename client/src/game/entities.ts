@@ -95,6 +95,16 @@ export class Entities {
     return { x: e.pose.x, y: torso?.c[1] ?? 1, z: e.pose.z, colour: e.model.blood };
   }
 
+  /** The middle of its head, in the world: where a careful shot goes. */
+  head(id: EntityId): { x: number; y: number; z: number } | null {
+    const e = this.live.get(id);
+    const b = e?.model.boxes().find((x) => x.zone === 'head');
+    if (!e || !b) return null;
+    const c = Math.cos(e.pose.yaw);
+    const s = Math.sin(e.pose.yaw);
+    return { x: e.pose.x + b.c[0]! * c + b.c[2]! * s, y: b.c[1]!, z: e.pose.z - b.c[0]! * s + b.c[2]! * c };
+  }
+
   /** Zombies that are inside and in the way: the local player cannot walk through them. */
   blockers(): { x: number; z: number }[] {
     const list: { x: number; z: number }[] = [];

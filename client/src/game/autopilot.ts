@@ -56,10 +56,10 @@ export class Autopilot {
   }
 
   private hold(code: string, down: boolean): void {
-    if (down === this.held.has(code)) return;
     if (down) this.held.add(code);
     else this.held.delete(code);
-    this.input.setKey(code, down);
+    // Ask the input itself: it drops every key when the window loses focus.
+    if (down !== this.input.down(code)) this.input.setKey(code, down);
   }
 
   private tap(code: string): void {
@@ -114,10 +114,11 @@ export class Autopilot {
     let ly = 1.3;
     let lz = NaN;
     if (it.aim) {
-      const chest = this.entities.chest(it.aim.id);
-      lx = chest?.x ?? it.aim.x;
-      lz = chest?.z ?? it.aim.z;
-      ly = (chest?.y ?? 1.1) + 0.1;
+      // For the head, as anyone who has played a while does.
+      const head = this.entities.head(it.aim.id);
+      lx = head?.x ?? it.aim.x;
+      lz = head?.z ?? it.aim.z;
+      ly = head?.y ?? 1.2;
     } else if (it.look) {
       lx = it.look.x;
       lz = it.look.z;

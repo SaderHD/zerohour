@@ -1,5 +1,5 @@
 // A whole game played by bots on a fake clock, as fast as the machine will step it.
-// Usage: npm run campaign -- [rounds=25] [--god] [--players=4] [--seed=1] [--runs=1] [--accuracy=0.75]
+// Usage: npm run campaign -- [rounds=25] [--god] [--players=4] [--seed=1] [--runs=1] [--accuracy=0.75] [--head=0.2]
 //   --god   nothing hurts the bots: the endurance run (fails on a stuck zombie or a slow tick)
 //   without it the bots are mortal and the run is a balance report: how far a team gets.
 import { SNAPSHOT_BUDGET_BYTES, TICK_BUDGET_MS } from '@zh/shared';
@@ -23,7 +23,7 @@ for (let run = 0; run < runs; run++) {
   console.log(`[campaign] seed ${seed}: ${players} bot(s), to round ${rounds}${god ? ', god mode' : ''}, accuracy ${accuracy}`);
   const began = Date.now();
   const r = runCampaign({
-    seed, players, rounds, god, skill: { accuracy, head: 0.2 },
+    seed, players, rounds, god, skill: { accuracy, head: flag('head', 0.2) },
     onRound: (o) => {
       if (quiet) return;
       console.log(
