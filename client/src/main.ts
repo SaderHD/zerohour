@@ -271,6 +271,7 @@ const autopilot = new Autopilot(map, player, input, entities, remotes, weapons, 
 autopilot.on = params.has('auto');
 wireDebug({ player, input, socket: s, playing, renderer, resize, audio, settings, screens, chat: (text) => net.chat(text), ping, autopilot });
 
+const MAX_FRAME = 0.2;
 const SPECTATE_BACK = 2.4;
 const SPECTATE_HEIGHT = 2;
 
@@ -282,7 +283,10 @@ let sendTimer = 0;
 let attract = 0;
 let watchIndex = 0;
 renderer.gl.setAnimationLoop((now) => {
-  const dt = Math.min(0.05, (now - last) / 1000);
+  // A slow frame still covers its real time (up to a point), or a slow machine would play in slow motion
+  // against a server that does not wait: the shared collision code takes long steps in its stride.
+  const frame = (now - last) / 1000;
+  const dt = Math.min(MAX_FRAME, frame);
   last = now;
 
   const spectating = playing() && match.life === 'dead' && !player.freeCam;
@@ -384,7 +388,7 @@ renderer.gl.setAnimationLoop((now) => {
   input.endFrame();
 
   fpsFrames++;
-  fpsTime += dt;
+  fpsTime += frame;
   if (fpsTime >= 0.5) {
     debugState.fps = Math.round(fpsFrames / fpsTime);
     fpsFrames = fpsTime = 0;

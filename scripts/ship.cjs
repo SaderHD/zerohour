@@ -30,7 +30,7 @@ const BAD = /error|uncaught|unhandled|failed|exception/i;
 (async () => {
   let dir = root;
   let server;
-  let browser;
+  const browsers = [];
   let failed = false;
   try {
     if (!here) {
@@ -57,11 +57,13 @@ const BAD = /error|uncaught|unhandled|failed|exception/i;
       await sleep(100);
     }
 
-    browser = await chromium.launch();
     const problems = [];
     const pages = [];
     const open = async (query, name) => {
-      const ctx = await browser.newContext({ viewport: { width: 640, height: 360 } });
+      // A browser each: one browser's tabs share a GPU process, and with software rendering that is one queue for all four.
+      const browser = await chromium.launch();
+      browsers.push(browser);
+      const ctx = await browser.newContext({ viewport: { width: 480, height: 270 } });
       const page = await ctx.newPage();
       page.on('pageerror', (e) => problems.push(`${name}: ${e}`));
       page.on('console', (m) => {
@@ -143,7 +145,7 @@ const BAD = /error|uncaught|unhandled|failed|exception/i;
     failed = true;
     console.error(`[ship] FAILED: ${err.message}`);
   } finally {
-    await browser?.close();
+    for (const b of browsers) await b.close().catch(() => {});
     if (server?.pid) try { process.kill(-server.pid, 'SIGTERM'); } catch {}
     if (!here && dir !== root) rmSync(dir, { recursive: true, force: true });
   }
