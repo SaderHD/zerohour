@@ -97,6 +97,7 @@ const FLEE_RANGE = 4.5;
 const PANIC_RANGE = 6.5;
 const RESCUE_RANGE = 1.8;
 const BODY_WIDTH = 0.75;
+const RESCUE_CLEAR = 5;
 /** This many within this range and we move before they close the ring. */
 const CROWD = 4;
 const CROWD_RANGE = 6;
@@ -142,7 +143,7 @@ export class BotMind {
   constructor(private readonly map: CompiledMap, private readonly rng: Rng, index = 0) {
     this.route = new FlowField(map);
     for (const it of map.def.interactables) this.things.set(it.id, it);
-    this.guns = [index % 2 === 0 ? 'farrow' : 'pike', 'kestrel', 'brakeman'];
+    this.guns = [index % 2 === 0 ? 'farrow' : 'pike', 'stitch', 'kestrel', 'brakeman'];
   }
 
   /** Forget the route (we were put somewhere else). */
@@ -259,8 +260,13 @@ export class BotMind {
     for (const m of v.mates) {
       const d = Math.hypot(m.x - v.x, m.z - v.z);
       if (m.downed && d < mateD) {
-        mate = m;
-        mateD = d;
+        // Leave them while a crowd stands over them: it soon turns on someone else, and three down help nobody.
+        let over = 0;
+        for (const zb of v.zombies) if (Math.hypot(zb.x - m.x, zb.z - m.z) < RESCUE_CLEAR) over++;
+        if (over < 3 || d < 3) {
+          mate = m;
+          mateD = d;
+        }
       }
       if (!m.downed) {
         cx += m.x;
