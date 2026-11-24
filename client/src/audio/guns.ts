@@ -2,7 +2,7 @@
 import type { WeaponClass, WeaponDef, WeaponId } from '@zh/shared';
 import { vary, type Synth, type Voice } from './synth';
 
-type At = { x: number; z: number } | undefined;
+type At = { x: number; z: number; y?: number } | undefined;
 
 /** How one gun's shot is built: a pitch-dropping thump, a noise body, a crack on top, a tail in the room. */
 interface GunVoice {

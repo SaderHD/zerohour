@@ -1,18 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { FORGE_COLLECT_SECONDS, FORGE_COST, FORGE_SECONDS, UPGRADED_AMMO_COST, hitDamage, weaponDef, weaponStats, WEAPON_LIST } from '@zh/shared';
+import { FORGE_COLLECT_SECONDS, FORGE_COST, FORGE_SECONDS, GALLERY_Y, UPGRADED_AMMO_COST, VAULT_Y, hitDamage, weaponDef, weaponStats, WEAPON_LIST } from '@zh/shared';
 import { makeGame } from './testkit';
 
 // Session 10: the generic F path for wall buys, the master switch and the Forge.
 
 const press = (t: ReturnType<typeof makeGame>, id: string, who = 1) => t.send(who, { t: 'interact', id, hold: true });
 /** Where to stand for each thing. */
-const AT = { farrow: [23.5, 24], power: [60.2, 32.5], forge: [40.2, 58] } as const;
+/** Where to stand for each thing: the master switch is up on the generator hall's gallery, the Forge down in the vault. */
+const AT = { farrow: [23.5, 24, 0], power: [56.5, 25.3, GALLERY_Y], forge: [26.4, 57.5, VAULT_Y] } as const;
 
 function setup(points = 10_000) {
   const t = makeGame();
   const p = t.game.addPlayer(1, 'Ada');
   p.pub.points = points;
-  const go = (where: keyof typeof AT) => t.teleport(1, AT[where][0], AT[where][1]);
+  const go = (where: keyof typeof AT) => t.teleport(1, AT[where][0], AT[where][1], AT[where][2]);
   return { t, p, go };
 }
 
@@ -86,6 +87,11 @@ describe('the master switch', () => {
     press(t, 'power');
     expect(t.game.power).toBe(false);
     expect(t.denied).toEqual([{ id: 1, reason: 'range' }]);
+    // Standing right under it, on the hall floor, is not within reach either.
+    t.teleport(1, AT.power[0], AT.power[1], 0);
+    press(t, 'power');
+    expect(t.game.power).toBe(false);
+    expect(t.denied).toHaveLength(2);
     go('power');
     press(t, 'power');
     press(t, 'power');
@@ -121,7 +127,7 @@ describe('the Forge', () => {
     t.send(1, { t: 'debug', cmd: 'powerOn' });
     t.send(1, { t: 'debug', cmd: 'give', weapon: 'farrow' });
     go('forge');
-    t.teleport(2, 40.2, 58.5);
+    t.teleport(2, 26.6, 58.3, VAULT_Y);
     press(t, 'forge');
     t.wait(0.1);
     expect(p.pub.points).toBe(500);

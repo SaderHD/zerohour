@@ -1,7 +1,7 @@
 import {
   CELL_SIZE, MARK_RANGE, MOVE_BUDGET_CAP, MOVE_SPEED_SLACK, MoveState, PLAYER_MAX_HP, PLAYER_RADIUS, SNAPSHOT_EVERY_TICKS,
-  Rng, SPRINT_SPEED, START_GRENADES, START_POINTS, START_WEAPON, TICK_BUDGET_MS, TICK_DT, ZOMBIE_SPAWN_INTERVAL,
-  circleFits, compileMap, harrowRidge, isFiniteNum,
+  Rng, SPRINT_SPEED, START_GRENADES, START_POINTS, START_WEAPON, STEP_HEIGHT, TICK_BUDGET_MS, TICK_DT, ZOMBIE_SPAWN_INTERVAL,
+  circleFits, compileMap, isFiniteNum, mapById,
   type ClientMsg, type CompiledMap, type GameEvent, type PlayerId, type PlayerPublic, type PlayerSnap,
   type ForgeState, type Interactable, type PowerupId, type ServerMsg, type Snapshot, type WeaponState,
 } from '@zh/shared';
@@ -21,11 +21,14 @@ import { updateSpawner, type Arrival, type SpawnOrder } from './spawner';
 import { updateZombies } from './zombies';
 
 let sharedMap: CompiledMap | null = null;
-export const gameMap = (): CompiledMap => (sharedMap ??= compileMap(harrowRidge));
+/** The map games are played on: the station, unless `ZH_MAP` names another (`ZH_MAP=stacks` for the height proving ground). */
+export const gameMap = (): CompiledMap => (sharedMap ??= compileMap(mapById(process.env.ZH_MAP)));
 
 export interface PlayerState {
   pub: PlayerPublic;
   x: number;
+  /** Height of the floor underfoot. */
+  y: number;
   z: number;
   yaw: number;
   pitch: number;
@@ -75,6 +78,8 @@ export interface GameOpts {
   onOver?: () => void;
   /** Called if a tick throws (the game has been stopped). */
   onCrash?: () => void;
+  /** Play on this map instead of the station (tests of the map machinery). */
+  map?: CompiledMap;
 }
 
 /** Longest we extrapolate a player's last reported position when building a snapshot. */
@@ -91,10 +96,10 @@ export interface GameOut {
  * tests can drive it with a fake clock. See docs/PLAN.md sections 5 and 6.4.
  */
 export class Game {
-  readonly map = gameMap();
+  readonly map: CompiledMap;
   readonly players = new Map<PlayerId, PlayerState>();
   readonly openDoors = new Set<string>();
-  readonly interactables: ReadonlyMap<string, Interactable> = new Map(this.map.def.interactables.map((i) => [i.id, i]));
+  readonly interactables: ReadonlyMap<string, Interactable>;
   forge: ForgeState = createForge();
   /** The master switch has been thrown (permanent). */
   power = false;
@@ -105,12 +110,12 @@ export class Game {
   private spawnCursor = 0;
   readonly zombies = new Map<number, Zombie>();
   readonly projectiles: Projectile[] = [];
-  readonly dummyResets: { at: number; x: number; z: number; yaw: number }[] = [];
+  readonly dummyResets: { at: number; x: number; y: number; z: number; yaw: number }[] = [];
   readonly rng: Rng;
   /** A second stream for the things of chance added later (the Cache, drops, howler rounds), so they do not shift the first. */
   readonly luck: Rng;
   nextEntityId = 1;
-  readonly barricades = createBarricades(this);
+  readonly barricades: ReturnType<typeof createBarricades>;
   readonly nav = new Nav();
   readonly spawnQueue: SpawnOrder[] = [];
   /** Howlers whose lightning has struck and who are about to appear. */
@@ -134,6 +139,9 @@ export class Game {
   over = false;
 
   constructor(private readonly out: GameOut, readonly opts: GameOpts) {
+    this.map = opts.map ?? gameMap();
+    this.interactables = new Map(this.map.def.interactables.map((i) => [i.id, i]));
+    this.barricades = createBarricades(this);
     this.now = opts.now ?? (() => performance.now() / 1000);
     this.rng = new Rng(opts.seed);
     this.luck = new Rng((opts.seed ^ 0x5eed1e55) >>> 0);
@@ -183,7 +191,7 @@ export class Game {
         id, name, points: START_POINTS, kills: 0, headshots: 0, downs: 0, revives: 0,
         perks: [], weapons: [newWeapon(START_WEAPON)], slot: 0, grenades: START_GRENADES, tactical: 0, connected: true,
       },
-      x: s.x, z: s.z, yaw: s.yaw, pitch: 0, state: MoveState.Idle, hp: PLAYER_MAX_HP, ack: 0, budget: MOVE_BUDGET_CAP,
+      x: s.x, y: s.y, z: s.z, yaw: s.yaw, pitch: 0, state: MoveState.Idle, hp: PLAYER_MAX_HP, ack: 0, budget: MOVE_BUDGET_CAP,
       vx: 0, vz: 0, movedAt: this.now(),
       fireAck: 0, nextFireAt: 0, nextMeleeAt: 0, nextThrowAt: 0, reloadUntil: 0,
       hurtAt: -100, god: false, rebuild: null, down: null, stash: null, reviving: 0, plankPoints: 0, safeUntil: 0, secondWinds: 0,
@@ -192,12 +200,12 @@ export class Game {
     this.emit({ e: 'player', player: p.pub });
     // Joining mid-round: watch until the next one starts.
     if (this.rounds.phase === 'active') sitOut(p);
-    else this.emit({ e: 'playerSpawned', id, x: p.x, z: p.z });
+    else this.emit({ e: 'playerSpawned', id, x: p.x, y: p.y, z: p.z });
     return p;
   }
 
-  nextSpawn(): { x: number; z: number; yaw: number } {
-    const spawns = this.map.def.playerSpawns;
+  nextSpawn(): { x: number; y: number; z: number; yaw: number } {
+    const spawns = this.map.playerSpawns;
     return spawns[this.spawnCursor++ % spawns.length]!;
   }
 
@@ -208,7 +216,7 @@ export class Game {
 
   /** Snap a client back to where the server has it. */
   correct(p: PlayerState): void {
-    this.out.send(p.pub.id, { t: 'correct', x: p.x, z: p.z, seq: p.ack });
+    this.out.send(p.pub.id, { t: 'correct', x: p.x, y: p.y, z: p.z, seq: p.ack });
   }
 
   removePlayer(id: PlayerId): void {
@@ -243,12 +251,12 @@ export class Game {
       openDoors: [...this.openDoors],
       barricades: barricadeStates(this),
       players: [...this.players.values()].map((q) => q.pub),
-      zombies: [...this.zombies.values()].map((z) => ({ id: z.id, kind: z.kind, seed: z.seed, x: z.x, z: z.z })),
+      zombies: [...this.zombies.values()].map((z) => ({ id: z.id, kind: z.kind, seed: z.seed, x: z.x, y: z.y, z: z.z })),
       powerups: this.powerups.drops,
       activeEffects: activeEffects(this),
       cache: { home: this.cache.home, boxes: cacheStates(this) },
       forge: this.forge,
-      self: { x: p.x, z: p.z, yaw: p.yaw },
+      self: { x: p.x, y: p.y, z: p.z, yaw: p.yaw },
     };
   }
 
@@ -285,7 +293,7 @@ export class Game {
   }
 
   private onMove(p: PlayerState, m: Extract<ClientMsg, { t: 'move' }>): void {
-    if (![m.x, m.z, m.yaw, m.pitch, m.seq].every(isFiniteNum)) return;
+    if (![m.x, m.y, m.z, m.yaw, m.pitch, m.seq].every(isFiniteNum)) return;
     if (m.seq <= p.ack) return; // stale or replayed
     p.ack = m.seq;
     p.yaw = m.yaw;
@@ -293,12 +301,17 @@ export class Game {
     const d = Math.hypot(m.x - p.x, m.z - p.z);
     if (!standing(p)) {
       // Downed and dead players stay where they fell; they may still look around.
-      if (d > 0.05) this.out.send(p.pub.id, { t: 'correct', x: p.x, z: p.z, seq: m.seq });
+      if (d > 0.05) this.out.send(p.pub.id, { t: 'correct', x: p.x, y: p.y, z: p.z, seq: m.seq });
       return;
     }
-    const legal = d <= p.budget + 0.05 && circleFits(this.map, this.openDoors, m.x, m.z, PLAYER_RADIUS - 0.05);
+    // The floor they say they are on must be one that is there, and no further up or down than
+    // the steepest stairs would take them over that distance.
+    const floor = this.map.cellAt(m.x, m.y, m.z);
+    const y = floor < 0 ? p.y : this.map.lo[floor]!;
+    const legal = d <= p.budget + 0.05 && floor >= 0 && Math.abs(y - p.y) <= (d / CELL_SIZE + 1) * STEP_HEIGHT + 0.05
+      && circleFits(this.map, this.openDoors, m.x, y, m.z, PLAYER_RADIUS - 0.05);
     if (!legal) {
-      this.out.send(p.pub.id, { t: 'correct', x: p.x, z: p.z, seq: m.seq });
+      this.out.send(p.pub.id, { t: 'correct', x: p.x, y: p.y, z: p.z, seq: m.seq });
       return;
     }
     // Moves arrive at 20 Hz but snapshots leave at 15 Hz; remember the velocity so snapshots can
@@ -315,16 +328,18 @@ export class Game {
     p.movedAt = now;
     p.budget -= d;
     p.x = m.x;
+    p.y = y;
     p.z = m.z;
     p.state = m.state === MoveState.Sprint ? MoveState.Sprint : m.state === MoveState.Walk ? MoveState.Walk : MoveState.Idle;
   }
 
   /** A ping marker: "look here". Anyone still in the game may place one, somewhere on the map and not too far off. */
   private onMark(p: PlayerState, m: Extract<ClientMsg, { t: 'mark' }>): void {
-    if (!isFiniteNum(m.x) || !isFiniteNum(m.z) || p.state === MoveState.Dead) return;
+    if (!isFiniteNum(m.x) || !isFiniteNum(m.y) || !isFiniteNum(m.z) || p.state === MoveState.Dead) return;
     const { cols, rows } = this.map;
     if (m.x < 0 || m.z < 0 || m.x > cols * CELL_SIZE || m.z > rows * CELL_SIZE || Math.hypot(m.x - p.x, m.z - p.z) > MARK_RANGE) return;
-    this.emit({ e: 'mark', id: p.pub.id, x: round2(m.x), z: round2(m.z) });
+    if (Math.abs(m.y - p.y) > MARK_RANGE) return;
+    this.emit({ e: 'mark', id: p.pub.id, x: round2(m.x), y: round2(m.y), z: round2(m.z) });
   }
 
   openDoor(id: string, by: PlayerId): void {
@@ -391,12 +406,12 @@ export class Game {
       if (p.state !== MoveState.Idle && ahead > 0 && (p.vx !== 0 || p.vz !== 0)) {
         const ex = x + p.vx * ahead;
         const ez = z + p.vz * ahead;
-        if (circleFits(this.map, this.openDoors, ex, ez, PLAYER_RADIUS - 0.05)) {
+        if (circleFits(this.map, this.openDoors, ex, p.y, ez, PLAYER_RADIUS - 0.05)) {
           x = ex;
           z = ez;
         }
       }
-      players.push([p.pub.id, round2(x), round2(z), round2(p.yaw), round2(p.pitch), p.state, Math.round(p.hp), p.pub.slot]);
+      players.push([p.pub.id, round2(x), round2(z), round2(p.yaw), round2(p.pitch), p.state, Math.round(p.hp), p.pub.slot, round2(p.y)]);
     }
     const base: Omit<Snapshot, 'ack' | 'ammo'> = { t: 'snap', tick: this.tick, time: Math.round(this.time * 1000) / 1000, players,
       zombies: [...this.zombies.values()].map(zombieSnap),

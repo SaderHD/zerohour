@@ -13,7 +13,8 @@ export interface VoiceOpts {
   /** 0 (first to be stolen) .. 3 (never stolen by lower). */
   priority?: number;
   /** Where in the world it is; without it the sound is "in the head". */
-  at?: { x: number; z: number };
+  /** Where it is made; `y` is the height of the floor there (the listener's own when absent). */
+  at?: { x: number; z: number; y?: number };
   /** Metres at which it is at half power, and beyond which it is not played at all. */
   ref?: number;
   range?: number;
@@ -202,7 +203,8 @@ export class Synth {
   /** Sounds started, refused or cut short for want of a free voice, and the most that ever sounded at once. */
   readonly stats = { played: 0, dropped: 0, stolen: 0, peak: 0 };
   /** Set by the game: is there a wall between the listener and this spot? */
-  occluded: (x: number, z: number) => boolean = () => false;
+  /** Is a sound made at (x, z), on the floor at height `y`, out of the listener's sight? */
+  occluded: (x: number, z: number, y: number) => boolean = () => false;
   /** How much the room rings (scales every voice's reverb send). */
   room = 1;
   private readonly voices: Voice[] = [];
@@ -212,6 +214,7 @@ export class Synth {
   private readonly reverb: ConvolverNode;
   readonly out: AudioNode;
   private lx = 0;
+  private ly = 0;
   private lz = 0;
   private lyaw = 0;
 
@@ -273,8 +276,10 @@ export class Synth {
     this.applyVolumes();
   }
 
-  setListener(x: number, z: number, yaw: number): void {
+  /** `y`: the height of the floor the listener stands on. */
+  setListener(x: number, z: number, yaw: number, y = 0): void {
     this.lx = x;
+    this.ly = y;
     this.lz = z;
     this.lyaw = yaw;
   }
@@ -315,14 +320,16 @@ export class Synth {
     if (o.at) {
       const dx = o.at.x - this.lx;
       const dz = o.at.z - this.lz;
-      const d = Math.hypot(dx, dz);
+      // A sound with no height of its own is on the listener's floor.
+      const sy = o.at.y ?? this.ly;
+      const d = Math.hypot(dx, dz, sy - this.ly);
       const range = o.range ?? 45;
       if (d > range) return this.none();
       const k = d / (o.ref ?? 6);
       gain *= (1 / (1 + k * k)) * Math.min(1, (range - d) / (range * 0.2));
       pan = d < 0.3 ? 0 : Math.max(-0.85, Math.min(0.85, ((dx * Math.cos(this.lyaw) - dz * Math.sin(this.lyaw)) / d) * 0.9));
       cutoff = 16000 - 11000 * (d / range);
-      if (d > 2 && this.occluded(o.at.x, o.at.z)) {
+      if (d > 2 && this.occluded(o.at.x, o.at.z, sy)) {
         gain *= 0.5;
         cutoff = 700;
       }

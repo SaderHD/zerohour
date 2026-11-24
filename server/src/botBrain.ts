@@ -6,6 +6,7 @@ import {
 export interface BotTarget {
   id: EntityId;
   x: number;
+  y: number;
   z: number;
 }
 
@@ -19,6 +20,8 @@ const dir = { x: 0, z: 0 };
  */
 export class BotBrain {
   x = 0;
+  /** Height of the floor underfoot. */
+  y = 0;
   z = 0;
   yaw = 0;
   state = MoveState.Idle;
@@ -33,8 +36,9 @@ export class BotBrain {
     this.route = new FlowField(map);
   }
 
-  place(x: number, z: number, yaw = this.yaw): void {
+  place(x: number, y: number, z: number, yaw = this.yaw): void {
     this.x = x;
+    this.y = y;
     this.z = z;
     this.yaw = yaw;
     this.hasRoute = false;
@@ -44,7 +48,8 @@ export class BotBrain {
     const room = this.rng.pick(this.map.def.rooms);
     const gx = room.x + this.rng.range(1, room.w - 1);
     const gz = room.z + this.rng.range(1, room.d - 1);
-    this.hasRoute = this.route.compute(open, gx, gz) && this.route.costAt(this.x, this.z) < UNREACHABLE;
+    const gy = this.map.floorOn(room.level, gx, gz);
+    this.hasRoute = !Number.isNaN(gy) && this.route.compute(open, gx, gy, gz) && this.route.costAt(this.x, this.y, this.z) < UNREACHABLE;
     this.stalled = 0;
   }
 
@@ -54,13 +59,14 @@ export class BotBrain {
     let heading = this.yaw;
     if (this.pause > 0) this.pause -= dt;
     else if (!this.hasRoute) this.pickRoute(open); // one try per step; unreachable rooms are just retried
-    else if (this.route.costAt(this.x, this.z) <= ARRIVE_COST || !this.route.dir(this.x, this.z, dir) || this.stalled > 1) {
+    else if (this.route.costAt(this.x, this.y, this.z) <= ARRIVE_COST || !this.route.dir(this.x, this.y, this.z, dir) || this.stalled > 1) {
       this.hasRoute = false;
       this.pause = this.rng.chance(0.4) ? this.rng.range(0.3, 1.2) : 0;
     } else {
-      const p = moveCircle(this.map, open, this.x, this.z, dir.x * WALK_SPEED * dt, dir.z * WALK_SPEED * dt, PLAYER_RADIUS);
+      const p = moveCircle(this.map, open, this.x, this.y, this.z, dir.x * WALK_SPEED * dt, dir.z * WALK_SPEED * dt, PLAYER_RADIUS);
       this.stalled = Math.hypot(p.x - this.x, p.z - this.z) < WALK_SPEED * dt * 0.3 ? this.stalled + dt : 0;
       this.x = p.x;
+      this.y = p.y;
       this.z = p.z;
       this.state = MoveState.Walk;
       heading = Math.atan2(-dir.x, -dir.z);
@@ -70,9 +76,9 @@ export class BotBrain {
     let best = SIGHT;
     for (const zb of zombies) {
       const d = Math.hypot(zb.x - this.x, zb.z - this.z);
-      if (d >= best || !lineOfSight(this.map, this.x, this.z, zb.x, zb.z, open)) continue;
+      if (d >= best || !lineOfSight(this.map, this.x, this.y, this.z, zb.x, zb.y, zb.z, open)) continue;
       best = d;
-      this.aim = { id: zb.id, x: zb.x, z: zb.z, dist: d };
+      this.aim = { id: zb.id, x: zb.x, y: zb.y, z: zb.z, dist: d };
     }
     this.yaw = this.aim ? Math.atan2(-(this.aim.x - this.x), -(this.aim.z - this.z)) : heading;
   }

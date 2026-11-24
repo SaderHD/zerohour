@@ -17,7 +17,7 @@ function setup() {
   };
   const game = new Game(out, { debug: true, seed: 7, now: () => now });
   const p = game.addPlayer(1, 'Ada'); // spawns at (28, 26) in the mess hall
-  const dummy = spawnDummy(game, p.x, p.z - 4, 0);
+  const dummy = spawnDummy(game, p.x, 0, p.z - 4, 0);
   let seq = 0;
   /** Advance the wall clock and the sim together. */
   const wait = (sec: number) => {
@@ -85,7 +85,7 @@ describe('fire validation', () => {
     wait(0.2);
     fire([{ id: dummy.id, zone: 'elbow' as never, dist: 4 }]);
     wait(0.2);
-    const hidden = spawnDummy(game, p.x, 20, 0); // other side of the north wall (z = 22)
+    const hidden = spawnDummy(game, p.x, 0, 20, 0); // other side of the north wall (z = 22)
     fire([{ id: hidden.id, zone: 'torso', dist: 6 }]);
     expect(dummy.hp).toBe(DUMMY_HP);
     expect(hidden.hp).toBe(DUMMY_HP);
@@ -155,7 +155,7 @@ describe('reload, swap, melee, grenades', () => {
     send({ t: 'melee', hit: dummy.id }); // 4 m away
     expect(dummy.hp).toBe(DUMMY_HP);
     wait(1);
-    const near = spawnDummy(game, p.x, p.z - 1.2, 0);
+    const near = spawnDummy(game, p.x, 0, p.z - 1.2, 0);
     send({ t: 'melee', hit: near.id });
     send({ t: 'melee', hit: near.id });
     expect(near.hp).toBe(DUMMY_HP - KNIFE_DAMAGE);

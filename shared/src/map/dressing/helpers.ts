@@ -6,7 +6,7 @@ import type { PropType } from '../../data/props';
 
 const ROT: Record<Dir, number> = { n: 0, w: 90, s: 180, e: 270 };
 
-type Extra = Pick<PropInst, 'variant' | 'y' | 's' | 'text'> & { rot?: number };
+type Extra = Pick<PropInst, 'variant' | 'y' | 's' | 'text' | 'level'> & { rot?: number };
 
 export const prop = (type: PropType, x: number, z: number, face: Dir = 'n', extra: Extra = {}): PropInst => ({
   type, x, z, ...extra, rot: extra.rot ?? ROT[face],
@@ -31,7 +31,28 @@ export function guy(ax: number, az: number, mx: number, mz: number, y: number): 
   return [prop('anchor_block', ax, az), prop('guy_wire', ax, az, 'n', { rot, s: Math.hypot(mx - ax, mz - az), y })];
 }
 
-type LightOpts = Partial<Pick<LightDef, 'intensity' | 'needsPower' | 'flicker' | 'fixture'>>;
+/**
+ * A handrail along the edge of a drop, from (x0, z0) to (x1, z1) (one of the two the same). Give
+ * the line just inside the edge: the rail stands on the floor of the cell its middle is in.
+ */
+export function rail(x0: number, z0: number, x1: number, z1: number, extra: Extra = {}): PropInst {
+  return prop('railing', (x0 + x1) / 2, (z0 + z1) / 2, 'n', { s: Math.abs(x1 - x0) + Math.abs(z1 - z0), rot: z0 === z1 ? 0 : 90, ...extra });
+}
+
+/** A handrail down a flight or a ramp that runs along z: a short length on every tread from z0 to z1. */
+export function stairRail(x: number, z0: number, z1: number, extra: Extra = {}): PropInst[] {
+  const out: PropInst[] = [];
+  for (let z = z0; z < z1 - 1e-6; z += 0.5) out.push(rail(x, z, x, z + 0.5, extra));
+  return out;
+}
+
+/** The same things a storey up or down. */
+export const onLevel = <T extends { level?: number }>(level: number, things: T[]): T[] => things.map((t) => ({ ...t, level }));
+
+/** Lights written as heights over a floor that is not at 0: lift them all by `dy`. */
+export const lift = (dy: number, lights: LightDef[]): LightDef[] => lights.map((l) => ({ ...l, y: l.y + dy }));
+
+type LightOpts = Partial<Pick<LightDef, 'intensity' | 'needsPower' | 'flicker' | 'fixture' | 'level'>>;
 
 /** A mains lamp: dim until the power is on. */
 export const lamp = (x: number, z: number, y: number, color: number, radius: number, o: LightOpts = {}): LightDef => ({

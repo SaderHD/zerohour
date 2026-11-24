@@ -52,7 +52,7 @@ function startedRoom(n: number) {
   return { ...ctx, host, others, code, room, game, step };
 }
 
-const move = (s: Session, seq: number, x: number, z: number): ClientMsg => ({ t: 'move', seq, x, z, yaw: 0, pitch: 0, state: MoveState.Walk });
+const move = (s: Session, seq: number, x: number, z: number): ClientMsg => ({ t: 'move', seq, x, y: 0, z, yaw: 0, pitch: 0, state: MoveState.Walk });
 
 describe('lobby', () => {
   it('creates a room with a 4-letter code and makes the creator host', () => {

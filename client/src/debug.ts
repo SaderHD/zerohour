@@ -3,7 +3,7 @@
 // Commands that change authoritative state are sent to the server, which only honours them
 // when started with ZH_DEBUG=1.
 
-import { PLAYER_EYE_HEIGHT, SIREN, aimDir, harrowRidge, perkDef, type ClientMsg, type ZombieKind } from '@zh/shared';
+import { PLAYER_EYE_HEIGHT, SIREN, aimDir, perkDef, type ClientMsg, type CompiledMap, type ZombieKind } from '@zh/shared';
 import type { GameAudio } from './audio/audio';
 import type { LocalPlayer } from './game/localPlayer';
 import type { Input } from './input/input';
@@ -21,7 +21,12 @@ export interface DebugState {
   frames: number;
   fps: number;
   x: number;
+  /** Height of the floor underfoot, and of the camera. */
+  y: number;
+  eyeY: number;
   z: number;
+  /** Id of the map we are on. */
+  map: string;
   yaw: number;
   pitch: number;
   zone: string | null;
@@ -111,16 +116,19 @@ export interface DebugState {
 
 export interface ZhDebug {
   state(): DebugState;
-  teleport(x: number, z: number, yaw?: number): void;
+  /** `y` picks the floor where storeys lie over each other (default: the one nearest our own height). */
+  teleport(x: number, z: number, yaw?: number, y?: number): void;
   /** Teleport to the middle of a zone's largest room. */
   gotoZone(zoneId: string, yaw?: number): void;
   look(yaw: number, pitch?: number): void;
+  /** What is drawn under the crosshair: the mesh's name (with its parents'), how far off, and where. For finding what a stray surface belongs to. */
+  pick(): { name: string; dist: number; at: [number, number, number] } | null;
   /** Aim the view at a world point. */
   lookAt(x: number, y: number, z: number): void;
   /** `give('pike')` hands over a weapon (`give('pike', true)` its Forge upgrade), `give('ironhide')` a tonic, `give('siren')` decoys, `give(500)` points (debug servers only). */
   give(what: string | number, upgraded?: boolean): void;
   /** Queue zombies at the windows; `opts.x/z` drops them at a spot instead (debug servers only). */
-  spawnZombies(count: number, opts?: { hp?: number; speed?: number; interval?: number; x?: number; z?: number; kind?: ZombieKind }): void;
+  spawnZombies(count: number, opts?: { hp?: number; speed?: number; interval?: number; x?: number; y?: number; z?: number; kind?: ZombieKind }): void;
   /** Drop a power-up at our feet, or at (x, z). */
   powerup(kind: string, x?: number, z?: number): void;
   /** Fix the Cache's next roll: a weapon id, 'siren', or 'jinx'. */
@@ -166,7 +174,7 @@ declare global {
 
 export const debugState: DebugState = {
   phase: 'connecting', connected: false, playerId: null, room: null, isHost: false, pingMs: null, frames: 0, fps: 0,
-  x: 0, z: 0, yaw: 0, pitch: 0, zone: null, stamina: 0, sprinting: false, freeCam: false,
+  x: 0, y: 0, eyeY: 0, z: 0, yaw: 0, pitch: 0, zone: null, map: '', stamina: 0, sprinting: false, freeCam: false,
   drawCalls: 0, triangles: 0, worldTriangles: 0, movers: 0, resolution: [0, 0], openDoors: [], power: false, mapErrors: [],
   remotes: [], corrections: 0,
   weapon: null, weapons: [], upgraded: [], perks: [], maxHp: 100, forge: 'idle', slot: 0, mag: 0, reserve: 0, grenades: 0, reloading: false, aim: 0, shots: 0,
@@ -175,6 +183,7 @@ export const debugState: DebugState = {
 };
 
 export interface DebugWiring {
+  map: CompiledMap;
   player: LocalPlayer;
   input: Input;
   socket: { send(msg: ClientMsg): void; drop(): void };
@@ -187,19 +196,22 @@ export interface DebugWiring {
   chat(text: string): void;
   ping(): void;
   autopilot: { on: boolean };
+  pick: ZhDebug['pick'];
 }
 
 /** Install window.__zh. Anything that changes the game is a debug message to the server. */
-export function wireDebug({ player, input, socket: s, playing, renderer, resize, audio, settings, screens, chat, ping, autopilot }: DebugWiring): void {
+export function wireDebug({ map, player, input, socket: s, playing, renderer, resize, audio, settings, screens, chat, ping, autopilot, pick }: DebugWiring): void {
   const api: Omit<ZhDebug, 'state'> = {
+    pick,
   audio, settings, screens, chat, ping,
-  teleport: (x, z, yaw) => {
-    player.teleport(x, z, yaw);
-    if (playing()) s.send({ t: 'debug', cmd: 'teleport', x, z });
+  teleport: (x, z, yaw, y) => {
+    const floor = map.nearestFloor(x, y ?? player.y, z, 'all');
+    player.teleport(x, z, yaw, Number.isNaN(floor) ? player.y : floor);
+    if (playing()) s.send({ t: 'debug', cmd: 'teleport', x, z, y: player.y });
   },
   gotoZone: (zoneId, yaw = 0) => {
-    const room = harrowRidge.rooms.filter((r) => r.zone === zoneId).sort((a, b) => b.w * b.d - a.w * a.d)[0];
-    if (room) api.teleport(room.x + room.w / 2, room.z + room.d / 2, yaw);
+    const room = map.def.rooms.filter((r) => r.zone === zoneId && !r.rise).sort((a, b) => b.w * b.d - a.w * a.d)[0];
+    if (room) api.teleport(room.x + room.w / 2, room.z + room.d / 2, yaw, map.floorOn(room.level, room.x + room.w / 2, room.z + room.d / 2));
   },
   look: (yaw, pitch = 0) => {
     player.yaw = yaw;
@@ -209,7 +221,7 @@ export function wireDebug({ player, input, socket: s, playing, renderer, resize,
     const dx = x - player.x;
     const dz = z - player.z;
     player.yaw = Math.atan2(-dx, -dz);
-    player.pitch = Math.atan2(y - PLAYER_EYE_HEIGHT, Math.hypot(dx, dz));
+    player.pitch = Math.atan2(y - (player.y + PLAYER_EYE_HEIGHT), Math.hypot(dx, dz));
   },
   give: (what, upgraded = false) =>
     s.send(typeof what === 'number' ? { t: 'debug', cmd: 'give', points: what }

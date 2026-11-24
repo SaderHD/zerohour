@@ -43,7 +43,7 @@ const CHECKS: { [T in ClientMsg['t']]: (m: Rec) => boolean } = {
   ready: (m) => bool(m.ready),
   start: () => true,
   again: () => true,
-  move: (m) => int(m.seq, 0, MAX_SEQ) && num(m.x, MAX_COORD) && num(m.z, MAX_COORD) && num(m.yaw, MAX_ANGLE) && num(m.pitch, MAX_ANGLE) && int(m.state, 0, 4),
+  move: (m) => int(m.seq, 0, MAX_SEQ) && num(m.x, MAX_COORD) && num(m.y, MAX_COORD) && num(m.z, MAX_COORD) && num(m.yaw, MAX_ANGLE) && num(m.pitch, MAX_ANGLE) && int(m.state, 0, 4),
   fire: (m) => int(m.seq, 0, MAX_SEQ) && int(m.slot, 0, 7) && num(m.yaw, MAX_ANGLE) && num(m.pitch, MAX_ANGLE) && opt(m.aim, bool) && hits(m.hits),
   reload: () => true,
   swap: (m) => int(m.slot, 0, 7),
@@ -52,7 +52,7 @@ const CHECKS: { [T in ClientMsg['t']]: (m: Rec) => boolean } = {
   interact: (m) => id(m.id) && bool(m.hold),
   revive: (m) => entity(m.target) && bool(m.hold),
   chat: (m) => text(m.text),
-  mark: (m) => num(m.x, MAX_COORD) && num(m.z, MAX_COORD),
+  mark: (m) => num(m.x, MAX_COORD) && num(m.y, MAX_COORD) && num(m.z, MAX_COORD),
   ping: (m) => num(m.c, Number.MAX_VALUE),
   // Debug commands are only honoured by a debug server, and each checks its own arguments.
   debug: (m) => id(m.cmd),

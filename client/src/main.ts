@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  BLEEDOUT_SECONDS, CLIENT_MOVE_SEND_HZ, MARK_RANGE, MoveState, PLAYER_EYE_HEIGHT, aimDir, compileMap, harrowRidge, maxHpWith, rayWorld, validateMap,
+  BLEEDOUT_SECONDS, CLIENT_MOVE_SEND_HZ, MARK_RANGE, MoveState, PLAYER_EYE_HEIGHT, aimDir, compileMap, mapById, maxHpWith, rayWorld, validateMap,
 } from '@zh/shared';
 import { GameAudio } from './audio/audio';
 import { debugState, wireDebug } from './debug';
@@ -49,7 +49,9 @@ const canvas = document.getElementById('game') as HTMLCanvasElement;
 const statusEl = document.getElementById('status') as HTMLDivElement;
 
 // --- World
-const map = compileMap(harrowRidge);
+// The station, unless the address asks for another map (`?map=stacks`); a server playing a
+// different one sends us back here with its own (events.ts).
+const map = compileMap(mapById(params.get('map')));
 const validation = validateMap(map);
 for (const e of validation.errors) console.error(`[map] ${e}`);
 debugState.mapErrors = validation.errors;
@@ -77,7 +79,7 @@ const hud = new Hud();
 const player = new LocalPlayer();
 const remotes = new RemotePlayers(scene, world, map);
 const clock = new ServerClock();
-const entities = new Entities(scene, world);
+const entities = new Entities(scene, world, map);
 const fx = new Fx(scene);
 const vm = new Viewmodel();
 const barricades = new Barricades(scene, map, world, fx);
@@ -95,7 +97,7 @@ const audio = new GameAudio({
   map, openDoors: match.openDoors, drips: world.drips,
   selfId: () => net.id,
   playerAt: (id) => remotes.list().find((r) => r.id === id && Number.isFinite(r.x)) ?? null,
-  entityAt: (id) => entities.chest(id),
+  entityAt: (id) => entities.spot(id),
   planks: (id) => barricades.list().find((b) => b.id === id)?.planks ?? 0,
 });
 const weapons = new LocalWeapons({ player, camera, map, openDoors: match.openDoors, entities, fx, vm, sound: audio.guns, shake, send: (m) => net.socket.send(m) });
@@ -259,8 +261,11 @@ wireEvents({ net, match, map, world, player, remotes, entities, barricades, scor
 /** Drop a marker where we are looking, for the team. */
 function ping(): void {
   const [dx, dy, dz] = aimDir(player.yaw, player.viewPitch);
-  const d = Math.min(rayWorld(map, match.openDoors, player.x, PLAYER_EYE_HEIGHT, player.z, dx, dy, dz, MARK_RANGE - 1), MARK_RANGE - 1);
-  s.send({ t: 'mark', x: player.x + dx * d * 0.98, z: player.z + dz * d * 0.98 });
+  const eye = player.y + PLAYER_EYE_HEIGHT;
+  const d = Math.min(rayWorld(map, match.openDoors, player.x, eye, player.z, dx, dy, dz, MARK_RANGE - 1), MARK_RANGE - 1) * 0.98;
+  const x = player.x + dx * d;
+  const z = player.z + dz * d;
+  s.send({ t: 'mark', x, y: map.floorUnder(x, eye + dy * d, z), z });
 }
 
 const autopilot = new Autopilot(map, player, input, entities, remotes, weapons, {
@@ -269,7 +274,16 @@ const autopilot = new Autopilot(map, player, input, entities, remotes, weapons, 
   cacheHome: () => cacheView.home, cacheAt: (site) => cacheView.at(site).state,
 });
 autopilot.on = params.has('auto');
-wireDebug({ player, input, socket: s, playing, renderer, resize, audio, settings, screens, chat: (text) => net.chat(text), ping, autopilot });
+const pick = (): { name: string; dist: number; at: [number, number, number] } | null => {
+  const ray = new THREE.Raycaster();
+  ray.setFromCamera(new THREE.Vector2(0, 0), camera);
+  const hit = ray.intersectObjects(scene.children, true).find((h) => (h.object as THREE.Mesh).isMesh && h.object.visible);
+  if (!hit) return null;
+  const names: string[] = [];
+  for (let o: THREE.Object3D | null = hit.object; o && o !== scene; o = o.parent) names.unshift(o.name || o.type);
+  return { name: names.join('/'), dist: hit.distance, at: [hit.point.x, hit.point.y, hit.point.z] };
+};
+wireDebug({ map, player, input, socket: s, playing, renderer, resize, audio, settings, screens, chat: (text) => net.chat(text), ping, autopilot, pick });
 
 const MAX_FRAME = 0.2;
 const SPECTATE_BACK = 2.4;
@@ -303,7 +317,7 @@ renderer.gl.setAnimationLoop((now) => {
     if (acting && match.life !== 'dead' && input.pressed('KeyZ')) ping();
     autopilot.update(dt, acting && match.life !== 'dead');
     weapons.update(dt, input, acting && match.life !== 'dead', match.life === 'downed');
-    interact.update(dt, input, player.x, player.z, player.yaw, acting && match.life === 'alive');
+    interact.update(dt, input, player.x, player.y, player.z, player.yaw, acting && match.life === 'alive');
     player.frozen = match.over || match.life !== 'alive' || !free;
     player.lying = match.life === 'downed';
     player.update(dt, input, map, match.openDoors, player.freeCam ? [] : entities.blockers());
@@ -311,8 +325,9 @@ renderer.gl.setAnimationLoop((now) => {
     if (watching) {
       // Out of the game: ride behind a teammate until the next round.
       const [bx, , bz] = aimDir(watching.yaw + Math.PI, 0);
-      const back = Math.min(SPECTATE_BACK, rayWorld(map, match.openDoors, watching.x, SPECTATE_HEIGHT, watching.z, bx, 0, bz, SPECTATE_BACK + 0.3) - 0.3);
-      camera.position.set(watching.x + bx * back, SPECTATE_HEIGHT, watching.z + bz * back);
+      const height = watching.y + SPECTATE_HEIGHT;
+      const back = Math.min(SPECTATE_BACK, rayWorld(map, match.openDoors, watching.x, height, watching.z, bx, 0, bz, SPECTATE_BACK + 0.3) - 0.3);
+      camera.position.set(watching.x + bx * back, height, watching.z + bz * back);
       camera.rotation.set(watching.pitch * 0.5 - 0.12, watching.yaw, 0, 'YXZ');
     }
     shake.apply(dt, camera);
@@ -321,13 +336,13 @@ renderer.gl.setAnimationLoop((now) => {
     vm.update(dt, {
       aim: weapons.aim, speed: player.speed, sprinting: player.sprinting, lookX: player.lookX, lookY: player.lookY,
       strafe: player.vx * Math.cos(player.yaw) - player.vz * Math.sin(player.yaw),
-      light: world.lightAt(player.x, 1.4, player.z),
+      light: world.lightAt(player.x, player.y + 1.4, player.z),
     });
     sendTimer += dt;
     if (sendTimer >= 1 / CLIENT_MOVE_SEND_HZ && !player.freeCam && match.life !== 'dead' && !match.over) {
       sendTimer = 0;
       const state = player.sprinting ? MoveState.Sprint : player.speed > 0.3 ? MoveState.Walk : MoveState.Idle;
-      s.send({ t: 'move', seq: ++moveSeq, x: player.x, z: player.z, yaw: player.yaw, pitch: player.pitch, state });
+      s.send({ t: 'move', seq: ++moveSeq, x: player.x, y: player.y, z: player.z, yaw: player.yaw, pitch: player.pitch, state });
     }
   } else {
     // Menu backdrop: a slow pan around the courtyard.
@@ -350,7 +365,7 @@ renderer.gl.setAnimationLoop((now) => {
   pickups.update(dt, gameTime);
   hud.setEffects(live() ? [...match.effects].map(([kind, until]) => ({ kind, left: until - gameTime })) : []);
   world.update(dt, now / 1000);
-  atmosphere.update(dt, camera.position.x, camera.position.z);
+  atmosphere.update(dt, camera.position.x, camera.position.y - PLAYER_EYE_HEIGHT, camera.position.z);
   sky.position.set(camera.position.x, 0, camera.position.z);
   snow.update(now / 1000, camera.position);
   // A scoped rifle swaps the viewmodel for a scope overlay once the sights are up.
@@ -363,13 +378,13 @@ renderer.gl.setAnimationLoop((now) => {
   const gapPx = (Math.tan(weapons.spread()) / Math.tan((camera.fov * Math.PI) / 360)) * (window.innerHeight / 2);
   hud.setCrosshair(gapPx, weapons.aim < 0.5);
 
-  const zoneId = map.zoneAt(player.x, player.z);
+  const zoneId = map.zoneAt(player.x, player.y, player.z);
   hud.setZone(map.zones.find((z) => z.id === zoneId)?.name ?? '');
   hud.setStamina(player.stamina, player.staminaMax);
   const maxHp = maxHpWith(match.perks);
   audio.frame({
-    dt, playing: live(), alive: match.life === 'alive', downed: match.life === 'downed', x: camera.position.x, z: camera.position.z, yaw: camera.rotation.y,
-    zone: map.zoneAt(camera.position.x, camera.position.z), power: match.power, hp: match.life === 'dead' ? 1 : match.hp / maxHp, hpNow: match.hp, speed: player.speed, sprinting: player.sprinting,
+    dt, playing: live(), alive: match.life === 'alive', downed: match.life === 'downed', x: camera.position.x, y: watching ? watching.y : player.y, z: camera.position.z, yaw: camera.rotation.y,
+    zone: map.zoneAt(camera.position.x, camera.position.y - PLAYER_EYE_HEIGHT, camera.position.z), power: match.power, hp: match.life === 'dead' ? 1 : match.hp / maxHp, hpNow: match.hp, speed: player.speed, sprinting: player.sprinting,
     stride: player.stride, reviving: interact.progress, gameTime, entities: ents, remotes: mates,
   });
   arcs.update(dt, player.x, player.z, player.yaw);
@@ -400,7 +415,7 @@ renderer.gl.setAnimationLoop((now) => {
   }
   Object.assign(debugState, {
     frames: debugState.frames + 1,
-    x: player.x, z: player.z, yaw: player.yaw, pitch: player.pitch, zone: zoneId,
+    x: player.x, y: player.y, eyeY: camera.position.y, z: player.z, yaw: player.yaw, pitch: player.pitch, zone: zoneId, map: map.def.id,
     stamina: player.stamina, sprinting: player.sprinting, freeCam: player.freeCam,
     drawCalls: renderer.lastDrawCalls, triangles: renderer.lastTriangles,
     resolution: [renderer.width, renderer.height], openDoors: [...match.openDoors], power: match.power,

@@ -97,7 +97,7 @@ const POWERUPS = ['resupply', 'reaper', 'double', 'firestorm', 'rebuild', 'clear
     }
 
     // 4. Power-ups: all six in a row on the snow, then walked through one by one.
-    await zh((kinds) => { window.__zh.teleport(30, 50.5, 0); kinds.forEach((k, i) => window.__zh.powerup(k, 26.5 + i * 1.4, 46)); window.__zh.lookAt(30, 0.9, 46); }, POWERUPS);
+    await zh((kinds) => { window.__zh.teleport(30, 50.5, 0); kinds.forEach((k, i) => window.__zh.powerup(k, 26.5 + i * 1.4, 46)); window.__zh.lookAt(30, -0.6, 46); }, POWERUPS);
     await until('six drops', async () => (await state()).powerups.length === 6, 3000);
     await sleep(700);
     await shot('powerups');
@@ -126,7 +126,7 @@ const POWERUPS = ['resupply', 'reaper', 'double', 'firestorm', 'rebuild', 'clear
     const aimAtNearest = () => zh(() => {
       const s = window.__zh.state();
       const z = s.entities.filter((e) => e.kind !== 'dummy').sort((a, b) => Math.hypot(a.x - s.x, a.z - s.z) - Math.hypot(b.x - s.x, b.z - s.z))[0];
-      window.__zh.lookAt(z.x, 1.2, z.z);
+      window.__zh.lookAt(z.x, z.y + 1.2, z.z);
     });
     await zh(() => { window.__zh.teleport(22, 49, 0); window.__zh.give('arclight'); });
     await until('the Arclight', async () => (await state()).weapon === 'arclight', 3000);
@@ -187,12 +187,12 @@ const POWERUPS = ['resupply', 'reaper', 'double', 'firestorm', 'rebuild', 'clear
     // 7. The Siren: thrown past a pack, they turn and go to it; then it blows.
     await zh(() => { window.__zh.killZombies(); window.__zh.god(false); window.__zh.give('siren'); window.__zh.teleport(22, 49, 0); });
     await until('three Sirens', async () => (await state()).tacticals === 3, 3000);
-    await zh(() => { for (let i = 0; i < 8; i++) window.__zh.spawnZombies(1, { x: 36 + (i % 4) * 0.9, z: 48 + Math.floor(i / 4) * 0.9, speed: 2.2, hp: 400 }); window.__zh.lookAt(30, 2.2, 40); });
+    await zh(() => { for (let i = 0; i < 8; i++) window.__zh.spawnZombies(1, { x: 36 + (i % 4) * 0.9, z: 48 + Math.floor(i / 4) * 0.9, speed: 2.2, hp: 400 }); window.__zh.lookAt(30, 1.6, 44.5); });
     await sleep(300);
     await zh(() => window.__zh.press('KeyE'));
     await until('the Siren in the air', async () => (await state()).fx.kinds.includes('siren'), 3000);
     await sleep(3800);
-    await zh(() => { const s = window.__zh.state(); const z = s.entities[0]; window.__zh.lookAt(z.x, 1, z.z); });
+    await zh(() => { const s = window.__zh.state(); const z = s.entities[0]; window.__zh.lookAt(z.x, z.y + 1, z.z); });
     await sleep(300);
     await shot('siren');
     const lured = await state();
@@ -202,7 +202,7 @@ const POWERUPS = ['resupply', 'reaper', 'double', 'firestorm', 'rebuild', 'clear
     await zh(() => { window.__zh.god(true); window.__zh.killZombies(); });
 
     // 8. A howler round: lightning, then the pack.
-    await zh(() => { window.__zh.teleport(33, 46, 0); window.__zh.look(0.6, 0.05); window.__zh.give('halberd'); window.__zh.setRound(6, true); });
+    await zh(() => { window.__zh.teleport(36.5, 47, 0); window.__zh.look(0.6, 0.05); window.__zh.give('halberd'); window.__zh.setRound(6, true); });
     await until('lightning', async () => (await state()).strikes > 0, 8000);
     await zh(() => { const s = window.__zh.state(); window.__zh.lookAt(s.lastStrike.x, 3, s.lastStrike.z); });
     const seen = (await state()).strikes;
@@ -212,11 +212,11 @@ const POWERUPS = ['resupply', 'reaper', 'double', 'firestorm', 'rebuild', 'clear
     await until('howlers', async () => (await state()).entities.filter((e) => e.kind === 'howler').length >= 4, 15000);
     const special = await state();
     assert(special.roundPhase === 'special', `round phase ${special.roundPhase}`);
-    await zh(() => { const s = window.__zh.state(); const h = s.entities.filter((e) => e.kind === 'howler').sort((a, b) => Math.hypot(a.x - s.x, a.z - s.z) - Math.hypot(b.x - s.x, b.z - s.z))[0]; window.__zh.lookAt(h.x, 0.6, h.z); });
+    await zh(() => { const s = window.__zh.state(); const h = s.entities.filter((e) => e.kind === 'howler').sort((a, b) => Math.hypot(a.x - s.x, a.z - s.z) - Math.hypot(b.x - s.x, b.z - s.z))[0]; window.__zh.lookAt(h.x, h.y + 0.6, h.z); });
     await sleep(250);
     await shot('howlers');
     await until('howlers at our heels', async () => { const s = await state(); return s.entities.filter((e) => e.kind === 'howler' && Math.hypot(e.x - s.x, e.z - s.z) < 2.5).length >= 3; }, 20000);
-    await zh(() => { const s = window.__zh.state(); const h = s.entities.filter((e) => e.kind === 'howler').sort((a, b) => Math.hypot(a.x - s.x, a.z - s.z) - Math.hypot(b.x - s.x, b.z - s.z))[0]; window.__zh.lookAt(h.x, 0.5, h.z); });
+    await zh(() => { const s = window.__zh.state(); const h = s.entities.filter((e) => e.kind === 'howler').sort((a, b) => Math.hypot(a.x - s.x, a.z - s.z) - Math.hypot(b.x - s.x, b.z - s.z))[0]; window.__zh.lookAt(h.x, h.y + 0.5, h.z); });
     await sleep(250);
     await shot('howlers-close');
     const end = await state();

@@ -1,4 +1,4 @@
-import { MoveState, TICK_BUDGET_MS, TICK_DT, decodeClient, encode, type ClientMsg, type GameEvent, type ServerMsg } from '@zh/shared';
+import { MoveState, TICK_BUDGET_MS, ZombieState, TICK_DT, decodeClient, encode, type ClientMsg, type GameEvent, type ServerMsg } from '@zh/shared';
 import { BotPlayer, type BotSkill } from '../bot';
 import { Game } from './Game';
 import { zombieCount } from './spawner';
@@ -20,6 +20,8 @@ export interface CampaignOpts {
   onRound?: (r: RoundReport) => void;
   /** Told what each bot was doing when it went down (for tuning the bots). */
   onDown?: (what: string) => void;
+  /** Told every ten seconds where each bot is and what it is after (for tuning the bots). */
+  onTrace?: (line: string) => void;
 }
 
 export interface RoundReport {
@@ -53,6 +55,9 @@ export interface CampaignResult {
   worstIdle: number;
   worstIdleWhat: string;
   purchases: Record<string, number>;
+  /** Points the team earned and spent, by reason (hit, kill, ... / ammo, perk, door, ...). */
+  earned: Record<string, number>;
+  spent: Record<string, number>;
   downs: number;
   revives: number;
   deaths: number;
@@ -68,7 +73,7 @@ export function runCampaign(opts: CampaignOpts): CampaignResult {
   const bots = new Map<number, BotPlayer>();
   const res: CampaignResult = {
     cleared: 0, over: false, seconds: 0, rounds: [], ticks: 0, tickMs: 0, tickMsMax: 0, overBudget: 0, peakAlive: 0, snapBytes: 0, snapZombies: 0,
-    evBytesPerSecond: 0, worstIdle: 0, worstIdleWhat: '', purchases: {}, downs: 0, revives: 0, deaths: 0, shots: 0, corrections: 0, refused: 0,
+    evBytesPerSecond: 0, worstIdle: 0, worstIdleWhat: '', purchases: {}, earned: {}, spent: {}, downs: 0, revives: 0, deaths: 0, shots: 0, corrections: 0, refused: 0,
     game: null as unknown as Game,
   };
   let roundBegan = 0;
@@ -101,10 +106,14 @@ export function runCampaign(opts: CampaignOpts): CampaignResult {
         let close = 0;
         for (const z of game.zombies.values()) if (Math.hypot(z.x - p.x, z.z - p.z) < 3) close++;
         const w = p.stash?.weapons[p.stash.slot];
-        opts.onDown(`${(b.intent?.goal ?? '').split(':')[0] || 'idle'} ${game.map.zoneAt(p.x, p.z)} ${w && w.mag > 0 ? 'loaded' : 'empty'} close${Math.min(close, 5)}`);
+        opts.onDown(`${(b.intent?.goal ?? '').split(':')[0] || 'idle'} ${game.map.zoneAt(p.x, p.y, p.z)} ${w && w.mag > 0 ? 'loaded' : p.stash?.weapons.some((x) => x.mag + x.reserve > 0) ? 'empty' : 'dry'} close${Math.min(close, 5)}`);
       }
       res.downs++;
       roundDowns++;
+    } else if (ev.e === 'points') {
+      // The ledger: what was earned and what it went on, by the reason the server gives.
+      const book = ev.delta > 0 ? res.earned : res.spent;
+      book[ev.reason] = (book[ev.reason] ?? 0) + Math.abs(ev.delta);
     } else if (ev.e === 'playerRevived') res.revives++;
     else if (ev.e === 'playerDied') res.deaths++;
   };
@@ -158,6 +167,17 @@ export function runCampaign(opts: CampaignOpts): CampaignResult {
     if (ms > TICK_BUDGET_MS) res.overBudget++;
     res.ticks++;
     if (res.ticks % 15 !== 0) continue;
+    if (opts.onTrace && res.ticks % 300 === 0) {
+      const who = [...game.players.values()].map((p) => `${game.map.zoneAt(p.x, p.y, p.z) ?? '?'}(${p.x.toFixed(0)},${p.z.toFixed(0)},${p.y.toFixed(1)}) ${p.state === MoveState.Dead ? 'dead' : p.state === MoveState.Downed ? 'down' : Math.round(p.hp)} ${(bots.get(p.pub.id)?.intent?.goal ?? '').split(':').slice(0, 2).join(':') || '-'}`);
+      // Where the horde is: zombies inside by zone, and how many are still outside the windows.
+      const at = new Map<string, number>();
+      for (const z of game.zombies.values()) {
+        const where = z.state === ZombieState.Approach || z.state === ZombieState.Tear || z.state === ZombieState.Vault ? 'out' : game.map.zoneAt(z.x, z.y, z.z) ?? '?';
+        at.set(where, (at.get(where) ?? 0) + 1);
+      }
+      const horde = [...at].map(([k, n]) => `${k} ${n}`).join(', ');
+      opts.onTrace(`${game.time.toFixed(0).padStart(5)}s r${game.rounds.round} z${zombieCount(game)}${horde ? ` (${horde})` : ''}  ${who.join(' | ')}`);
+    }
     res.peakAlive = Math.max(res.peakAlive, zombieCount(game));
     for (const z of game.zombies.values()) {
       const idle = idleFor(game, z);

@@ -101,7 +101,7 @@ function hostile(rng: Rng, roomCode: string): ClientMsg {
     case 3: return { t: 'ready', ready: rng.next() < 0.5 };
     case 4: return { t: 'start' };
     case 5: return { t: 'again' };
-    case 6: case 7: return { t: 'move', seq: i(), x: n(), z: n(), yaw: n(), pitch: n(), state: rng.int(0, 4) };
+    case 6: case 7: return { t: 'move', seq: i(), x: n(), y: n(), z: n(), yaw: n(), pitch: n(), state: rng.int(0, 4) };
     case 8: return { t: 'fire', seq: i(), slot: rng.int(0, 7), yaw: n(), pitch: n(), aim: true, hits: Array.from({ length: rng.int(0, 64) }, () => ({ id: i(), zone: rng.pick(['head', 'torso', 'limb'] as const), dist: n() })) };
     case 9: return { t: 'reload' };
     case 10: return { t: 'swap', slot: rng.int(0, 7) };
@@ -110,7 +110,7 @@ function hostile(rng: Rng, roomCode: string): ClientMsg {
     case 13: return { t: 'interact', id: s(), hold: rng.next() < 0.7 };
     case 14: return { t: 'revive', target: i(), hold: rng.next() < 0.7 };
     case 15: return { t: 'chat', text: s() };
-    case 16: return { t: 'mark', x: n(), z: n() };
+    case 16: return { t: 'mark', x: n(), y: 0, z: n() };
     default: return { t: 'debug', cmd: 'give', points: 1e9 } as ClientMsg;
   }
 }
@@ -189,7 +189,7 @@ describe('fuzz', () => {
         seq = 0;
       } else if (game && !game.over) {
         const me = game.players.get(host.link.session!.id)!;
-        host.say({ t: 'move', seq: ++seq, x: me.x, z: me.z, yaw: 0, pitch: 0, state: 0 });
+        host.say({ t: 'move', seq: ++seq, x: me.x, y: me.y, z: me.z, yaw: 0, pitch: 0, state: 0 });
         game.step(TICK_DT);
       } else if (rng.next() < 0.01) host.say({ t: 'again' });
       if (round % 150 === 0) ctx.lobby.sweep();

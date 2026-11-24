@@ -1,5 +1,6 @@
 import { DIR_VEC } from '../compile';
 import type { Dir, Interactable, LightDef, PropInst } from '../types';
+import { TERRACE_N, TERRACE_S } from '../terraces';
 import { lamp, prop } from './helpers';
 
 // Session 9: everything a player can buy has its place in the station (PLAN 4.5-4.9). Each line
@@ -27,11 +28,11 @@ function wallbuy(weapon: string, x: number, z: number, face: Dir): void {
 }
 
 /** A tonic dispenser standing in the cell centred on (x, z). */
-function tonic(id: (typeof TONICS)[number]['id'], x: number, z: number, face: Dir): void {
+function tonic(id: (typeof TONICS)[number]['id'], x: number, z: number, face: Dir, floor = 0): void {
   const variant = TONICS.findIndex((t) => t.id === id);
   const v = DIR_VEC[face];
   mountProps.push(prop('tonic', x, z, face, { variant, text: TONICS[variant]!.name }));
-  mountLights.push(lamp(x + v.x * 0.7, z + v.z * 0.7, 1.4, TONICS[variant]!.glow, 3.5, { fixture: 'none', intensity: 0.8 }));
+  mountLights.push(lamp(x + v.x * 0.7, z + v.z * 0.7, floor + 1.4, TONICS[variant]!.glow, 3.5, { fixture: 'none', intensity: 0.8 }));
   interactables.push({ id: `tonic_${id}`, kind: 'tonic', ref: id, x: x + v.x * 0.5, z: z + v.z * 0.5, facing: face });
 }
 
@@ -53,21 +54,22 @@ tonic('marathon', 21.5, 24.5, 'w');
 cacheSite('bunk', 12.5, 30.5, 'n');
 // Laboratory
 wallbuy('kestrel', 22, 7.6, 'w');
-tonic('hair_trigger', 21.5, 17.5, 'n');
+tonic('hair_trigger', 21.5, 17.5, 'n', TERRACE_N);
 // Cold storage and its tunnel
 wallbuy('brakeman', 30, 8, 's');
-tonic('packmule', 32, 14.5, 'n');
+tonic('packmule', 32, 14.5, 'n', TERRACE_N);
 cacheSite('cold', 50, 11.5, 's');
 // Motor pool
 wallbuy('coachman', 58.75, 36, 's');
-tonic('quickhands', 62, 38.5, 'w');
+tonic('quickhands', 56, 38.5, 's', TERRACE_S);
 cacheSite('motor', 51.5, 47.5, 'n');
 // Courtyard: where the Cache starts
 cacheSite('yard', 20.5, 37, 'e');
 interactables.unshift(interactables.pop()!);
 // Comms bunker
-tonic('ironhide', 35.5, 54, 'w');
+tonic('ironhide', 35.5, 54, 'w', TERRACE_S);
 cacheSite('comms', 35, 62.5, 'n');
-// The master switch is the lever on the middle switchgear cabinet; the Forge is its own prop.
-interactables.push({ id: 'power', kind: 'powerSwitch', x: 61, z: 32.5, facing: 'w' });
-interactables.push({ id: 'forge', kind: 'forge', x: 41, z: 58, facing: 'w' });
+// The master switch is the lever on the middle switchgear cabinet, up on the generator hall's
+// gallery; the Forge is its own prop, down in the vault.
+interactables.push({ id: 'power', kind: 'powerSwitch', x: 56.5, z: 24.5, facing: 's', level: 1 });
+interactables.push({ id: 'forge', kind: 'forge', x: 25.5, z: 57.5, facing: 'e', level: -1 });

@@ -37,7 +37,7 @@ export class Pickups {
     const glow = new THREE.Mesh(this.disc, new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }));
     glow.position.y = 0.04;
     group.add(model, glow);
-    group.position.set(drop.x, 0, drop.z);
+    group.position.set(drop.x, drop.y, drop.z);
     this.scene.add(group);
     this.shown.set(drop.id, { drop, group, age: 0 });
     this.fx.puff(drop.x, HEIGHT, drop.z, colour, 10, 2, 0.05, 0.6);
@@ -72,7 +72,7 @@ export class Pickups {
   }
 
   /** For tests/debug. */
-  list(): { id: EntityId; kind: string; x: number; z: number }[] {
-    return [...this.shown.values()].map((s) => ({ id: s.drop.id, kind: s.drop.kind, x: s.drop.x, z: s.drop.z }));
+  list(): { id: EntityId; kind: string; x: number; y: number; z: number }[] {
+    return [...this.shown.values()].map((s) => ({ id: s.drop.id, kind: s.drop.kind, x: s.drop.x, y: s.drop.y, z: s.drop.z }));
   }
 }

@@ -72,8 +72,8 @@ export class HowlerActor implements EntityModel {
     return BOXES;
   }
 
-  place(x: number, z: number, yaw: number, state: number, speed: number): void {
-    this.root.position.set(x, 0, z);
+  place(x: number, z: number, yaw: number, state: number, speed: number, _gait = 0, y = 0): void {
+    this.root.position.set(x, y, z);
     this.root.rotation.y = yaw;
     if (this.dead >= 0) return;
     if (state !== this.state) {

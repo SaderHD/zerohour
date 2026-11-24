@@ -16,7 +16,7 @@ describe('protocol', () => {
   });
 
   it('rejects client messages whose fields are missing, mistyped or out of range', () => {
-    const ok = { t: 'move', seq: 1, x: 3, z: 4, yaw: 0, pitch: 0, state: 1 };
+    const ok = { t: 'move', seq: 1, x: 3, y: 0, z: 4, yaw: 0, pitch: 0, state: 1 };
     expect(decodeClient(JSON.stringify(ok))).toEqual(ok);
     for (const bad of [{ x: '3' }, { x: null }, { seq: -1 }, { seq: 1.5 }, { state: 9 }, { yaw: 1e9 }, { z: 5000 }]) {
       expect(decodeClient(JSON.stringify({ ...ok, ...bad }))).toBeNull();

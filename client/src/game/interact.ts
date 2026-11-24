@@ -1,5 +1,5 @@
 import {
-  DIR_VEC, FORGE_COST, cacheItemName, INTERACT_RANGE, MAX_PERKS, ammoCost, openingDistance, perkCost, perkDef, perkNeedsPower, reviveSecondsWith,
+  DIR_VEC, FLOOR_GAP, FORGE_COST, cacheItemName, INTERACT_RANGE, MAX_PERKS, ammoCost, openingDistance, perkCost, perkDef, perkNeedsPower, reviveSecondsWith,
   weaponDef, weaponStats,
   type CacheState, type ClientMsg, type CompiledMap, type ForgeState, type Interactable, type Opening, type PerkId, type WeaponId,
 } from '@zh/shared';
@@ -56,11 +56,11 @@ export class Interact {
   ) {}
 
   /** The shut door in reach that the player is facing, if any. */
-  private door(x: number, z: number, yaw: number): Opening | null {
+  private door(x: number, y: number, z: number, yaw: number): Opening | null {
     let best: Opening | null = null;
     let bestD = INTERACT_RANGE;
     for (const o of this.map.def.openings) {
-      if (o.kind !== 'door' || this.soldDoors.has(o.id)) continue;
+      if (o.kind !== 'door' || this.soldDoors.has(o.id) || Math.abs(this.map.openingHeight(o) - y) >= FLOOR_GAP) continue;
       const d = openingDistance(o, x, z);
       const dx = o.x + o.w / 2 - x;
       const dz = o.z + o.d / 2 - z;
@@ -74,7 +74,7 @@ export class Interact {
   }
 
   /** The nearest interactable in reach that the player is in front of and looking towards. */
-  private thing(x: number, z: number, yaw: number): Interactable | null {
+  private thing(x: number, y: number, z: number, yaw: number): Interactable | null {
     let best: Interactable | null = null;
     let bestD = INTERACT_RANGE;
     for (const it of this.map.def.interactables) {
@@ -82,7 +82,7 @@ export class Interact {
       const dz = it.z - z;
       const d = Math.hypot(dx, dz);
       const v = DIR_VEC[it.facing];
-      if (d >= bestD || -dx * v.x - dz * v.z < 0) continue;
+      if (d >= bestD || -dx * v.x - dz * v.z < 0 || Math.abs(this.map.mountHeight(it) - y) >= FLOOR_GAP) continue;
       if (it.kind === 'cacheSite' && !this.buyer().cache(it.id).present) continue;
       if ((-Math.sin(yaw) * dx - Math.cos(yaw) * dz) / (d || 1) < 0.3) continue;
       best = it;
@@ -147,11 +147,12 @@ export class Interact {
     return key.startsWith('p:') ? { t: 'revive', target: Number(key.slice(2)), hold } : { t: 'interact', id: key, hold };
   }
 
-  update(dt: number, input: Input, x: number, z: number, yaw: number, active: boolean): void {
-    const mate = active ? this.remotes.revivable(x, z) : null;
-    const win = active && !mate ? this.barricades.rebuildable(x, z) : null;
-    const door = active && !mate && !win ? this.door(x, z, yaw) : null;
-    const thing = active && !mate && !win && !door ? this.thing(x, z, yaw) : null;
+  /** (x, z): where the player stands; `y`: the height of the floor under them. */
+  update(dt: number, input: Input, x: number, y: number, z: number, yaw: number, active: boolean): void {
+    const mate = active ? this.remotes.revivable(x, y, z) : null;
+    const win = active && !mate ? this.barricades.rebuildable(x, y, z) : null;
+    const door = active && !mate && !win ? this.door(x, y, z, yaw) : null;
+    const thing = active && !mate && !win && !door ? this.thing(x, y, z, yaw) : null;
     this.refusalFor -= dt;
     const refused = this.refusalFor > 0 ? this.refusal : '';
     this.prompt = mate ? `Hold ${this.useKey} — revive ${mate.name}` : win ? `Hold ${this.useKey} — rebuild barricade` : '';

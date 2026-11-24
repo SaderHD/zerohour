@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BARRICADE_PLANKS, INTERACT_RANGE, Rng, mapWindows, type BarricadeState, type CompiledMap, type WindowInfo } from '@zh/shared';
+import { FLOOR_GAP, BARRICADE_PLANKS, INTERACT_RANGE, Rng, mapWindows, type BarricadeState, type CompiledMap, type WindowInfo } from '@zh/shared';
 import { modelMaterial, shadedBox } from '../models/rig';
 import type { World } from '../render/worldBuilder';
 import type { Fx } from './fx';
@@ -37,13 +37,13 @@ export class Barricades {
     const euler = new THREE.Euler();
     wins.forEach((win, w) => {
       this.sites.set(win.id, { win, planks: BARRICADE_PLANKS, first: w * BARRICADE_PLANKS });
-      const light = world.lightAt(win.inX, 1.5, win.inZ);
+      const light = world.lightAt(win.inX, win.y + 1.5, win.inZ);
       // Nailed up in a hurry: uneven heights, tilts and lengths. Order of removal is top-down-ish.
       const order = rng.shuffle([0, 1, 2, 3, 4, 5]);
       for (let i = 0; i < BARRICADE_PLANKS; i++) {
         const row = order[i]!;
         const along = rng.range(-0.06, 0.06);
-        pos.set(win.x - win.ox * INSET + (win.alongX ? along : 0), LOW + row * STEP + rng.range(-0.02, 0.02), win.z - win.oz * INSET + (win.alongX ? 0 : along));
+        pos.set(win.x - win.ox * INSET + (win.alongX ? along : 0), win.y + LOW + row * STEP + rng.range(-0.02, 0.02), win.z - win.oz * INSET + (win.alongX ? 0 : along));
         euler.set(0, win.alongX ? 0 : Math.PI / 2, rng.range(-0.11, 0.11), 'YXZ');
         scale.set(win.len + rng.range(0.25, 0.45), 1, 1);
         const m = new THREE.Matrix4().compose(pos, quat.setFromEuler(euler), scale);
@@ -67,7 +67,7 @@ export class Barricades {
       const { win } = site;
       // Splinters fly into the room when a plank is torn off; a little dust when one goes back up.
       const torn = planks < site.planks;
-      this.fx.puff(win.x - win.ox * 0.35, LOW + STEP * 2.5, win.z - win.oz * 0.35, SPLINTER, torn ? 9 : 4, torn ? 2.2 : 0.9, torn ? 0.06 : 0.035, 0.6);
+      this.fx.puff(win.x - win.ox * 0.35, win.y + LOW + STEP * 2.5, win.z - win.oz * 0.35, SPLINTER, torn ? 9 : 4, torn ? 2.2 : 0.9, torn ? 0.06 : 0.035, 0.6);
     }
     site.planks = planks;
     for (let i = 0; i < BARRICADE_PLANKS; i++) this.mesh.setMatrixAt(site.first + i, i < planks ? this.matrices[site.first + i]! : this.hidden);
@@ -75,12 +75,12 @@ export class Barricades {
   }
 
   /** The nearest window in reach that is missing planks. */
-  rebuildable(x: number, z: number): WindowInfo | null {
+  rebuildable(x: number, y: number, z: number): WindowInfo | null {
     let best: WindowInfo | null = null;
     let bestD = INTERACT_RANGE;
     for (const { win, planks } of this.sites.values()) {
       const d = Math.hypot(x - win.inX, z - win.inZ);
-      if (planks < BARRICADE_PLANKS && d < bestD) {
+      if (planks < BARRICADE_PLANKS && d < bestD && Math.abs(win.y - y) < FLOOR_GAP) {
         best = win;
         bestD = d;
       }

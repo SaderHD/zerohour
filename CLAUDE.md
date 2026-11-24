@@ -32,10 +32,11 @@ the same commit as any change to what it describes.
 - `npm run soak -- [seconds] [--shut]` — in-process server + 4 WebSocket bots + 32 zombies; fails if
   a zombie stops making progress for 10 s or the tick goes over budget. (`npm test` runs the same
   soak on a fake clock.)
-- `npm run campaign -- [rounds=25] [--god] [--runs=n] [--seed=n] [--players=n] [--accuracy=0.75]` — a whole
+- `npm run campaign -- [rounds=25] [--god] [--runs=n] [--seed=n] [--players=n] [--accuracy=0.75] [--downs] [--trace] [--ledger]` — a whole
   game played by bots on a fake clock (an hour of play in about a minute). `--god`: the endurance
   run, fails on a stuck zombie, slow tick or fat snapshot. Without it the bots are mortal and it
-  reports how far a team gets: run it with `--runs=8` before and after any balance change.
+  reports how far a team gets: run it with `--runs=32` before and after any balance change (eight seeds can be off by rounds)
+  (`--downs` tallies what each bot was after, and where, when it went down; `--trace` prints where they and the horde are every ten seconds; `--ledger` what the team earned and spent).
 - `npm run ship [-- --here]` — the acceptance run: fresh clone of the last commit, `npm ci`, build,
   `npm start` (no debug commands), four browser players on the autopilot through ten rounds, nothing
   that looks like an error in any console or the server log. About 20 minutes. `--here` uses this
@@ -59,10 +60,18 @@ the same commit as any change to what it describes.
   killed and restarted). Writes `test-results/ux-*.png`.
 - URL flags for quick testing: `?autostart=1` (straight into a solo game), `?room=ABCD&autostart=1`
   (shared room across tabs), `?name=X`, `?debug=1`, `?auto=1` (the autopilot plays for you).
-- `npm run map` — validate the map and rewrite the ASCII dump `docs/MAP.txt`.
+- `npm run map` — validate the map and rewrite the ASCII dump `docs/MAP.txt` (`npm run map -- stacks`
+  checks and prints the Stacks, the three-storey proving ground, without writing anything).
 - `npm run tour [view...]` — after a build: screenshots of every zone to `test-results/tour-*.png`
-  (views are listed in `scripts/tour.cjs`; add one when you add something worth looking at;
-  views named `*-on` are taken with the power on).
+  (views are listed in `scripts/tour.cjs` with the height of the floor each stands on; add one when you add
+  something worth looking at; a name in its `ON` list is taken again with the power on).
+- `npm run site` — after a build: one browser player over Harrow Ridge's heights (the yard's slope and bluff,
+  the lab stairs, the tunnel's ramps, the gallery, the dock, the vault's two flights; shots and prompts by floor;
+  zombies following up and down). Writes `test-results/site-*.png`.
+- `npm run heights` — after a build: one browser player on the Stacks (server started with `ZH_MAP=stacks`;
+  the client follows its server's map, or takes `?map=stacks`): up the ramp and the stairs, the ledge, shots
+  and prompts by floor, a zombie climbing three storeys. Writes `test-results/heights-*.png`.
+  `npm run tour -- --stacks` photographs every part of it (`tour-stacks-*.png`).
 - `npm run smoke` — after a build: boots the server, drives headless Chromium, checks handshake
   and rendering, writes `test-results/smoke.png`. Uses the globally installed `playwright`; do not
   add it as a dependency in the cloud environment.
@@ -72,6 +81,23 @@ the same commit as any change to what it describes.
   (`vite.config.ts`) cannot import it.
 - Coordinates: metres, x east, z south, y up, 0.5 m cells. Yaw 0 looks north (−z), positive turns
   left.
+- Height (PLAN 6.1-6.3): the grid is a stack of layers, one per storey (`Room.level`, floor height
+  `Room.y`, ramps and stairs as `Room.rise`). Cells join where their floors are within `STEP_HEIGHT`
+  (`CompiledMap.links`); anything taller is a ledge nobody crosses. Whatever stands somewhere has a
+  `y` (the floor underfoot) and every lookup takes it: `walkAt(cx, cz, y)`, `zoneAt(x, y, z)`,
+  `moveCircle(map, open, x, y, z, ...)`, `lineOfSight(map, x0, y0, z0, x1, y1, z1)`,
+  `field.costAt(x, y, z)`. Never test two bodies by x and z alone: compare `y` against `FLOOR_GAP`
+  as well. `map.idx(cx, cz)` without a layer is the ground. On the client, draw things at
+  `map.footAt(x, y, z)` (a ramp is drawn as a slope), ask `world.lightAt` at the thing's real height,
+  and give a sound's `at` the `y` of the floor it is made on.
+- Harrow Ridge is terraced (PLAN 4.11): `map/terraces.ts` has the floor heights (`TERRACE_N` +1.5 the lab and
+  cold store, `TERRACE_S` -1.5 the low yard, motor pool and bunker, `GALLERY_Y` 3, `VAULT_Y` -4.5). Never write
+  one as a number. A prop stands on whatever floor is under it; a light's `y` is absolute on the ground storey, so
+  each wing lists its lights over its own floor and lifts them (`lift(TERRACE_N, labLights)`); things on the
+  gallery or in the vault take `onLevel(1 | -1, [...])`. A room is several rectangles of one zone (`room(...)` in
+  `harrowRidge.ts`); where a floor ends in a drop put a `rail(...)` just inside the edge (`stairRail` down a
+  flight). Nothing solid stands on a ramp or stairs. In tests and scripts stand things on the floor that is there:
+  `spawnZombie(g, null, x, TERRACE_S, z, ...)`, `teleport(x, z, yaw, y)`, `lookAt(e.x, e.y + 1.2, e.z)`.
 - World lighting is baked into vertex colours by `client/src/render/bake.ts` (`Baker`); the scene's
   white ambient light only passes it through. Lights that change (mains lights before/after the
   power, flames, failing tubes) are extra baked attributes scaled by uniforms in `materials.ts`.
@@ -84,14 +110,15 @@ the same commit as any change to what it describes.
   (`wallbuy`, `tonic`, `cache_site`) and the `Interactable`. The yard's walls take their look from
   the half-metre strip rooms round its edge (`yard_n_mess`...), not from the buildings behind.
 - Outside the walls (never walkable): `render/exterior.ts` builds roofs, stacks and pines from the
-  room list; `render/snow.ts` drops snow wherever a cell is open to the sky. Signs: `arrow()` in
+  room list (a building's shell is worked out a column at a time, so rooms that abut share walls); `render/snow.ts` drops snow wherever a cell is open to the sky. Signs: `arrow()` in
   the dressing helpers paints `< TEXT` / `TEXT >`; tiles live in the atlas in `render/signs.ts`.
 - Ambient motion: a builder draws a turning part through `k.mover(x, y, z, axis, motion)` (spin or
   swing; `powered` spins wait for the mains) and marks a roof leak with `k.drip(...)`;
   `render/ambient.ts` animates them and the floor mist of rooms with `mist: true`. Keep movers
   few: each is a draw call. `ZoneDef.fog` sets a zone's air (`render/atmosphere.ts`).
 - Bots: `shared/src/bot/mind.ts` (`BotMind.think(view) -> intent`; its shopping list is `wants.ts`) is the only place a bot decides
-  anything; teach it there when the game gains something to buy or do. It is driven by
+  anything; teach it there when the game gains something to buy or do (`bot/deadends.ts` tells it which
+  rooms lead nowhere). Judge a change to it, or to any balance number, over 32 seeds at least: eight say little. It is driven by
   `server/src/bot.ts` (`BotPlayer`: wire messages, modelled aim), `server/src/game/campaign.ts` (fake
   clock) and `client/src/game/autopilot.ts` (key presses through the real client code).
 - World meshes are one per zone and surface style plus three per zone for props (`worldBuilder.ts`),
@@ -159,7 +186,7 @@ the same commit as any change to what it describes.
   `__zh.spawnZombies(3, { kind: 'howler' })`,
   `__zh.spawnZombies(8, { interval: 0.3 })`, `__zh.god(true)`, `__zh.killZombies()`, `__zh.setRound(10)`, `__zh.rounds(false)`,
   `__zh.openDoor('d_mess_bunk')`, `__zh.powerOn()`, `__zh.chat('hi')`, `__zh.ping()`,
-  `__zh.auto(true)`, `__zh.settings.set({ fov: 90 })`, `__zh.settings.bind('use', 'KeyE')`, `__zh.screens.setPaused(true)`.
+  `__zh.auto(true)`, `__zh.pick()` (what mesh is under the crosshair), `__zh.settings.set({ fov: 90 })`, `__zh.settings.bind('use', 'KeyE')`, `__zh.screens.setPaused(true)`.
 - Sound (`client/src/audio`): `synth.ts` is the engine (a `Voice` of `tone`/`noise` layers; 24 at once,
   by `priority`; `at` places it in the world); the library is `guns.ts`, `sfx.ts`, `music.ts` (tunes as
   note lists) and `ambience.ts` (zone drones, heartbeat). `audio.ts` turns game events and each frame's

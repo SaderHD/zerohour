@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CELL_SIZE, Cell, NO_ZONE, POWER_OFF_LIGHT, lineOfSight, type CompiledMap, type LightDef } from '@zh/shared';
+import { CELL_SIZE, Cell, NO_ZONE, POWER_OFF_LIGHT, WINDOW_SILL, lineOfSight, type CompiledMap, type LightDef } from '@zh/shared';
 import { lightLevels, linear } from './materials';
 
 // All world lighting is baked into vertex colours: zone ambient + light pools (with grid line of
@@ -55,38 +55,50 @@ export class Bucket {
 const ORDER = [0, 1, 2, 0, 2, 3];
 
 export class Baker {
-  readonly lights: (LightDef & { rgb: RGB; mode: GlowMode })[];
+  readonly lights: (LightDef & { floor: number; rgb: RGB; mode: GlowMode })[];
   /** Which lights can reach each open cell. */
   private readonly cellLights: number[][];
   private readonly out = new Float32Array(12);
 
   constructor(readonly map: CompiledMap) {
     const { cols, rows } = map;
-    this.lights = map.def.lights.map((l) => ({ ...l, rgb: linear(l.color), mode: lightMode(l) }));
-    this.cellLights = new Array(cols * rows);
-    for (let cz = 0; cz < rows; cz++) {
-      for (let cx = 0; cx < cols; cx++) {
-        const i = map.idx(cx, cz);
-        if (map.kind[i] === Cell.Solid) continue;
-        const x = (cx + 0.5) * CELL_SIZE;
-        const z = (cz + 0.5) * CELL_SIZE;
-        const list: number[] = [];
-        this.lights.forEach((l, li) => {
-          if (Math.hypot(l.x - x, l.z - z) < l.radius + 1 && lineOfSight(map, l.x, l.z, x, z, 'all')) list.push(li);
-        });
-        this.cellLights[i] = list;
+    // A light's height is given above its storey's base; from here on it is absolute. `floor` is
+    // the floor it hangs over: what it can reach is judged as from someone standing there.
+    this.lights = map.def.lights.map((l) => {
+      const base = map.levels[Math.max(0, map.layerOf(l.level ?? 0))]!.y;
+      const y = base + l.y;
+      const under = map.floorUnder(l.x, y, l.z);
+      return { ...l, y, floor: under === y ? base : under, rgb: linear(l.color), mode: lightMode(l) };
+    });
+    this.cellLights = new Array(map.kind.length);
+    for (let layer = 0; layer < map.layers; layer++) {
+      for (let cz = 0; cz < rows; cz++) {
+        for (let cx = 0; cx < cols; cx++) {
+          const i = map.idx(cx, cz, layer);
+          if (map.kind[i] === Cell.Solid) continue;
+          const x = (cx + 0.5) * CELL_SIZE;
+          const z = (cz + 0.5) * CELL_SIZE;
+          const y = map.kind[i] === Cell.Window ? map.lo[i]! - WINDOW_SILL : map.lo[i]!;
+          const list: number[] = [];
+          this.lights.forEach((l, li) => {
+            if (Math.hypot(l.x - x, l.z - z) < l.radius + 1 && Math.abs(l.y - y) < l.radius + 1 && lineOfSight(map, l.x, l.floor, l.z, x, y, z, 'all')) list.push(li);
+          });
+          this.cellLights[i] = list;
+        }
       }
     }
     // Sight stops at the first cell of a tall prop, which would leave the middle of a big one (a
     // generator, a truck cab) unlit; let those cells borrow from the prop cells around them.
-    const tall = (cx: number, cz: number): boolean => map.inBounds(cx, cz) && map.block[map.idx(cx, cz)] === 2;
     const spread = new Map<number, number[]>();
-    for (let cz = 0; cz < rows; cz++) {
-      for (let cx = 0; cx < cols; cx++) {
-        if (!tall(cx, cz)) continue;
-        const all = new Set<number>();
-        for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) if (tall(cx + dx, cz + dz)) for (const li of this.cellLights[map.idx(cx + dx, cz + dz)] ?? []) all.add(li);
-        spread.set(map.idx(cx, cz), [...all]);
+    for (let layer = 0; layer < map.layers; layer++) {
+      const tall = (cx: number, cz: number): boolean => map.inBounds(cx, cz) && map.block[map.idx(cx, cz, layer)] === 2;
+      for (let cz = 0; cz < rows; cz++) {
+        for (let cx = 0; cx < cols; cx++) {
+          if (!tall(cx, cz)) continue;
+          const all = new Set<number>();
+          for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) if (tall(cx + dx, cz + dz)) for (const li of this.cellLights[map.idx(cx + dx, cz + dz, layer)] ?? []) all.add(li);
+          spread.set(map.idx(cx, cz, layer), [...all]);
+        }
       }
     }
     for (const [i, list] of spread) this.cellLights[i] = list;
@@ -98,11 +110,12 @@ export class Baker {
     return [a[0] * AMBIENT_GAIN, a[1] * AMBIENT_GAIN, a[2] * AMBIENT_GAIN];
   }
 
-  /** The open cell at (x, z), or `fallback` when that spot is inside a wall. */
+  /** The open cell at (x, z) on the storey of `fallback`, or `fallback` when that spot is inside a wall. */
   cellNear(x: number, z: number, fallback: number): number {
     const cx = Math.floor(x / CELL_SIZE);
     const cz = Math.floor(z / CELL_SIZE);
-    return this.map.kindAt(cx, cz) === Cell.Solid ? fallback : this.map.idx(cx, cz);
+    const layer = this.map.layerOfCell(fallback);
+    return this.map.kindAt(cx, cz, layer) === Cell.Solid ? fallback : this.map.idx(cx, cz, layer);
   }
 
   /** Baked colour for a vertex at p with face normal n, lit as part of cell i: [base, power, fire, tube] x rgb. */
@@ -165,10 +178,8 @@ export class Baker {
 
   /** Light level at a point right now, for tinting dynamic models so they sit in the scene. */
   lightAt(x: number, y: number, z: number): RGB {
-    const cx = Math.floor(x / CELL_SIZE);
-    const cz = Math.floor(z / CELL_SIZE);
-    if (this.map.kindAt(cx, cz) === Cell.Solid) return [0.25, 0.25, 0.3];
-    const i = this.map.idx(cx, cz);
+    const i = this.map.holdAt(Math.floor(x / CELL_SIZE), Math.floor(z / CELL_SIZE), y);
+    if (i < 0) return [0.25, 0.25, 0.3];
     const c = this.ambientOf(i);
     for (const li of this.cellLights[i] ?? []) {
       const l = this.lights[li]!;

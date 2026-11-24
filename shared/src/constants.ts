@@ -1,6 +1,6 @@
 // Every tunable number in the game lives here or in shared/src/data. See docs/PLAN.md section 4.
 
-export const PROTOCOL_VERSION = 8;
+export const PROTOCOL_VERSION = 9;
 
 // --- Networking ---
 export const TICK_RATE = 30; // server sim Hz
@@ -34,6 +34,14 @@ export const MARK_RANGE = 60;
 
 // --- World ---
 export const CELL_SIZE = 0.5; // metres per nav/collision cell
+/** Tallest change of floor height between neighbouring cells that can be walked over; anything more is a ledge. */
+export const STEP_HEIGHT = 0.3;
+/** Least open height over a floor that anyone walks on. */
+export const MIN_HEADROOM = 2;
+/** Bodies whose feet are further apart in height than this are on different floors: they do not touch. */
+export const FLOOR_GAP = 1.5;
+/** Height above the feet from which sight lines are taken (chest height). */
+export const SIGHT_HEIGHT = 1.2;
 export const MIN_LANE_WIDTH = 1.5;
 export const POWER_OFF_LIGHT = 0.4; // share of a mains light's glow before the power is on
 
@@ -131,7 +139,7 @@ export const CRAWLER_DAMAGE = 25;
 export const CRAWLER_MIN_BLAST_FRAC = 0.3; // a blast this share of max HP that fails to kill takes the legs
 
 // --- Rounds ---
-export const INTERMISSION_SECONDS = 10;
+export const INTERMISSION_SECONDS = 20; // long enough to cross the site (it was 10 on the flat station)
 export const FIRST_ROUND_DELAY = 5; // from the start of a game to round 1
 export const SPAWN_INTERVAL_MIN = 0.25; // ZOMBIE_SPAWN_INTERVAL shrinks towards this
 export const SPAWN_INTERVAL_DECAY = 0.88; // per round
@@ -142,7 +150,7 @@ export const ROUND_GRENADE_REFILL = 1;
 // --- Economy ---
 export const CACHE_COST = 950;
 export const CACHE_CLEARANCE_COST = 10;
-export const FORGE_COST = 5000;
+export const FORGE_COST = 4000; // it stands two flights down a dead end (5000 when it was next door)
 export const FORGE_SECONDS = 3; // the Forge at work
 export const FORGE_COLLECT_SECONDS = 15; // then the weapon waits this long for its owner
 export const UPGRADED_AMMO_COST = 2500;

@@ -98,7 +98,7 @@ That runs the game server (port 8080, debug commands on) and Vite on http://loca
 |---|---|
 | `npm run typecheck` / `npm run lint` / `npm test` | types, ESLint, unit and simulation tests |
 | `npm run campaign -- 25 --god` | four bots play a whole game on a fake clock, to round 25 |
-| `npm run campaign -- 40 --runs=8` | the same, mortal: how far does a team get (the balance report) |
+| `npm run campaign -- 40 --runs=32` | the same, mortal: how far does a team get (the balance report) |
 | `npm run soak` | four bots and a full horde over real sockets for five minutes |
 | `npm run ship` | fresh clone, production build, four browser players through ten rounds |
 | `npm run smoke`, `e2e`, `rounds`, `economy`, `horde`, `wonders`, `audio`, `ux`, `tour` | browser walk-throughs of each feature, with screenshots in `test-results/` (after a build) |

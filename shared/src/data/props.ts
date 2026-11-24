@@ -66,6 +66,8 @@ export const PROPS = {
   wall_fan: onWall(1.2, 1.2),
   /** Rungs up a wall to `y`. */
   ladder: onWall(0.5, 3),
+  /** A handrail along local x at the edge of a drop; `s` is its length. Variant 1 is timber, for outdoors. */
+  railing: clutter(1, 0.1, 1),
 
   // --- Mess hall
   range: solid(2, 1, 0.9),

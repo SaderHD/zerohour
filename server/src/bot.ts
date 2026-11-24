@@ -4,13 +4,13 @@
 // Usage: npm run bot -- <ROOM> [count=1] [url=ws://localhost:8080/ws]
 import { WebSocket } from 'ws';
 import {
-  BotMind, CLIENT_MOVE_SEND_HZ, KNIFE_COOLDOWN, MoveState, PLAYER_MAX_HP, PLAYER_RADIUS, PROTOCOL_VERSION, Rng, SPRINT_SPEED, STAMINA_REGEN_DELAY, STAMINA_SECONDS,
-  SWAP_SECONDS, WALK_SPEED, ZombieState, compileMap, decodeServer, encode, fireInterval, fireRateMultWith, harrowRidge, maxHpWith, moveCircle,
+  BotMind, CLIENT_MOVE_SEND_HZ, FLOOR_GAP, KNIFE_COOLDOWN, MoveState, PLAYER_MAX_HP, PLAYER_RADIUS, PROTOCOL_VERSION, Rng, SPRINT_SPEED, STAMINA_REGEN_DELAY, STAMINA_SECONDS,
+  SWAP_SECONDS, WALK_SPEED, ZombieState, compileMap, decodeServer, encode, fireInterval, fireRateMultWith, mapById, maxHpWith, moveCircle,
   reloadMultWith, speedMultWith, staminaWith, weaponStats,
   type BotIntent, type BotTarget, type CacheState, type ClientMsg, type FireHit, type ForgeState, type GameEvent, type PlayerPublic, type ServerMsg, type WeaponState,
 } from '@zh/shared';
 
-const map = compileMap(harrowRidge);
+const map = compileMap(mapById(process.env.ZH_MAP));
 /** Seconds between presses of F. */
 const USE_EVERY = 0.6;
 /** Closest a player's centre gets to a zombie's. */
@@ -28,6 +28,7 @@ const DEFAULT_SKILL: BotSkill = { accuracy: 0.75, head: 0.2 };
 interface Mate {
   id: number;
   x: number;
+  y: number;
   z: number;
   state: MoveState;
   downed: boolean;
@@ -35,6 +36,7 @@ interface Mate {
 
 export class BotPlayer {
   x = 0;
+  y = 0;
   z = 0;
   yaw = 0;
   hp = PLAYER_MAX_HP;
@@ -53,7 +55,7 @@ export class BotPlayer {
   private readonly zombies = new Map<number, BotTarget & { inside?: boolean }>();
   private readonly mates = new Map<number, Mate>();
   private readonly connected = new Map<number, boolean>();
-  private readonly drops = new Map<number, { x: number; z: number }>();
+  private readonly drops = new Map<number, { x: number; y: number; z: number }>();
   private weapons: WeaponState[] = [];
   private slot = 0;
   private power = false;
@@ -81,8 +83,9 @@ export class BotPlayer {
     return this.pub?.perks ?? [];
   }
 
-  private place(x: number, z: number): void {
+  private place(x: number, y: number, z: number): void {
     this.x = x;
+    this.y = y;
     this.z = z;
     this.mind.reset();
   }
@@ -96,12 +99,12 @@ export class BotPlayer {
   onMessage(msg: ServerMsg): void {
     switch (msg.t) {
       case 'sync':
-        this.place(msg.self.x, msg.self.z);
+        this.place(msg.self.x, msg.self.y, msg.self.z);
         this.yaw = msg.self.yaw;
         this.open.clear();
         for (const d of msg.openDoors) this.open.add(d);
         this.zombies.clear();
-        for (const z of msg.zombies) if (z.kind !== 'dummy') this.zombies.set(z.id, { id: z.id, x: z.x, z: z.z });
+        for (const z of msg.zombies) if (z.kind !== 'dummy') this.zombies.set(z.id, { id: z.id, x: z.x, y: z.y, z: z.z });
         this.drops.clear();
         for (const d of msg.powerups) this.drops.set(d.id, d);
         this.connected.clear();
@@ -119,21 +122,22 @@ export class BotPlayer {
         this.playing = true;
         break;
       case 'correct':
-        this.place(msg.x, msg.z);
+        this.place(msg.x, msg.y, msg.z);
         this.corrections++;
         break;
       case 'snap':
         this.mates.clear();
-        for (const [id, x, z, , , state, hp] of msg.players) {
+        for (const [id, x, z, , , state, hp, , y] of msg.players) {
           if (id === this.id) {
             this.state = state;
             this.hp = hp;
-          } else if (state !== MoveState.Dead && this.connected.get(id) !== false) this.mates.set(id, { id, x, z, state, downed: state === MoveState.Downed });
+          } else if (state !== MoveState.Dead && this.connected.get(id) !== false) this.mates.set(id, { id, x, y, z, state, downed: state === MoveState.Downed });
         }
-        for (const [id, x, z, , zs] of msg.zombies) {
+        for (const [id, x, z, , zs, , , y] of msg.zombies) {
           const zb = this.zombies.get(id);
           if (zb) {
             zb.x = x;
+            zb.y = y;
             zb.z = z;
             zb.inside = zs !== ZombieState.Approach && zs !== ZombieState.Tear && zs !== ZombieState.Vault;
           }
@@ -165,13 +169,13 @@ export class BotPlayer {
         this.open.add(ev.id);
         break;
       case 'zombieSpawn':
-        if (ev.kind !== 'dummy') this.zombies.set(ev.id, { id: ev.id, x: ev.x, z: ev.z });
+        if (ev.kind !== 'dummy') this.zombies.set(ev.id, { id: ev.id, x: ev.x, y: ev.y, z: ev.z });
         break;
       case 'zombieDied':
         this.zombies.delete(ev.id);
         break;
       case 'playerSpawned':
-        if (ev.id === this.id) this.place(ev.x, ev.z);
+        if (ev.id === this.id) this.place(ev.x, ev.y, ev.z);
         break;
       case 'powerOn':
         this.power = true;
@@ -223,7 +227,7 @@ export class BotPlayer {
     const life = this.state === MoveState.Dead ? 'dead' : this.state === MoveState.Downed ? 'downed' : 'alive';
     const perks = this.perks;
     const it = this.mind.think({
-      time: this.time, id: this.id, x: this.x, z: this.z, hp: this.hp, maxHp: maxHpWith(perks), life, points: this.pub.points,
+      time: this.time, id: this.id, x: this.x, y: this.y, z: this.z, hp: this.hp, maxHp: maxHpWith(perks), life, points: this.pub.points,
       weapons: this.weapons, slot: this.slot, perks, reloading: this.reloadLeft > 0, zombies: this.zombies.values(), mates: this.mates.values(),
       drops: this.drops.values(), open: this.open, power: this.power, solo: this.mates.size === 0, forge: this.forge,
       cache: { home: this.cacheHome, boxes: this.boxes.values() },
@@ -243,24 +247,25 @@ export class BotPlayer {
     } else if ((this.sinceSprint += dt) >= STAMINA_REGEN_DELAY) this.stamina = Math.min(staminaWith(perks), this.stamina + dt);
     if (moving) {
       const speed = (sprint ? SPRINT_SPEED : WALK_SPEED) * (stats?.moveSpeedMult ?? 1) * speedMultWith(perks);
-      let p = moveCircle(map, this.open, this.x, this.z, it.moveX * speed * dt, it.moveZ * speed * dt, PLAYER_RADIUS);
+      let p = moveCircle(map, this.open, this.x, this.y, this.z, it.moveX * speed * dt, it.moveZ * speed * dt, PLAYER_RADIUS);
       // Bodies are in the way, as they are for a player at a screen (client/src/game/localPlayer.ts).
       for (const zb of this.zombies.values()) {
-        if (!zb.inside) continue;
+        if (!zb.inside || Math.abs(zb.y - p.y) >= FLOOR_GAP) continue;
         const ox = p.x - zb.x;
         const oz = p.z - zb.z;
         const d = Math.hypot(ox, oz);
         if (d >= BODY_GAP || d < 1e-4) continue;
-        p = moveCircle(map, this.open, p.x, p.z, (ox / d) * (BODY_GAP - d), (oz / d) * (BODY_GAP - d), PLAYER_RADIUS);
+        p = moveCircle(map, this.open, p.x, p.y, p.z, (ox / d) * (BODY_GAP - d), (oz / d) * (BODY_GAP - d), PLAYER_RADIUS);
       }
       this.x = p.x;
+      this.y = p.y;
       this.z = p.z;
       state = sprint ? MoveState.Sprint : MoveState.Walk;
     }
     const face = it.aim ?? it.look;
     if (face) this.yaw = Math.atan2(-(face.x - this.x), -(face.z - this.z));
     else if (moving) this.yaw = Math.atan2(-it.moveX, -it.moveZ);
-    this.send({ t: 'move', seq: ++this.seq, x: this.x, z: this.z, yaw: this.yaw, pitch: 0, state });
+    this.send({ t: 'move', seq: ++this.seq, x: this.x, y: this.y, z: this.z, yaw: this.yaw, pitch: 0, state });
 
     // Hands.
     if (it.revive !== this.reviving || (it.revive && this.time >= this.reviveAt)) {

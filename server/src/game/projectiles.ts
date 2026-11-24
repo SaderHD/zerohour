@@ -30,6 +30,7 @@ export interface Projectile {
 }
 
 const SIZE = 0.08;
+const BODY_HEIGHT = 2;
 const MAX_STEP = 0.2; // metres per sub-step, under half a cell
 const WALL_BOUNCE = 0.45;
 const FLOOR_BOUNCE = 0.35;
@@ -43,19 +44,29 @@ export function spawnProjectile(g: Game, p: Omit<Projectile, 'id'>): Projectile 
 
 /** Is the point inside something solid (wall, closed door, below a sill, above a ceiling)? */
 function blocked(g: Game, x: number, y: number, z: number): boolean {
-  const cx = Math.floor(x / CELL_SIZE);
-  const cz = Math.floor(z / CELL_SIZE);
-  if (g.map.isOpaque(cx, cz, g.openDoors)) return true;
-  const i = g.map.idx(cx, cz);
-  if (y < g.map.lo[i]!) return true;
-  return !g.map.sky[i] && g.map.kind[i] !== Cell.Outside && y > g.map.hi[i]!;
+  const i = g.map.holdAt(Math.floor(x / CELL_SIZE), Math.floor(z / CELL_SIZE), y);
+  return i < 0 || g.map.shut(i, g.openDoors);
+}
+
+/** Has it come down onto a floor (as opposed to a window's sill)? */
+function landed(g: Game, x: number, y: number, z: number): boolean {
+  const i = g.map.holdAt(Math.floor(x / CELL_SIZE), Math.floor(z / CELL_SIZE), y);
+  return i >= 0 && g.map.kind[i] !== Cell.Window && y < g.map.lo[i]! + SIZE;
+}
+
+/** How far a blast at height `y` is from a body standing on `feet`: over the floor, plus whatever it is above the head or below the feet. */
+function blastDist(dx: number, dz: number, y: number, feet: number, radius: number): number {
+  const dy = Math.max(0, feet - y, y - (feet + BODY_HEIGHT));
+  return Math.max(0, Math.hypot(dx, dz, dy) - radius);
 }
 
 export function explode(g: Game, pr: Projectile): void {
   g.emit({ e: 'explosion', x: pr.x, y: pr.y, z: pr.z, radius: pr.radius, kind: pr.kind });
+  // Who it reaches is judged as from someone standing where it went off.
+  const floor = g.map.floorUnder(pr.x, pr.y, pr.z);
   for (const z of [...g.zombies.values()]) {
-    const d = Math.max(0, Math.hypot(z.x - pr.x, z.z - pr.z) - ZOMBIE_RADIUS);
-    if (d >= pr.radius || !lineOfSight(g.map, pr.x, pr.z, z.x, z.z, g.openDoors)) continue;
+    const d = blastDist(z.x - pr.x, z.z - pr.z, pr.y, z.y, ZOMBIE_RADIUS);
+    if (d >= pr.radius || !lineOfSight(g.map, pr.x, floor, pr.z, z.x, z.y, z.z, g.openDoors)) continue;
     // An implosion takes everything it caught whole; a blast weakens towards its edge.
     const dmg = pr.kind === 'well' ? pr.damage : explosionDamage(pr.damage, pr.radius, d);
     // A blast that fails to kill takes the legs: the zombie crawls from here on.
@@ -63,8 +74,8 @@ export function explode(g: Game, pr: Projectile): void {
   }
   if (pr.kind === 'well') return; // it only wants the dead
   for (const p of g.players.values()) {
-    const d = Math.max(0, Math.hypot(p.x - pr.x, p.z - pr.z) - PLAYER_RADIUS);
-    if (d >= pr.radius || !lineOfSight(g.map, pr.x, pr.z, p.x, p.z, g.openDoors)) continue;
+    const d = blastDist(p.x - pr.x, p.z - pr.z, pr.y, p.y, PLAYER_RADIUS);
+    if (d >= pr.radius || !lineOfSight(g.map, pr.x, floor, pr.z, p.x, p.y, p.z, g.openDoors)) continue;
     damagePlayer(g, p, explosionDamage(pr.damage, pr.radius, d) * EXPLOSION_PLAYER_MULT, pr.x, pr.z);
   }
 }
@@ -94,7 +105,7 @@ export function updateProjectiles(g: Game, dt: number): void {
         hit = true;
       } else pr.z += pr.vz * h;
       const ny = pr.y + pr.vy * h;
-      if (ny < SIZE || blocked(g, pr.x, ny, pr.z)) {
+      if (landed(g, pr.x, ny, pr.z) || blocked(g, pr.x, ny, pr.z)) {
         if (pr.vy < 0) {
           pr.vx *= FLOOR_FRICTION;
           pr.vz *= FLOOR_FRICTION;
@@ -103,7 +114,7 @@ export function updateProjectiles(g: Game, dt: number): void {
         hit = true;
       } else pr.y = ny;
       if (pr.impact) {
-        if (!hit) for (const z of g.zombies.values()) if (pr.y < 2 && Math.hypot(z.x - pr.x, z.z - pr.z) < ZOMBIE_RADIUS + 0.3) hit = true;
+        if (!hit) for (const z of g.zombies.values()) if (pr.y < z.y + BODY_HEIGHT && pr.y > z.y - 0.5 && Math.hypot(z.x - pr.x, z.z - pr.z) < ZOMBIE_RADIUS + 0.3) hit = true;
         boom = hit;
       }
     }
@@ -111,7 +122,7 @@ export function updateProjectiles(g: Game, dt: number): void {
       // The orb has landed: it hangs there as a singularity until its time is up.
       pr.kind = 'well';
       pr.vx = pr.vy = pr.vz = 0;
-      pr.y = Math.max(pr.y, 0.9);
+      pr.y = Math.max(pr.y, g.map.floorUnder(pr.x, pr.y, pr.z) + 0.9);
       pr.fuse = pr.well.seconds;
       pr.radius = pr.well.radius;
     } else if (boom) {

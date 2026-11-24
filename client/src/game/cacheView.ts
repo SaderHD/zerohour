@@ -18,6 +18,8 @@ const HANG = 1.3;
 interface Site {
   id: string;
   x: number;
+  /** Height of the floor it stands on. */
+  y: number;
   z: number;
   group: THREE.Group;
   lid: THREE.Group;
@@ -55,7 +57,8 @@ export class CacheView {
       const v = DIR_VEC[it.facing];
       const material = modelMaterial();
       const group = new THREE.Group();
-      group.position.set(it.x - v.x * 0.5, 0, it.z - v.z * 0.5);
+      const floor = map.mountHeight(it);
+      group.position.set(it.x - v.x * 0.5, floor, it.z - v.z * 0.5);
       group.rotation.y = ROT[it.facing];
       const bands = [-0.6, 0, 0.6].flatMap((x) => [shadedBox(0.07, 0.5, 0.74, 0xb08a3a, x, 0.4, 0)]);
       group.add(part(material, shadedBox(1.5, 0.48, 0.7, 0x27332c, 0, 0.4, 0), shadedBox(1.54, 0.05, 0.74, 0x161d19, 0, 0.17, 0), ...bands,
@@ -71,7 +74,7 @@ export class CacheView {
       group.visible = false;
       scene.add(group);
       this.sites.set(it.id, {
-        id: it.id, x: group.position.x, z: group.position.z, group, lid, glow, material, item, shown: '',
+        id: it.id, x: group.position.x, y: floor, z: group.position.z, group, lid, glow, material, item, shown: '',
         state: { site: it.id, phase: 'idle' }, here: 0, open: 0, nextSwap: 0,
       });
     }
@@ -97,8 +100,8 @@ export class CacheView {
     if (!s) return;
     const was = s.state.phase;
     s.state = state;
-    if (state.phase === 'offering' && was !== 'offering') this.fx.puff(s.x, HANG, s.z, GOLD, 12, 2, 0.05, 0.6);
-    if (state.phase === 'jinx') this.fx.puff(s.x, HANG, s.z, 0xff2a18, 16, 2.5, 0.06, 0.8);
+    if (state.phase === 'offering' && was !== 'offering') this.fx.puff(s.x, s.y + HANG, s.z, GOLD, 12, 2, 0.05, 0.6);
+    if (state.phase === 'jinx') this.fx.puff(s.x, s.y + HANG, s.z, 0xff2a18, 16, 2.5, 0.06, 0.8);
     if (state.phase === 'idle') this.show(s, '');
   }
 
@@ -106,7 +109,7 @@ export class CacheView {
   setHome(site: string): void {
     this.home = site;
     const s = this.sites.get(site);
-    if (s) this.fx.puff(s.x, 0.6, s.z, GOLD, 20, 3, 0.07, 0.9);
+    if (s) this.fx.puff(s.x, s.y + 0.6, s.z, GOLD, 20, 3, 0.07, 0.9);
   }
 
   setClearance(on: boolean): void {
@@ -167,12 +170,12 @@ export class CacheView {
       if (!s.group.visible) continue;
       if (s.id === this.home && !moving) beamAt = s;
       const left = (st.until ?? time) - time;
-      const [r, g, b] = this.lightAt(s.x, 0.8, s.z);
+      const [r, g, b] = this.lightAt(s.x, s.y + 0.8, s.z);
       s.material.color.setRGB(Math.min(r, 1.6), Math.min(g, 1.6), Math.min(b, 1.6));
 
       // Leaving: straight up, faster and faster. Arriving: dropping the last metre onto the pallet.
       const gone = moving ? clamp(1 - left / CACHE_MOVE_SECONDS, 0, 1) : 0;
-      s.group.position.y = gone * gone * 30 + (1 - Math.min(1, s.here * 1.2)) * 1.2;
+      s.group.position.y = s.y + gone * gone * 30 + (1 - Math.min(1, s.here * 1.2)) * 1.2;
       s.group.scale.setScalar(0.3 + 0.7 * Math.min(1, s.here * 1.2));
       const busy = st.phase !== 'idle';
       s.open += ((busy ? 1 : 0) - s.open) * damp(busy ? 9 : 5, dt);
@@ -207,7 +210,7 @@ export class CacheView {
     this.eyeMat.color.setHex(0xff2a18).multiplyScalar(0.7 + 0.3 * Math.sin(time * 23));
     this.beam.visible = !!beamAt;
     if (beamAt) {
-      this.beam.position.set(beamAt.x, 35, beamAt.z);
+      this.beam.position.set(beamAt.x, beamAt.y + 35, beamAt.z);
       this.beam.rotation.y = time * 0.5;
       (this.beam.material as THREE.MeshBasicMaterial).opacity = 0.14 + Math.sin(time * 3) * 0.03;
     }

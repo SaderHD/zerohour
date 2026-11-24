@@ -1,5 +1,7 @@
 // Screenshot tour: boots the built server and saves one or more views per zone to
 // test-results/tour-*.png so visual changes can be reviewed. Usage: npm run build && npm run tour
+// `npm run tour -- --stacks [view...]` tours the Stacks (the height proving ground) instead, with its
+// doors open, to test-results/tour-stacks-*.png.
 const { spawn } = require('node:child_process');
 const { mkdirSync } = require('node:fs');
 const path = require('node:path');
@@ -8,75 +10,101 @@ const { chromium } = require('playwright');
 const root = path.resolve(__dirname, '..');
 const port = 19080 + Math.floor(Math.random() * 900);
 
-// [name, x, z, yaw (0 = north, + = turn left), pitch]. Views named *-on are taken after the
-// power has been switched on (it stays on, so they come last).
-const VIEWS = [
+// [name, x, z, yaw (0 = north, + = turn left), pitch, height of the floor to stand on (default 0)].
+// The station is terraced: N is the laboratory's and the cold store's floor, S the low yard's,
+// the motor pool's and the bunker's; the gallery is at 3 and the vault at -4.5.
+const N = 1.5;
+const S = -1.5;
+const VAULT = -4.5;
+const BASE = [
   ['mess', 35, 28, 0.9, -0.05],
   ['mess-kitchen', 30.5, 27, -2.3, -0.08],
+  ['mess-servery', 34.6, 30.2, -1.57, -0.05],
   ['mess-door', 29, 28.5, Math.PI, -0.05],
   ['bunk', 20.5, 27, 1.5, -0.05],
   ['bunk-stove', 12.2, 25.6, 2.2, -0.12],
   ['washroom', 11, 22.2, 0, 0],
-  ['lab', 20, 16, 0.9, -0.03],
-  ['lab-tanks', 12, 11.5, -0.74, 0],
-  ['lab-computers', 17.5, 15.8, -1.21, 0],
-  ['cold', 36.8, 10.2, 1.8, -0.05],
-  ['cold-aisle', 27.6, 14.3, 0.1, 0],
-  ['cold-ice', 36.6, 11.2, -0.95, 0],
-  ['tunnel', 44, 13, -1.57, 0],
-  ['tunnel-leg', 52, 15.6, 3.14, -0.03],
-  ['gen', 61, 34.8, 0.8, 0.14],
+  ['lab-stairs', 11, 17.8, 0, 0.25, 0.2],
+  ['lab', 20, 16, 0.9, -0.03, N],
+  ['lab-tanks', 13, 9.5, -0.95, 0, N],
+  ['lab-computers', 17.5, 15.8, -1.21, 0, N],
+  ['lab-well', 14.5, 13, 2.5, -0.3, N],
+  ['cold', 36.8, 10.2, 1.8, -0.05, N],
+  ['cold-aisle', 27.6, 14.3, 0.1, 0, N],
+  ['cold-ice', 36.6, 11.2, -0.95, 0, N],
+  ['tunnel', 43, 13, -1.57, 0.08, N],
+  ['tunnel-leg', 52, 14.6, 3.14, 0.05, N + 0.75],
+  ['tunnel-foot', 52, 22.4, 0, -0.12, 3],
+  ['gen', 64, 34.8, 0.8, 0.14],
   ['gen-sets', 55.5, 34.6, 0, 0.12],
-  ['gen-tanks', 56.2, 25.2, 1.95, 0.02],
-  ['gen-switch', 57.6, 33.6, -1.4, 0],
-  ['motor', 47.2, 38.6, -2.1, 0.03],
-  ['motor-truck', 55.2, 39.2, -2.4, 0],
-  ['motor-bench', 52, 40, 0.95, 0.02],
-  ['motor-stores', 55.5, 46.6, 1.35, 0],
-  ['yard', 44.5, 51.5, 0.95, 0.1],
-  ['yard-north', 30, 50.5, 0, 0.16],
-  ['yard-mast', 31, 42, 2.45, 0.42],
+  ['gen-stairs', 53, 33.6, 0.75, 0.2],
+  ['gen-under', 59, 25, 1.57, 0],
+  ['gen-tanks', 63.5, 24.8, -1.57, 0],
+  ['gen-gallery', 48.8, 24.8, -1.57, -0.12, 3],
+  ['gen-switch', 59.4, 25.3, 1.2, -0.05, 3],
+  ['gen-below', 55, 25.5, 3.14, -0.55, 3],
+  ['motor', 47.2, 39.6, -2.1, 0.05, S],
+  ['motor-truck', 55.2, 39.2, -2.4, 0, S],
+  ['motor-dock', 61.5, 37, 1.57, -0.1],
+  ['motor-ramp', 51, 44.2, 0, 0.12, S],
+  ['motor-down', 55, 37.4, 3.14, -0.3],
+  ['motor-stores', 55.5, 46.6, 1.35, 0, S],
+  ['yard', 44.5, 51.5, 0.95, 0.1, S],
+  ['yard-north', 30, 50.5, 0, 0.16, S],
+  ['yard-mast', 31, 46.5, 2.45, 0.42, S],
   ['yard-truck', 27.5, 38.5, -0.95, 0.05],
-  ['yard-east', 23, 40, -1.57, 0.12],
-  ['yard-breach', 25.5, 43, 1.25, 0],
-  ['yard-cat', 29.5, 47.5, -0.75, 0.08],
-  ['comms', 34.5, 61.2, 0.85, -0.03],
-  ['comms-ops', 29.6, 56.2, 0.95, -0.1],
-  ['comms-plot', 27.4, 61, -0.75, -0.12],
-  ['comms-east', 28.5, 58.8, -1.57, 0],
-  ['vault', 37.4, 58, -1.57, 0],
-  ['vault-side', 40.2, 60.4, 0.75, 0],
+  ['yard-east', 23, 37, -1.57, 0.08],
+  ['yard-bluff', 33, 40.4, 3.14, -0.3],
+  ['yard-slope', 23.5, 46.5, 0, 0.12, S],
+  ['yard-down', 42.5, 38.6, 2.6, -0.15],
+  ['yard-breach', 26.5, 50.3, 1.1, 0, S],
+  ['yard-cat', 29.5, 48.5, -0.75, 0.08, S],
+  ['comms', 34.5, 61.2, 0.85, -0.03, S],
+  ['comms-ops', 29.6, 56.2, 0.95, -0.1, S],
+  ['comms-plot', 27.4, 61, -0.75, -0.12, S],
+  ['comms-east', 28.5, 58.8, -1.57, 0, S],
+  ['comms-office', 25.6, 61, 1.45, -0.05, S],
+  ['vault-head', 37, 58, -1.57, -0.35, S],
+  ['vault-turn', 42.6, 56, 1.57, -0.35, (S + VAULT) / 2],
+  ['vault', 35.5, 57.5, 1.57, 0, VAULT],
+  ['vault-side', 29.5, 60, 0.75, 0, VAULT],
   ['mount-wall', 24.6, 24.4, 1.45, -0.02],
   ['mount-tonic', 25.4, 31, 1.45, 0],
-  ['mount-cache', 50.4, 13.6, 0.25, -0.2],
-  ['sign-power', 43.2, 41.2, -1.2, 0.1],
+  ['mount-cache', 50.4, 13.6, 0.25, -0.2, N + 0.75],
+  ['sign-power', 43.2, 38.2, -1.2, 0.1],
   ['window', 27.7, 24.2, 0.05, 0],
-  ['mess-on', 35, 28, 0.9, -0.05],
-  ['mess-kitchen-on', 30.5, 27, -2.3, -0.08],
-  ['bunk-on', 20.5, 27, 1.5, -0.05],
-  ['washroom-on', 11, 22.2, 0, 0],
-  ['lab-on', 20, 16, 0.9, -0.03],
-  ['lab-tanks-on', 12, 11.5, -0.74, 0],
-  ['cold-on', 36.8, 10.2, 1.8, -0.05],
-  ['cold-ice-on', 36.6, 11.2, -0.95, 0],
-  ['gen-on', 61, 34.8, 0.8, 0.14],
-  ['gen-sets-on', 55.5, 34.6, 0, 0.12],
-  ['gen-switch-on', 57.6, 33.6, -1.4, 0],
-  ['motor-on', 47.2, 38.6, -2.1, 0.03],
-  ['motor-truck-on', 55.2, 39.2, -2.4, 0],
-  ['motor-bench-on', 52, 40, 0.95, 0.02],
-  ['yard-on', 44.5, 51.5, 0.95, 0.1],
-  ['yard-north-on', 30, 50.5, 0, 0.16],
-  ['yard-truck-on', 27.5, 38.5, -0.95, 0.05],
-  ['comms-on', 34.5, 61.2, 0.85, -0.03],
-  ['comms-ops-on', 29.6, 56.2, 0.95, -0.1],
-  ['vault-on', 37.4, 58, -1.57, 0],
-  ['vault-side-on', 40.2, 60.4, 0.75, 0],
-  ['mount-tonic-on', 25.4, 31, 1.45, 0],
+];
+// Views named *-on are taken after the power has been switched on (it stays on, so they come last).
+const ON = [
+  'mess', 'mess-kitchen', 'bunk', 'washroom', 'lab', 'lab-tanks', 'lab-well', 'cold', 'cold-ice', 'tunnel', 'gen', 'gen-sets', 'gen-gallery',
+  'gen-switch', 'gen-below', 'motor', 'motor-truck', 'motor-dock', 'yard', 'yard-north', 'yard-truck', 'yard-bluff', 'yard-slope', 'comms',
+  'comms-ops', 'vault', 'vault-side', 'mount-tonic',
+];
+const VIEWS = [...BASE, ...ON.map((name) => { const v = BASE.find((b) => b[0] === name); return [`${name}-on`, ...v.slice(1)]; })];
+
+// The Stacks: a sixth number is the height of the floor to stand on (the loft is over the hall, the cellar under it).
+const STACKS_VIEWS = [
+  ['hall', 18, 16.8, 0.85, -0.02, 0],
+  ['hall-ramp', 15, 10.5, -1.45, 0.05, 0],
+  ['hall-ledge', 16.5, 15, -1.57, 0.05, 0],
+  ['ramp-foot', 19.2, 9, -1.57, 0.1, 0],
+  ['ramp-top', 25, 9, 1.57, -0.2, 1],
+  ['terrace', 25, 16.5, 1.2, -0.12, 1],
+  ['lobby-stairs', 4.6, 17, 0.12, 0.3, 0],
+  ['stairs-mid', 4, 13, 0, 0.35, 1.25],
+  ['stairs-top', 4, 8.2, 3.14, -0.55, 3],
+  ['loft', 15, 17, 0.85, -0.03, 3],
+  ['loft-window', 12, 13, -1.57, 0, 3],
+  ['loft-east', 7, 9.5, -2.2, -0.03, 3],
+  ['cellar-door', 11, 16, 3.14, -0.35, 0],
+  ['cellar-stairs', 11, 25.3, 0, 0.35, -3],
+  ['cellar', 18.5, 16.5, 0.9, -0.02, -3],
+  ['cellar-window', 17, 15, 3.14, 0, -3],
 ];
 
 (async () => {
-  const server = spawn('node', ['server/dist/index.js'], { cwd: root, env: { ...process.env, PORT: String(port), ZH_DEBUG: '1' }, stdio: 'ignore' });
+  const stacks = process.argv.includes('--stacks');
+  const server = spawn('node', ['server/dist/index.js'], { cwd: root, env: { ...process.env, PORT: String(port), ZH_DEBUG: '1', ...(stacks ? { ZH_MAP: 'stacks' } : {}) }, stdio: 'ignore' });
   let browser;
   try {
     for (let i = 0; i < 50; i++) {
@@ -88,20 +116,21 @@ const VIEWS = [
     browser = await chromium.launch();
     const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
     page.on('pageerror', (e) => console.error('[page]', String(e)));
-    await page.goto(`http://localhost:${port}/?debug=1&autostart=1`);
+    await page.goto(`http://localhost:${port}/?debug=1&autostart=1${stacks ? '&map=stacks' : ''}`);
     await page.waitForFunction(() => window.__zh?.state().phase === 'playing', null, { timeout: 15000 });
     await page.evaluate(() => window.__zh.rounds(false));
     mkdirSync(path.join(root, 'test-results'), { recursive: true });
-    const only = process.argv.slice(2);
-    for (const [name, x, z, yaw, pitch] of VIEWS) {
+    const only = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+    if (stacks) await page.evaluate(() => window.__zh.openAllDoors());
+    for (const [name, x, z, yaw, pitch, y] of stacks ? STACKS_VIEWS : VIEWS) {
       if (only.length && !only.includes(name)) continue;
       if (name.endsWith('-on') && !(await page.evaluate(() => window.__zh.state().power))) {
         await page.evaluate(() => window.__zh.powerOn());
         await page.waitForTimeout(2200); // the lights stutter up
       }
-      await page.evaluate(([x, z, yaw, pitch]) => { window.__zh.teleport(x, z, yaw); window.__zh.look(yaw, pitch); }, [x, z, yaw, pitch]);
+      await page.evaluate(([x, z, yaw, pitch, y]) => { window.__zh.teleport(x, z, yaw, y ?? undefined); window.__zh.look(yaw, pitch); }, [x, z, yaw, pitch, y ?? null]);
       await page.waitForTimeout(900); // server round-trip for the teleport, a few frames, the air settling
-      await page.screenshot({ path: path.join(root, `test-results/tour-${name}.png`) });
+      await page.screenshot({ path: path.join(root, `test-results/tour-${stacks ? 'stacks-' : ''}${name}.png`) });
     }
     console.log('[tour]', JSON.stringify(await page.evaluate(() => window.__zh.state())));
   } finally {

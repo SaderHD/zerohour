@@ -51,7 +51,7 @@ describe('howler rounds', () => {
     expect(first).toMatchObject({ kind: 'howler', speed: HOWLER_SPEED, maxHp: howlerHpForRound(6) });
     expect(first.maxHp).toBeLessThan(zombieHpForRound(6) / 2);
     const strike = t.of('strike')[0]!;
-    expect(t.game.map.zoneAt(strike.x, strike.z)).not.toBeNull();
+    expect(t.game.map.zoneAt(strike.x, 0, strike.z)).not.toBeNull();
     expect(Math.hypot(strike.x - p.x, strike.z - p.z)).toBeGreaterThan(HOWLER_MIN_DIST * 0.6);
     expect(t.of('zombieSpawn').at(-1)).toMatchObject({ kind: 'howler', x: strike.x, z: strike.z });
 
@@ -85,7 +85,7 @@ describe('a howler', () => {
   it('runs its target down and bites for 30', () => {
     const t = makeGame();
     const p = t.game.addPlayer(1, 'Ada'); // (28, 26)
-    const h = spawnZombie(t.game, null, 28, 30, 50, HOWLER_SPEED, 'howler');
+    const h = spawnZombie(t.game, null, 28, 0, 30, 50, HOWLER_SPEED, 'howler');
     t.wait(0.6);
     expect(Math.hypot(h.x - p.x, h.z - p.z)).toBeLessThan(2); // 4 m in well under a second
     t.wait(0.9);
@@ -95,7 +95,7 @@ describe('a howler', () => {
   it('keeps its legs in a blast', () => {
     const t = makeGame();
     t.game.addPlayer(1, 'Ada').god = true;
-    const h = spawnZombie(t.game, null, 28, 30, 100_000, HOWLER_SPEED, 'howler');
+    const h = spawnZombie(t.game, null, 28, 0, 30, 100_000, HOWLER_SPEED, 'howler');
     t.send(1, { t: 'throw', kind: 'frag', yaw: Math.PI, pitch: 0 });
     t.wait(4);
     expect(h.hp).toBeLessThan(h.maxHp);
