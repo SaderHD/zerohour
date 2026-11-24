@@ -43,6 +43,8 @@ export class LocalPlayer {
   zoom = 1;
   /** Cannot walk (downed, dead or the game is over); `lying` also drops the view to the floor. */
   frozen = false;
+  /** The autopilot's legs: a world direction to walk in, instead of the keys. */
+  wish: { x: number; z: number; sprint: boolean } | null = null;
   lying = false;
   private drop = 0;
   /** Mouse movement consumed this frame (pixels), for viewmodel sway. */
@@ -111,6 +113,10 @@ export class LocalPlayer {
       wx /= mag;
       wz /= mag;
     }
+    if (this.wish && !this.freeCam) {
+      wx = walk * this.wish.x;
+      wz = walk * this.wish.z;
+    }
 
     if (this.freeCam) {
       const up = (input.down('Space') ? 1 : 0) - (input.down('ControlLeft') ? 1 : 0);
@@ -123,7 +129,7 @@ export class LocalPlayer {
     }
 
     // Sprint: only while moving forward with stamina left; regen after a short delay.
-    const wantSprint = input.down('ShiftLeft') && fwd > 0 && mag > 0 && !this.noSprint;
+    const wantSprint = (this.wish ? this.wish.sprint && walk > 0 && (wx !== 0 || wz !== 0) : input.down('ShiftLeft') && fwd > 0 && mag > 0) && !this.noSprint;
     this.sprinting = wantSprint && this.stamina > 0;
     if (this.sprinting) {
       this.stamina = Math.max(0, this.stamina - dt);

@@ -4,6 +4,7 @@ import {
 } from '@zh/shared';
 import { GameAudio } from './audio/audio';
 import { debugState, wireDebug } from './debug';
+import { Autopilot } from './game/autopilot';
 import { Barricades } from './game/barricades';
 import { CacheView } from './game/cacheView';
 import { Entities } from './game/entities';
@@ -39,7 +40,7 @@ import { Screens } from './ui/screens';
 import { buildSettings } from './ui/settings';
 
 // URL flags: ?name=X  ?room=CODE (join it; with autostart, create it if missing)
-//            ?autostart=1 (skip menu and lobby)  ?debug=1 (stats overlay)
+//            ?autostart=1 (skip menu and lobby)  ?debug=1 (stats overlay)  ?auto=1 (the autopilot plays)
 const params = new URLSearchParams(location.search);
 const debugMode = params.has('debug');
 const autostart = params.has('autostart');
@@ -262,7 +263,13 @@ function ping(): void {
   s.send({ t: 'mark', x: player.x + dx * d * 0.98, z: player.z + dz * d * 0.98 });
 }
 
-wireDebug({ player, input, socket: s, playing, renderer, resize, audio, settings, screens, chat: (text) => net.chat(text), ping });
+const autopilot = new Autopilot(map, player, input, entities, remotes, weapons, {
+  id: () => net.id, hp: () => match.hp, life: () => match.life, points: () => scores.players.get(net.id)?.points ?? 0, perks: () => match.perks,
+  power: () => match.power, forge: () => match.forge, openDoors: match.openDoors, drops: () => pickups.list(),
+  cacheHome: () => cacheView.home, cacheAt: (site) => cacheView.at(site).state,
+});
+autopilot.on = params.has('auto');
+wireDebug({ player, input, socket: s, playing, renderer, resize, audio, settings, screens, chat: (text) => net.chat(text), ping, autopilot });
 
 const SPECTATE_BACK = 2.4;
 const SPECTATE_HEIGHT = 2;
@@ -290,6 +297,7 @@ renderer.gl.setAnimationLoop((now) => {
       chat.show();
     }
     if (acting && match.life !== 'dead' && input.pressed('KeyZ')) ping();
+    autopilot.update(dt, acting && match.life !== 'dead');
     weapons.update(dt, input, acting && match.life !== 'dead', match.life === 'downed');
     interact.update(dt, input, player.x, player.z, player.yaw, acting && match.life === 'alive');
     player.frozen = match.over || match.life !== 'alive' || !free;
@@ -399,7 +407,7 @@ renderer.gl.setAnimationLoop((now) => {
     shots: weapons.shots, entities: ents, fx: fx.counts, hp: match.hp, barricades: barricades.list(), prompt: interact.prompt,
     tacticals: weapons.tacticals, powerups: pickups.list(), effects: [...match.effects.keys()], cache: cacheView.list(),
     round: match.round, roundPhase: match.roundPhase, zombiesLeft: match.zombiesLeft, life: match.life, over: match.over, paused: screens.paused, panel: screens.panel,
-    marks: marks.list(), chatOpen: chat.open, net: document.body.dataset.net ?? 'ok', locked: input.locked, fov: camera.fov, sensitivity: player.sensitivity, points: scores.players.get(net.id)?.points ?? 0, roster: scores.list(),
+    marks: marks.list(), auto: autopilot.on ? autopilot.goal || 'on' : '', chatOpen: chat.open, net: document.body.dataset.net ?? 'ok', locked: input.locked, fov: camera.fov, sensitivity: player.sensitivity, points: scores.players.get(net.id)?.points ?? 0, roster: scores.list(),
   });
 });
 

@@ -103,6 +103,8 @@ export interface DebugState {
   marks: { id: number; x: number; z: number }[];
   net: string;
   locked: boolean;
+  /** The autopilot: '' when off, else what it is after ('on' when nothing). */
+  auto: string;
   fov: number;
   sensitivity: number;
 }
@@ -147,6 +149,8 @@ export interface ZhDebug {
   /** Send a chat line; drop a ping marker where the view points. */
   chat(text: string): void;
   ping(): void;
+  /** Hand the controls to the autopilot (or take them back). */
+  auto(on?: boolean): void;
   /** The settings store (`settings.set({ fov: 90 })`, `settings.bind('use', 'KeyE')`) and the screens (`screens.setPaused(true)`, `screens.open('help')`). */
   settings: Settings;
   screens: Screens;
@@ -167,7 +171,7 @@ export const debugState: DebugState = {
   remotes: [], corrections: 0,
   weapon: null, weapons: [], upgraded: [], perks: [], maxHp: 100, forge: 'idle', slot: 0, mag: 0, reserve: 0, grenades: 0, reloading: false, aim: 0, shots: 0,
   entities: [], hp: 100, hurts: 0, round: 0, roundPhase: 'intermission', zombiesLeft: 0, points: 0, life: 'alive', roster: [], over: false, barricades: [], prompt: '', hits: [], kills: 0, explosions: 0, tacticals: 0, powerups: [], effects: [], powerupsTaken: [], cache: { home: '', boxes: [] }, chains: [], strikes: 0, lastStrike: null, audio: null, shake: 0, damageArcs: [], fx: { particles: 0, tracers: 0, projectiles: 0, bolts: 0, kinds: [] },
-  paused: false, panel: null, chatOpen: false, chat: [], marks: [], net: 'ok', locked: false, fov: 72, sensitivity: 0,
+  paused: false, panel: null, chatOpen: false, chat: [], marks: [], net: 'ok', locked: false, auto: '', fov: 72, sensitivity: 0,
 };
 
 export interface DebugWiring {
@@ -182,10 +186,11 @@ export interface DebugWiring {
   screens: Screens;
   chat(text: string): void;
   ping(): void;
+  autopilot: { on: boolean };
 }
 
 /** Install window.__zh. Anything that changes the game is a debug message to the server. */
-export function wireDebug({ player, input, socket: s, playing, renderer, resize, audio, settings, screens, chat, ping }: DebugWiring): void {
+export function wireDebug({ player, input, socket: s, playing, renderer, resize, audio, settings, screens, chat, ping, autopilot }: DebugWiring): void {
   const api: Omit<ZhDebug, 'state'> = {
   audio, settings, screens, chat, ping,
   teleport: (x, z, yaw) => {
@@ -240,6 +245,9 @@ export function wireDebug({ player, input, socket: s, playing, renderer, resize,
     renderer.dither = on;
   },
   dropConnection: () => s.drop(),
+  auto: (on = true) => {
+    autopilot.on = on;
+  },
 };
   window.__zh = { state: () => ({ ...debugState }), ...api };
 }
