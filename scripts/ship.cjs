@@ -23,6 +23,8 @@ const DRAW_CALL_BUDGET = 150;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const state = (page) => page.evaluate(() => window.__zh.state());
 const mmss = (ms) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}`;
+/** One player on one line: life, points, guns, tonics, what the autopilot is after. */
+const brief = (a) => `${a.life === 'alive' ? '' : `${a.life} `}${a.points} ${a.weapons.map((w, i) => w + (a.upgraded[i] ? '+' : '')).join('/')}${a.perks.length ? ` +${a.perks.length}` : ''} (${a.auto})`;
 const BAD = /error|uncaught|unhandled|failed|exception/i;
 
 (async () => {
@@ -88,6 +90,7 @@ const BAD = /error|uncaught|unhandled|failed|exception/i;
     mkdirSync(path.join(root, 'test-results'), { recursive: true });
     const began = Date.now();
     let seen = 0;
+    let lastDown = '';
     let maxCalls = 0;
     let minFps = Infinity;
     const shots = new Set();
@@ -103,7 +106,7 @@ const BAD = /error|uncaught|unhandled|failed|exception/i;
         seen = s.round;
         console.log(
           `[ship] ${mmss(Date.now() - began)} round ${s.round}: ` +
-          all.map((a) => `${a.life === 'alive' ? '' : `${a.life} `}${a.points} ${a.weapons.map((w, i) => w + (a.upgraded[i] ? '+' : '')).join('/')}${a.perks.length ? ` +${a.perks.length}` : ''}`).join(' | ') +
+          all.map(brief).join(' | ') +
           ` (${all.map((a) => a.fps).join('/')} fps, ${maxCalls} calls at most)`,
         );
       }
@@ -112,6 +115,12 @@ const BAD = /error|uncaught|unhandled|failed|exception/i;
         shots.add(s.round);
         const who = all.findIndex((a) => a.life === 'alive');
         await pages[Math.max(0, who)].screenshot({ path: path.join(root, `test-results/ship-round-${s.round}.png`) });
+      }
+      // Who is on the floor, as it happens.
+      const down = all.map((a) => a.life[0]).join('');
+      if (down !== lastDown) {
+        if (down !== 'aaaa' || lastDown) console.log(`[ship] ${mmss(Date.now() - began)}   ${all.map((a) => `${a.life} hp${a.hp} ${a.zone} n${a.entities.length} (${a.auto})`).join(' | ')}`);
+        lastDown = down;
       }
       if (all.some((a) => a.over)) throw new Error(`the team went down in round ${s.round}, after ${mmss(Date.now() - began)}`);
       if (all.some((a) => a.phase !== 'playing' || a.net !== 'ok')) throw new Error(`a player fell out of the game: ${all.map((a) => `${a.phase}/${a.net}`).join(' ')}`);

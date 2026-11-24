@@ -9,8 +9,8 @@ import { buildExterior } from './exterior';
 import { glowMaterial, linear, propMaterial, setLightLevels, signMaterial, surfaceMaterial } from './materials';
 import { signTexture } from './signs';
 
-// Turns the compiled map into meshes: for each zone one per surface style for its cells and three
-// for its props (lit, glowing, lettered), so the renderer can leave out the zones that are not in
+// Turns the compiled map into meshes: for each zone one per surface style for its cells and one
+// for its props, so the renderer can leave out the zones that are not in
 // view; a small group per door and one per moving part (ambient.ts). Lighting is baked (see bake.ts);
 // the scene's only realtime light for the world is a white ambient that passes it through.
 
@@ -160,7 +160,7 @@ export function buildWorld(map: CompiledMap): World {
   const outFor = (cell: number): PropOut => {
     const zone = zoneOf(cell);
     let o = outs.get(zone);
-    if (!o) outs.set(zone, (o = { baker, prop: new Bucket(), glow: new Bucket(), sign: new Bucket(), movers: all.movers, drips: all.drips }));
+    if (!o) outs.set(zone, (o = { ...all, prop: new Bucket() }));
     return o;
   };
   const cellOf = (x: number, z: number): number => map.idx(Math.floor(x / S), Math.floor(z / S));
@@ -177,12 +177,10 @@ export function buildWorld(map: CompiledMap): World {
     const cell = cellOf(l.x, l.z);
     fixture(Kit.at(outFor(cell), { type: 'light', x: l.x, z: l.z, rot: l.fixture === 'tube' ? Math.round(l.x + l.z) * 90 : 0 }, cell, map.sky[cell] ? l.y + 0.2 : map.hi[cell]!), l, l.rgb, l.mode);
   }
-  const signs = signMaterial(signTexture());
-  for (const [zone, o] of outs) {
-    addMesh(`props|${zone}`, o.prop, propMaterial());
-    addMesh(`glow|${zone}`, o.glow, glowMaterial);
-    addMesh(`signs|${zone}`, o.sign, signs);
-  }
+  for (const [zone, o] of outs) addMesh(`props|${zone}`, o.prop, propMaterial());
+  // Lamps' glow and lettering are little: one mesh each for the whole map costs fewer draw calls than culling saves.
+  addMesh('glow', all.glow, glowMaterial);
+  addMesh('signs', all.sign, signMaterial(signTexture()));
 
   addMesh('exterior', buildExterior(map, baker), propMaterial());
 
