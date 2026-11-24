@@ -97,6 +97,7 @@ const FLEE_RANGE = 4.5;
 const PANIC_RANGE = 6.5;
 const RESCUE_RANGE = 1.8;
 const BODY_WIDTH = 0.75;
+const SAVE_FOR: ReadonlySet<string> = new Set(['power', 'tonic:ironhide']);
 const RESCUE_CLEAR = 5;
 /** This many within this range and we move before they close the ring. */
 const CROWD = 4;
@@ -309,7 +310,12 @@ export class BotMind {
         if ((this.blocked.get(w.key) ?? 0) > v.time) continue;
         const s = this.spot(w.it);
         const way = this.doorsTo(zone, this.map.zoneAt(s.x, s.z) ?? '', v);
-        if (!way || way.cost + w.cost > v.points) continue;
+        if (!way) continue;
+        if (way.cost + w.cost > v.points) {
+          // The lights and a thicker skin are worth saving for: nothing lesser is bought meanwhile.
+          if (SAVE_FOR.has(w.key)) break;
+          continue;
+        }
         return { key: w.key, x: s.x, z: s.z, reach: 0.6, it: w.it, doors: way.doors, hold: w.hold };
       }
     }
