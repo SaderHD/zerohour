@@ -139,7 +139,7 @@ export const CRAWLER_DAMAGE = 25;
 export const CRAWLER_MIN_BLAST_FRAC = 0.3; // a blast this share of max HP that fails to kill takes the legs
 
 // --- Rounds ---
-export const INTERMISSION_SECONDS = 10;
+export const INTERMISSION_SECONDS = 20; // long enough to cross the site (it was 10 on the flat station)
 export const FIRST_ROUND_DELAY = 5; // from the start of a game to round 1
 export const SPAWN_INTERVAL_MIN = 0.25; // ZOMBIE_SPAWN_INTERVAL shrinks towards this
 export const SPAWN_INTERVAL_DECAY = 0.88; // per round
@@ -150,7 +150,7 @@ export const ROUND_GRENADE_REFILL = 1;
 // --- Economy ---
 export const CACHE_COST = 950;
 export const CACHE_CLEARANCE_COST = 10;
-export const FORGE_COST = 5000;
+export const FORGE_COST = 4000; // it stands two flights down a dead end (5000 when it was next door)
 export const FORGE_SECONDS = 3; // the Forge at work
 export const FORGE_COLLECT_SECONDS = 15; // then the weapon waits this long for its owner
 export const UPGRADED_AMMO_COST = 2500;

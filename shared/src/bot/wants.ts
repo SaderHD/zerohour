@@ -73,9 +73,9 @@ export interface Want {
   hold?: number;
 }
 
-/** How much a bot likes each gun. The Thumper is at the bottom: it would blow itself up. */
+/** How much a bot likes each gun. The Thumper is at the bottom: it would blow itself up. (Two shells and a reload suit a bot badly: the Coachman is under the SMGs.) */
 export const RANK: Readonly<Record<string, number>> = {
-  thumper: -0.5, warden: 0, pike: 1, farrow: 2, stitch: 3, coachman: 3, dockhand: 3, brakeman: 4, longwatch: 4, kestrel: 5, ferrier: 6, halberd: 7, gravewell: 9, arclight: 10,
+  thumper: -0.5, warden: 0, pike: 1, farrow: 2, coachman: 2.5, stitch: 3, dockhand: 3, brakeman: 4, longwatch: 4, kestrel: 5, ferrier: 6, halberd: 7, gravewell: 9, arclight: 10,
 };
 const CACHE_GUN = 6;
 /** Points to have in hand before gambling on the Cache: the roll, and something left for ammunition. */
@@ -83,12 +83,24 @@ const CACHE_SPARE = 3000;
 export const base = (id: string): number => RANK[id] ?? 0;
 /** An empty gun is worth nothing, whatever it is. */
 export const rank = (w: WeaponState): number => (w.mag + w.reserve <= 0 ? -1 : base(w.id) + (w.upgraded ? 10 : 0));
-const TONICS = ['ironhide', 'second_wind', 'hair_trigger', 'quickhands'];
-/** The Forge is down a dead end: this few zombies about, or it waits. */
+/** In the order they are wanted: a thicker skin, then what kills faster, then the rest. */
+const TONICS = ['ironhide', 'hair_trigger', 'quickhands', 'second_wind'];
+/** The Forge is down a dead end: this few zombies about, or it waits. Once on the way there, more are put up with. */
 const QUIET = 12;
+const QUIET_COMMITTED = 24;
 
-/** `guns`: the wall guns this bot is after, worst first. `about`: zombies it knows of. */
-export function listWants(v: BotView, things: ReadonlyMap<string, Interactable>, guns: readonly string[], about: number): Want[] {
+/**
+ * Buy ammunition when the reserve is under this share of full. A refill costs the same however
+ * much it puts back, so with the wall a step away we run nearly dry first; a long walk off we
+ * leave while there is still enough to fight our way there.
+ */
+const AMMO_LOW = 0.35;
+const AMMO_HANDY = 0.1;
+/** A gun off the nearest wall has to be at least this good to be worth taking in a hurry. */
+const RESUPPLY_RANK = 3;
+
+/** `guns`: the wall guns this bot is after, worst first. `about`: zombies it knows of. `handy`: is this a short walk away? `after`: what it is on its way to now. */
+export function listWants(v: BotView, things: ReadonlyMap<string, Interactable>, guns: readonly string[], about: number, handy: (it: Interactable) => boolean = () => false, after = ''): Want[] {
     const list: Want[] = [];
     const thing = (id: string): Interactable | undefined => things.get(id);
     const slots = weaponSlotsWith(v.perks);
@@ -99,7 +111,7 @@ export function listWants(v: BotView, things: ReadonlyMap<string, Interactable>,
       const def = weaponDef(w.id);
       const it = thing(`wb_${w.id}`);
       const stats = weaponStats(w.id, w.upgraded);
-      if (def && stats && it && def.cost !== undefined && w.reserve < stats.reserve * 0.3) list.push({ key: `ammo:${w.id}`, it, cost: ammoCost(def, w.upgraded) });
+      if (def && stats && it && def.cost !== undefined && w.reserve < stats.reserve * (handy(it) ? AMMO_HANDY : AMMO_LOW)) list.push({ key: `ammo:${w.id}`, it, cost: ammoCost(def, w.upgraded) });
     }
     // The next gun worth having.
     let later: Want | null = null;
@@ -143,7 +155,7 @@ export function listWants(v: BotView, things: ReadonlyMap<string, Interactable>,
     }
     const forge = thing('forge');
     // The Forge is down a dead end: a trip for a quiet moment, not for the middle of a horde.
-    if (v.power && forge && v.forge.phase === 'idle' && about <= QUIET) {
+    if (v.power && forge && v.forge.phase === 'idle' && about <= (after === 'forge' ? QUIET_COMMITTED : QUIET)) {
       let pick = -1;
       v.weapons.forEach((w, i) => {
         if (!w.upgraded && w.id !== 'warden' && (pick < 0 || rank(w) > rank(v.weapons[pick]!))) pick = i;
@@ -152,4 +164,24 @@ export function listWants(v: BotView, things: ReadonlyMap<string, Interactable>,
       if (pick >= 0) list.splice(Math.min(list.length, v.perks.length ? 0 : list.length), 0, { key: 'forge', it: forge, cost: FORGE_COST, hold: pick });
     }
     return list;
+}
+
+/**
+ * The gun we rely on is spent: ammunition for what we carry and every gun on a wall worth carrying
+ * (the mind takes the nearest it can pay for; a walk across the station with an empty gun is how teams end).
+ */
+export function listResupply(v: BotView, things: ReadonlyMap<string, Interactable>): Want[] {
+  const list: Want[] = [];
+  const full = v.weapons.length >= weaponSlotsWith(v.perks);
+  let worst = 0;
+  v.weapons.forEach((w, i) => (worst = rank(w) < rank(v.weapons[worst]!) ? i : worst));
+  for (const it of things.values()) {
+    if (it.kind !== 'wallbuy' || !it.ref) continue;
+    const def = weaponDef(it.ref);
+    if (!def || def.cost === undefined) continue;
+    const held = v.weapons.find((w) => w.id === it.ref);
+    if (held) list.push({ key: `ammo:${it.ref}`, it, cost: ammoCost(def, held.upgraded) });
+    else if (v.forge.weapon !== it.ref && base(it.ref) >= RESUPPLY_RANK) list.push({ key: `gun:${it.ref}`, it, cost: def.cost, hold: full ? worst : undefined });
+  }
+  return list;
 }

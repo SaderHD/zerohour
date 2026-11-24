@@ -12,7 +12,8 @@ import type { Rng } from '../math/rng';
 import { circleFits, moveCircle } from '../nav/collide';
 import { FlowField, UNREACHABLE } from '../nav/flowfield';
 import { lineOfSight, lineWalkable } from '../nav/los';
-import { base, listWants, rank, type BotIntent, type BotTarget, type BotView } from './wants';
+import { DeadEnds } from './deadends';
+import { base, listResupply, listWants, rank, type BotIntent, type BotTarget, type BotView } from './wants';
 
 export type { BotIntent, BotTarget, BotView } from './wants';
 
@@ -48,7 +49,19 @@ const CROWD = 4;
 const CROWD_RANGE = 6;
 const KNIFE_REACH = 1.5;
 const REPLAN_SECONDS = 0.5;
+/** A wall this near (on our floor) is a step away: no errand to speak of. */
+const HANDY_RANGE = 14;
+/** This few zombies about is a lull: the time for errands across the station. */
+const LULL = 12;
+/** With nothing to do, further than this from the wall our best gun hangs on is too far. */
+const HOME_RANGE = 12;
+/** Magazines left in our best gun, all told, at which it counts as spent. */
+const SPENT = 1.5;
+/** Square metres of level floor that make a room somewhere to stand. */
+const HOLD_AREA = 30;
 const FLEE_DIRS = 12;
+/** What a way out that leads into a dead end is marked down by (metres of clearance). */
+const TRAP = 5;
 const step = { x: 0, z: 0 };
 /** On the same floor: near enough in height to touch, block or be reached. */
 const level = (a: { y: number }, b: { y: number }): boolean => Math.abs(a.y - b.y) < FLOOR_GAP;
@@ -59,7 +72,9 @@ const gap = (a: { x: number; y: number; z: number }, b: { x: number; y: number; 
 export class BotMind {
   private readonly out: BotIntent = { moveX: 0, moveZ: 0, sprint: false, aim: null, look: null, fire: false, melee: 0, reload: false, swap: -1, use: null, revive: 0, fleeing: false, goal: '' };
   private readonly route: FlowField;
+  private readonly dead: DeadEnds;
   private readonly things = new Map<string, Interactable>();
+  private holdSpots: { x: number; y: number; z: number; zone: string }[] | null = null;
   private readonly spots = new Map<string, { x: number; y: number; z: number }>();
   private readonly guns: string[];
   private readonly near: BotTarget[] = [];
@@ -82,6 +97,7 @@ export class BotMind {
   /** `index` spreads a team's tastes: who takes the rifle and who the shotgun. */
   constructor(private readonly map: CompiledMap, private readonly rng: Rng, index = 0) {
     this.route = new FlowField(map);
+    this.dead = new DeadEnds(map);
     for (const it of map.def.interactables) this.things.set(it.id, it);
     this.guns = [index % 2 === 0 ? 'farrow' : 'pike', 'stitch', 'kestrel', 'brakeman'];
   }
@@ -111,6 +127,20 @@ export class BotMind {
     }
     this.spots.set(it.id, s);
     return s;
+  }
+
+  /** Open floor to stand on with nothing to do: the middle of each big room on the ground storey. */
+  private holds(): readonly { x: number; y: number; z: number; zone: string }[] {
+    if (this.holdSpots) return this.holdSpots;
+    this.holdSpots = [];
+    for (const r of this.map.def.rooms) {
+      if ((r.level ?? 0) !== 0 || r.rise || r.w * r.d < HOLD_AREA) continue;
+      const x = r.x + r.w / 2;
+      const z = r.z + r.d / 2;
+      const y = this.map.floorOn(0, x, z);
+      if (!Number.isNaN(y) && circleFits(this.map, 'all', x, y, z, PLAYER_RADIUS)) this.holdSpots.push({ x, y, z, zone: r.zone });
+    }
+    return this.holdSpots;
   }
 
   /** Cheapest set of shut doors between two zones (the zone graph is tiny: plain relaxation). */
@@ -164,7 +194,35 @@ export class BotMind {
         standing.push(m);
       }
     }
-    if (mate) return { key: `revive:${mate.id}`, x: mate.x, y: mate.y, z: mate.z, reach: 1.1, revive: mate.id, doors: [] };
+    // The gun we rely on is all but spent: the nearest wall we can pay at (its own, or another gun worth
+    // carrying) comes before anything, a teammate included.
+    let top = v.weapons[0];
+    for (const w of v.weapons) if (top && base(w.id) + (w.upgraded ? 10 : 0) > base(top.id) + (top.upgraded ? 10 : 0)) top = w;
+    if (zone && top && top.mag + top.reserve <= (weaponStats(top.id, top.upgraded)?.magSize ?? 0) * SPENT) {
+      let best: Goal | null = null;
+      let bestD = Infinity;
+      for (const w of listResupply(v, this.things)) {
+        if ((this.blocked.get(w.key) ?? 0) > v.time) continue;
+        const s = this.spot(w.it);
+        const d = Math.hypot(s.x - v.x, s.z - v.z) + 6 * Math.abs(s.y - v.y);
+        if (d >= bestD) continue;
+        const way = this.doorsTo(zone, this.map.zoneAt(s.x, s.y, s.z) ?? '', v);
+        if (!way || way.cost + w.cost > v.points) continue;
+        bestD = d;
+        best = { key: w.key, x: s.x, y: s.y, z: s.z, reach: 0.6, it: w.it, doors: way.doors, hold: w.hold };
+      }
+      if (best) return best;
+    }
+    if (mate) {
+      // By the shortest way, paying for any door on it (the long way round is how the rescuers go down too);
+      // if that came to nothing, by the way that is open.
+      const key = `revive:${mate.id}`;
+      const doors: Opening[] = [];
+      if ((this.blocked.get(key) ?? 0) <= v.time) {
+        for (const o of this.map.def.openings) if (o.kind === 'door' && !o.needsPower && !v.open.has(o.id) && (o.cost ?? 0) <= v.points) doors.push(o);
+      }
+      return { key: doors.length ? key : `${key}:open`, x: mate.x, y: mate.y, z: mate.z, reach: 1.1, revive: mate.id, doors };
+    }
     const forge = this.things.get('forge');
     if (forge && v.forge.by === v.id && v.forge.phase !== 'idle') return { key: 'forge-take', ...this.spot(forge), reach: 0.6, it: forge, doors: [] };
     // Our roll of the Cache: wait for it, and take it if it beats what we would give up.
@@ -184,18 +242,30 @@ export class BotMind {
       if (this.map.zoneAt(d.x, d.y, d.z) === zone) return { key, x: d.x, y: d.y, z: d.z, reach: 0.3, doors: [] };
     }
     if (zone) {
-      for (const w of listWants(v, this.things, this.guns, this.all.length)) {
+      const handy = (it: Interactable): boolean => {
+        const s = this.spot(it);
+        return gap(s, v) < HANDY_RANGE;
+      };
+      // Points spoken for by something wanted more that has to wait for a quieter moment.
+      let held = 0;
+      for (const w of listWants(v, this.things, this.guns, this.all.length, handy, this.goal?.key)) {
         if ((this.blocked.get(w.key) ?? 0) > v.time) continue;
         const s = this.spot(w.it);
+        const way = this.doorsTo(zone, this.map.zoneAt(s.x, s.y, s.z) ?? '', v);
+        if (!way) continue;
+        const cost = way.cost + w.cost;
+        if (cost + held > v.points) {
+          // The lights and a thicker skin are worth saving for: nothing lesser is bought meanwhile.
+          if (SAVE_FOR.has(w.key)) break;
+          continue;
+        }
         // Not into a room full of them: it will still be there when they have come to us.
         let hot = 0;
         for (const zb of this.all) if (gap(zb, s) < HOT_RANGE) hot++;
-        if (hot >= HOT && Math.hypot(s.x - v.x, s.z - v.z) > HOT_RANGE) continue;
-        const way = this.doorsTo(zone, this.map.zoneAt(s.x, s.y, s.z) ?? '', v);
-        if (!way) continue;
-        if (way.cost + w.cost > v.points) {
-          // The lights and a thicker skin are worth saving for: nothing lesser is bought meanwhile.
-          if (SAVE_FOR.has(w.key)) break;
+        const far = !(gap(s, v) < HANDY_RANGE);
+        // And a long walk is for the lull between rounds (when the others go too), not for the middle of one.
+        if (this.goal?.key !== w.key && ((hot >= HOT && Math.hypot(s.x - v.x, s.z - v.z) > HOT_RANGE) || (far && this.all.length > LULL))) {
+          held += cost;
           continue;
         }
         return { key: w.key, x: s.x, y: s.y, z: s.z, reach: 0.6, it: w.it, doors: way.doors, hold: w.hold };
@@ -211,7 +281,29 @@ export class BotMind {
       if (way?.cost === 0 && !Number.isNaN(y) && circleFits(this.map, 'all', x, y, z, PLAYER_RADIUS)) return { key: `roam:${++this.roams}`, x, y, z, reach: 1.5, doors: [] };
       return null;
     }
-    // Nothing to do: keep near the others.
+    // Nothing to do: back to the wall our best gun came off, where ammunition is a step away and
+    // the others (who mostly carry the same) will be too.
+    if (zone && top) {
+      const wall = this.things.get(`wb_${top.id}`);
+      const s = wall && this.spot(wall);
+      if (s && (gap(s, v) > HOME_RANGE || this.goal?.key === 'home') && gap(s, v) > HOME_RANGE / 2 && this.doorsTo(zone, this.map.zoneAt(s.x, s.y, s.z) ?? '', v)?.cost === 0) {
+        return { key: 'home', x: s.x, y: s.y, z: s.z, reach: HOME_RANGE / 2, doors: [] };
+      }
+    }
+    // Not on a gallery, a flight of stairs or in a cellar, though: get down to open floor.
+    const here = this.map.cellAt(v.x, v.y, v.z);
+    if (zone && here >= 0 && (this.map.rise[here] || this.map.layerOfCell(here) !== this.map.ground)) {
+      let hold: Goal | null = null;
+      let holdD = Infinity;
+      for (const h of this.holds()) {
+        const d = Math.hypot(h.x - v.x, h.z - v.z) + (h.zone === zone ? 0 : 100);
+        if (d >= holdD || (h.zone !== zone && this.doorsTo(zone, h.zone, v)?.cost !== 0)) continue;
+        holdD = d;
+        hold = { key: `hold:${h.x}:${h.z}`, x: h.x, y: h.y, z: h.z, reach: 2.5, doors: [] };
+      }
+      if (hold) return hold;
+    }
+    // Keep near the others.
     if (up > 0 && Math.hypot(cx / up - v.x, cz / up - v.z) > 8) {
       const x = cx / up;
       const z = cz / up;
@@ -237,6 +329,7 @@ export class BotMind {
     if (v.time < this.fleeAt) return;
     this.fleeAt = v.time + 0.15;
     let best = -Infinity;
+    const cornered = this.dead.at(v.open, v.x, v.y, v.z);
     const start = this.rng.range(0, Math.PI * 2);
     for (let i = 0; i < FLEE_DIRS; i++) {
       const a = start + (i * Math.PI * 2) / FLEE_DIRS;
@@ -255,7 +348,9 @@ export class BotMind {
         barred ||= along > 0 && along < 1.6 && Math.abs((zb.x - v.x) * dz - (zb.z - v.z) * dx) < BODY_WIDTH;
       }
       if (barred) continue;
-      const score = nearest + 0.25 * Math.hypot(q.x - v.x, q.z - v.z) + 0.5 * (dx * this.fleeX + dz * this.fleeZ) + 0.3 * (dx * towardX + dz * towardZ);
+      // Not down the cellar steps or into a recess, unless that is where we already are.
+      const trap = !cornered && (this.dead.at(v.open, p.x, p.y, p.z) || this.dead.at(v.open, q.x, q.y, q.z)) ? TRAP : 0;
+      const score = nearest - trap + 0.25 * Math.hypot(q.x - v.x, q.z - v.z) + 0.5 * (dx * this.fleeX + dz * this.fleeZ) + 0.3 * (dx * towardX + dz * towardZ);
       if (score > best) {
         best = score;
         step.x = dx;
@@ -375,7 +470,8 @@ export class BotMind {
           o.look = { x: door.x + door.w / 2, z: door.z + door.d / 2 };
         }
       }
-      if (!o.use && g.it && level(g, v) && Math.hypot(g.it.x - v.x, g.it.z - v.z) < INTERACT_RANGE - 0.2 && (arrived || d < 0.9)) {
+      // (Within reach is near enough for a hand on it, even on the run: nobody stops to line up with a wall.)
+      if (!o.use && g.it && level(g, v) && Math.hypot(g.it.x - v.x, g.it.z - v.z) < INTERACT_RANGE - 0.2) {
         const ready = g.hold === undefined || g.hold === v.slot || g.hold >= v.weapons.length;
         let waiting = g.key === 'forge-take' && v.forge.phase !== 'offering';
         if (g.key === 'cache-take') for (const b of v.cache.boxes) waiting ||= b.site === g.it.id && b.phase !== 'offering';
@@ -419,7 +515,6 @@ export class BotMind {
         o.fire = false;
         o.aim = null;
       }
-      if (nearD < 2) o.use = null;
     } else if (!arrived && !o.revive) {
       o.moveX = towardX;
       o.moveZ = towardZ;

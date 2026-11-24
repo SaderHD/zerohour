@@ -114,12 +114,12 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
 
     // 6. The Forge, in the vault under the bunker.
     prompt = await face(26.6, 57.5, 24.75, 1.1, 57.5, 'forge the', -4.5);
-    assert(prompt.includes('Farrow') && prompt.includes('[5000]'), `forge prompt: ${prompt}`);
+    assert(prompt.includes('Farrow') && prompt.includes('[4000]'), `forge prompt: ${prompt}`);
     await shot('forge');
     await pressF();
     await until('the Forge at work', async () => (await state()).forge === 'working');
     s = await state();
-    assert(s.points === 10500 && s.weapons.join() === 'warden', `in the Forge: ${s.points}, ${s.weapons}`);
+    assert(s.points === 11500 && s.weapons.join() === 'warden', `in the Forge: ${s.points}, ${s.weapons}`);
     await sleep(900);
     await shot('forge-working');
     await until('the Forge to finish', async () => (await state()).forge === 'offering');

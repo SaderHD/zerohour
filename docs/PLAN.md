@@ -174,7 +174,7 @@ Start with 500.
 - Zombie HP: R1 150, +100 per round through R9, ×1.1 per round after.
 - Speed mix: R1–2 all shamblers (1.0 m/s); from R3 a growing share of walkers (2.2 m/s); from R6
   runners (4.8 m/s); by R10 mostly runners. Spawn interval shrinks from 2.0 s to 0.25 s.
-- 10 s intermission between rounds with a round-change stinger; the last few stragglers switch to
+- 20 s intermission between rounds (10 on the flat station: time to cross the site) with a round-change stinger; the last few stragglers switch to
   runners so a round never stalls.
 - **Howler round:** every 5–7 rounds, replaces zombies with ~`8·players + 2·r` "Howlers" —
   fast, low-HP, quadruped ghouls that spawn inside playable space with a lightning-strike tell. The
@@ -243,8 +243,8 @@ beam. Works without power. The table (`shared/src/data/cache.ts`) holds every we
 starting pistol - Cache-only ones weighted above the wall guns - and the Siren.
 
 ### 4.8 The Forge (weapon upgrade)
-In the Vault behind the Comms Bunker; the vault door only opens when power is on. 5,000 points
-and the weapon in your hands (not one already upgraded): it lies in the cradle for 3 s, then its
+In the Vault under the Comms Bunker; the vault door only opens when power is on. 4,000 points
+(5,000 when the Vault was the room next door, not two flights down a dead end) and the weapon in your hands (not one already upgraded): it lies in the cradle for 3 s, then its
 upgraded form floats there for its owner alone, and is lost if not collected within 15 s. One
 weapon at a time; ammo for an upgraded weapon comes from its wall buy (2,500) if it has one.
 
@@ -1001,8 +1001,56 @@ floor. Four steps.
   at a time on the way to a revive across the site. That is step 4's to settle - the bots, the
   site, or both. `campaign.test.ts` runs seed 2 for that reason (six seeds in eight clear its eight rounds).
   Not done: damage arcs still point in plan only; nobody has played it on real hardware.
-- [ ] 4 Balance and acceptance (`campaign --runs=8` before and after, tour, soak, `ship`). Starts
-  from the numbers above.
+- [x] 4 Balance and acceptance - done. **The yardstick was wrong first**: "median 14" for the old
+  station was eight lucky seeds. Over 32 seeds the old station's bots clear a median of 9.5 rounds
+  (mean 10.2, 16 teams in 32 reach round 10); the rebuilt one, untouched, 8.5 (mean 8.4, 5 in 32). A
+  gap of under two rounds, not six.
+  What it is not (each tried over 16 or 32 seeds, mean within half a round): zombie damage, the share
+  of runners, the cap on the horde, ammunition reserves doubled, the order tonics and guns are bought
+  in, where the team waits, the code changes of step 3 (the old map under the new code is unchanged).
+  Zombies live as long, bots are as often alone and take as much damage on both maps until round 8.
+  What it is: both maps have a cliff at rounds 8-10, where an unforged gun needs about five full loads
+  of ammunition for one horde and a team that has not been to the Forge spends everything on refills.
+  On the flat station the errands were short enough to be forged by round 9; here the switch is
+  upstairs, the Forge two flights down, and every trip is longer. The only tunables the bots' reach
+  answers to are the ones that are firepower: zombie health (-20% is +1.2 rounds) and aim.
+  **The bots** (`bot/mind.ts`, `wants.ts`; they are also the autopilot):
+  - ammunition: a refill costs the same however much it restores, so with the wall a step away they
+    run to 10% first and a long walk off they leave at 35% (topping up early, tried first, cost a
+    team 10,000 points by round 8: half a Forge each);
+  - a best gun down to a magazine and a half sends them to the nearest wall they can pay at - its
+    own, or another SMG or rifle - before anything else, a teammate on the floor included (14 first
+    downs in 16 were a lone bot with 0/0 crossing the station, thousands of points unspent);
+  - what is wanted more but has to wait keeps its points: nothing lesser is bought meanwhile;
+  - a long errand starts when at most 12 zombies are about, a Forge trip once begun is kept to up to 24;
+  - with nothing to do they go back to the wall their best gun hangs on, and never stand on a
+    gallery, a flight of stairs or in the cellar;
+  - running away, a way that leads into a dead end is marked down (`bot/deadends.ts`: rooms and
+    doorways as a graph, whatever hangs off it by one neck under 4 m; the vault, the servery, the
+    signals office, and a wing until its second door opens);
+  - a rescuer takes the shortest way and pays for the doors on it; a purchase is made on the run,
+    within reach, without stopping to stand square to the wall; tonics in the order Ironhide, Hair
+    Trigger, Quickhands, Second Wind; the Coachman (two shells) ranks under the SMGs.
+  None of these moves the mean by itself more than noise; together, mean 8.4 -> 9.1, and 18 teams in
+  32 reach the Forge where 11 did.
+  **The site's price**, in two numbers and nothing about the zombies: the pause between rounds 10 s
+  -> 20 s, and the Forge 5,000 -> 4,000 (4.3, 4.8). With both: median 10, mean 10.0, 17 teams in 32
+  to round 10, 27 forging - level with the old station. `campaign --runs=8`: 12 12 8 9 12 9 7 13
+  (median 12) where it was 7 9 5 8 8 9 12 8.
+  New tools: `campaign --trace` says where the horde is (inside by zone, and still outside),
+  `--ledger` what a team earned and spent by reason, `--downs` tells an empty magazine from no
+  ammunition at all.
+  Acceptance: typecheck, lint and 232 tests; `campaign -- 25 --god` (25 rounds in 131 minutes of
+  game time, worst stall 3.0 s, no corrections, the Forge used 34 times); `soak` (32 alive, worst
+  stall 3.0 s); smoke, rounds, economy, e2e, site, heights, horde, wonders, ux, audio and the tour
+  (102 pictures); `ship -- --here`: four autopilot players through ten rounds in 14:14 with no downs,
+  forged guns from round 9, nothing in a console or the server log. Found on the way: the audio
+  script read the damage arcs in the instant of the hit, a frame before they are published, and
+  failed whenever that frame was slow (it waits for the frame now); `ux` failed once at the pause
+  screen and passed when run again.
+  Not done: the Forge still lies at the end of a long dead end and bots still die there (it is the
+  site's one deathtrap by design, 4.11); damage arcs point in plan only; nobody has played it on
+  real hardware, so whether 20 s and 4,000 suit people as they suit bots is unknown.
 
 ## 10. Risks to watch
 - **Map authoring by hand in code** is the biggest schedule risk → mitigated by the carved-rect

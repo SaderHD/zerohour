@@ -204,9 +204,11 @@ function writeWav(file, b64, rate) {
       await zh(() => { window.__zh.killZombies(); window.__zh.teleport(27.5, 50, 0); window.__zh.lookAt(31.5, 0, 50); window.__zh.spawnZombies(10, { x: 31.5, z: 50, speed: 2.4 }); });
       await sleep(2500);
       await zh(() => window.__zh.god(false));
-      const hurt = await until('a hit taken', async () => { const s = await state(); return s.hurts > 0 && s; }, 8000);
+      await until('a hit taken', async () => (await state()).hurts > 0, 8000);
+      // (The arcs in the state are the last frame's: give the hit a frame or two to show.)
+      const hurt = await until('a damage arc for the hit', async () => { const s = await state(); return s.damageArcs.length > 0 && s; }, 1200).catch(() => null);
       await zh(() => window.__zh.god(true));
-      assert(hurt.damageArcs.length > 0, 'a hit should raise a damage arc');
+      assert(hurt, 'a hit should raise a damage arc');
       assert(hurt.shake > 0, 'a hit should shake the view');
       await shot('hurt');
       const front = hurt.damageArcs.some((a) => Math.abs(a) < 1.2);

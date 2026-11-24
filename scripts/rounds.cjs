@@ -95,8 +95,8 @@ const DOWNED = 3; // MoveState
     await a.evaluate(() => window.__zh.killZombies());
     await until('round 1 over', async () => (await state(a)).roundPhase === 'intermission', 5000);
     const t0 = Date.now();
-    await until('round 2', async () => (await state(a)).round === 2, 15000);
-    assert(Date.now() - t0 > 8000, `intermission was only ${Date.now() - t0} ms`);
+    await until('round 2', async () => (await state(a)).round === 2, 25000);
+    assert(Date.now() - t0 > 18000, `intermission was only ${Date.now() - t0} ms`);
     await sleep(300);
     await shot(a, 'round2');
     const sb = await until('Bea in the game', async () => { const s = await state(b); return s.life === 'alive' && s; }, 3000);

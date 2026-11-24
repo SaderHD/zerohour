@@ -32,11 +32,11 @@ the same commit as any change to what it describes.
 - `npm run soak -- [seconds] [--shut]` — in-process server + 4 WebSocket bots + 32 zombies; fails if
   a zombie stops making progress for 10 s or the tick goes over budget. (`npm test` runs the same
   soak on a fake clock.)
-- `npm run campaign -- [rounds=25] [--god] [--runs=n] [--seed=n] [--players=n] [--accuracy=0.75] [--downs] [--trace]` — a whole
+- `npm run campaign -- [rounds=25] [--god] [--runs=n] [--seed=n] [--players=n] [--accuracy=0.75] [--downs] [--trace] [--ledger]` — a whole
   game played by bots on a fake clock (an hour of play in about a minute). `--god`: the endurance
   run, fails on a stuck zombie, slow tick or fat snapshot. Without it the bots are mortal and it
-  reports how far a team gets: run it with `--runs=8` before and after any balance change
-  (`--downs` tallies what each bot was after, and where, when it went down; `--trace` prints where they all are every ten seconds).
+  reports how far a team gets: run it with `--runs=32` before and after any balance change (eight seeds can be off by rounds)
+  (`--downs` tallies what each bot was after, and where, when it went down; `--trace` prints where they and the horde are every ten seconds; `--ledger` what the team earned and spent).
 - `npm run ship [-- --here]` — the acceptance run: fresh clone of the last commit, `npm ci`, build,
   `npm start` (no debug commands), four browser players on the autopilot through ten rounds, nothing
   that looks like an error in any console or the server log. About 20 minutes. `--here` uses this
@@ -117,7 +117,8 @@ the same commit as any change to what it describes.
   `render/ambient.ts` animates them and the floor mist of rooms with `mist: true`. Keep movers
   few: each is a draw call. `ZoneDef.fog` sets a zone's air (`render/atmosphere.ts`).
 - Bots: `shared/src/bot/mind.ts` (`BotMind.think(view) -> intent`; its shopping list is `wants.ts`) is the only place a bot decides
-  anything; teach it there when the game gains something to buy or do. It is driven by
+  anything; teach it there when the game gains something to buy or do (`bot/deadends.ts` tells it which
+  rooms lead nowhere). Judge a change to it, or to any balance number, over 32 seeds at least: eight say little. It is driven by
   `server/src/bot.ts` (`BotPlayer`: wire messages, modelled aim), `server/src/game/campaign.ts` (fake
   clock) and `client/src/game/autopilot.ts` (key presses through the real client code).
 - World meshes are one per zone and surface style plus three per zone for props (`worldBuilder.ts`),
