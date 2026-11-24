@@ -90,7 +90,7 @@ the same commit as any change to what it describes.
   swing; `powered` spins wait for the mains) and marks a roof leak with `k.drip(...)`;
   `render/ambient.ts` animates them and the floor mist of rooms with `mist: true`. Keep movers
   few: each is a draw call. `ZoneDef.fog` sets a zone's air (`render/atmosphere.ts`).
-- Bots: `shared/src/bot/mind.ts` (`BotMind.think(view) -> intent`) is the only place a bot decides
+- Bots: `shared/src/bot/mind.ts` (`BotMind.think(view) -> intent`; its shopping list is `wants.ts`) is the only place a bot decides
   anything; teach it there when the game gains something to buy or do. It is driven by
   `server/src/bot.ts` (`BotPlayer`: wire messages, modelled aim), `server/src/game/campaign.ts` (fake
   clock) and `client/src/game/autopilot.ts` (key presses through the real client code).

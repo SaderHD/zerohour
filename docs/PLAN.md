@@ -58,6 +58,7 @@ zerohour/
                           interactables and what stands at them)  compile.ts  validate.ts
     nav/                  grid.ts  flowfield.ts  los.ts  ray.ts (3D ray vs cell grid)  collide.ts
     bot/                  mind.ts (what a computer-run player decides; no networking, no rendering)
+                          wants.ts (its shopping list)
     math/                 vec.ts  rng.ts (seeded)
   server/src/
     index.ts              http static + ws upgrade, heartbeat
@@ -616,7 +617,8 @@ merged statics, object pools for FX/zombies) and server (tick budget, snapshot s
 zombies); fix top issues. Production build, Docker image, `README.md` with how to run/host, and a
 final pass that this document matches the shipped game.
 **Accept:** fresh clone → `npm ci && npm run build && npm start` → 4 players complete 10 rounds
-with no errors in client or server logs.
+with no errors in client or server logs. (`npm run ship` does exactly this, with the autopilot at
+each player's controls.)
 
 ---
 
@@ -843,7 +845,49 @@ with no errors in client or server logs.
   540 px tall; mouse wheel and number keys cannot be rebound; bots neither chat nor ping; the
   soak's worst tick was 119 ms once in 9,000 (7 over budget) on the shared test machine — look at
   it in 14.
-- [ ] 14 Balance, performance, ship
+- [x] 14 Balance, performance, ship — done. Acceptance: `npm run ship` clones the last commit into
+  a temporary directory, runs `npm ci && npm run build && npm start` there (no `ZH_DEBUG`, so no
+  debug commands), opens four browsers, creates and joins a room through the menu and lobby, and
+  lets the autopilot play each one with key presses. Result: ten rounds cleared in 13:33, 607
+  kills, nobody downed, nothing in the four browser consoles, three server log lines and none an
+  error, 119 draw calls in the busiest frame (budget 150). `test-results/ship-*.png`.
+  **Bots.** One decision core, `shared/src/bot/mind.ts`, plays the whole loop (section 6.6) and is
+  driven three ways: over the wire (`server/src/bot.ts`), on a fake clock (`game/campaign.ts`) and
+  at the keys of a real client (`client/src/game/autopilot.ts`). Bots on the server are blocked by
+  zombie bodies like a client is, and their aim is a model (`accuracy`, `head`).
+  **Soak.** `npm run campaign -- 30 --god`: four bots to round 30 in 197 minutes of game time
+  (2.5 minutes real): tick 0.34 ms average, 6.4 ms worst, 1 of 355,436 over the 5 ms budget;
+  largest snapshot 1,416 bytes with 32 zombies (budget 4,096; `SNAPSHOT_BUDGET_BYTES`), events
+  2.7 kB/s; worst zombie idle 3.0 s; 66 guns, 403 ammunition, 7 doors, 16 tonics, 74 Forge and 77
+  Cache purchases; no bot message refused by the wire checks. The 119 ms tick seen once in session
+  13 did not come back (flow fields are now recomputed one a tick after a door opens, not all at
+  once). `npm run soak` (real sockets, 32 zombies) still passes with the new bots.
+  **Balance.** Mortal teams of four, twelve seeds each (`npm run campaign -- 40 --runs=12`): bots
+  that land 75% of shots with 20% of them to the head clear a median of 11 rounds (6 to 15);
+  with 60% to the head, 15 rounds (14 to 19), power on in round 5, Ironhide by 6, the first Forge
+  upgrade around 9. That is where a game should end for middling and for good players, so the round
+  tables of 4.3 and the prices of 4.5-4.9 stand as they were. One number changed: ammunition for an
+  upgraded weapon is 2,500, not 4,500 - at 4,500 a forged gun did 40% less damage per point of
+  ammunition than the same gun unforged (Kestrel: 7.6 against 12.6), teams answered by letting forged
+  guns run dry and buying new ones, and rounds past 22 took 16 to 48 minutes each; at 2,500 the two
+  are level. In god mode the late rounds are still long (8 to 38 minutes from round 22): there the
+  bots sit on their points because they will not shop inside a horde that never thins, which is the
+  bots, not the prices.
+  **Performance.** The world is now meshes per zone (was map-wide), so three.js culls what is
+  out of view: the full horde in the yard draws 63k triangles in 52 calls at 33 fps in headless
+  software rendering (session 9 measured about 23); lamp glow and lettering stay one mesh each. FX were already
+  pooled (160 particles in one instanced mesh, 24 tracers, 2 lights, 3 blasts) and zombies
+  instanced, so nothing changed there. A frame longer than 50 ms used to be cut to 50 ms, which
+  put a slow machine in slow motion against the server (found when four software-rendered clients
+  at 9 fps kept dying): a frame now covers up to 200 ms of real time, and the fps figure is real.
+  **Ship.** `README.md` (play, controls, hosting, development). The Docker image builds and serves
+  (249 MB, of which the game is 2 MB; `ws` is its only runtime dependency) - built here through
+  the sandbox's proxy from a copy of the Dockerfile with the proxy's certificate added, since the
+  Dockerfile as written needs plain internet access.
+  Still open: nobody has played it on real hardware with a real GPU or listened to it (every
+  frame rate above is software rendering; the 60 fps target is unmeasured); the bots do not throw
+  grenades or decoys, rebuild barricades or use the wonder weapons well; lobby host controls, AFK
+  handling and the other items deferred in sessions 11-13 remain deferred.
 
 ## 10. Risks to watch
 - **Map authoring by hand in code** is the biggest schedule risk → mitigated by the carved-rect
