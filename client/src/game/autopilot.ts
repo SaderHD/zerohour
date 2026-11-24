@@ -139,8 +139,8 @@ export class Autopilot {
     const auto = weapons.def?.auto === true;
     const cur = weapons.current;
     this.hold('Mouse0', it.fire && auto);
-    // Sights up for a target that is not on top of us (it slows the feet).
-    this.hold('Mouse2', it.fire && !!it.aim && it.aim.dist > SIGHTS_BEYOND && life === 'alive');
+    // Sights up for a target that is not on top of us, when standing: they slow the feet.
+    this.hold('Mouse2', it.fire && !!it.aim && it.aim.dist > SIGHTS_BEYOND && life === 'alive' && !moving);
     if (it.fire && !auto && this.time >= this.triggerAt) {
       this.triggerAt = this.time + TRIGGER_EVERY;
       this.tap('Mouse0');

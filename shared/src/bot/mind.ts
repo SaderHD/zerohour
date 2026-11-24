@@ -209,14 +209,21 @@ export class BotMind {
       if (def && stats && it && def.cost !== undefined && w.reserve < stats.reserve * 0.3) list.push({ key: `ammo:${w.id}`, it, cost: ammoCost(def, w.upgraded) });
     }
     // The next gun worth having.
+    let later: Want | null = null;
     for (const id of this.guns) {
       const it = thing(`wb_${id}`);
       const def = weaponDef(id);
       if (!it || !def || v.weapons.some((w) => w.id === id) || v.forge.weapon === id) continue;
       const full = v.weapons.length >= slots;
       if (full && (RANK[id] ?? 0) <= rank(v.weapons[worst]!)) continue;
-      list.push({ key: `gun:${id}`, it, cost: def.cost ?? 0, hold: full ? worst : undefined });
+      later = { key: `gun:${id}`, it, cost: def.cost ?? 0, hold: full ? worst : undefined };
       break;
+    }
+    // With something automatic in hand, the lights and a thicker skin come before a better gun.
+    const armed = v.weapons.some((w) => base(w.id) >= 3);
+    if (later && !armed) {
+      list.push(later);
+      later = null;
     }
     const power = thing('power');
     if (!v.power && power) list.push({ key: 'power', it: power, cost: 0 });
@@ -228,6 +235,10 @@ export class BotMind {
         if (id === 'second_wind' && v.solo && v.perks.length === 0) list.unshift({ key: `tonic:${id}`, it, cost: perkCost(def, true) });
         else list.push({ key: `tonic:${id}`, it, cost: perkCost(def, v.solo) });
       }
+    }
+    if (later) {
+      const after = Math.max(list.findIndex((w) => w.key === 'tonic:ironhide'), list.findIndex((w) => w.key === 'power'));
+      list.splice(after < 0 ? list.length : after + 1, 0, later);
     }
     // A roll of the Cache, once the wall guns are behind us (or one of ours has run dry for good).
     const site = thing(v.cache.home);
@@ -263,7 +274,7 @@ export class BotMind {
         // Leave them while a crowd stands over them: it soon turns on someone else, and three down help nobody.
         let over = 0;
         for (const zb of v.zombies) if (Math.hypot(zb.x - m.x, zb.z - m.z) < RESCUE_CLEAR) over++;
-        if (over < 3 || d < 3) {
+        if (over < 2 || d < 3) {
           mate = m;
           mateD = d;
         }
