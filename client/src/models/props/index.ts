@@ -1,0 +1,107 @@
+import type { PropType } from '@zh/shared';
+import * as bunk from './bunk';
+import * as cold from './cold';
+import * as common from './common';
+import * as comms from './comms';
+import * as gen from './gen';
+import type { Kit } from './kit';
+import * as lab from './lab';
+import * as mess from './mess';
+import * as motor from './motor';
+import * as mounts from './mounts';
+import * as vault from './vault';
+import * as yard from './yard';
+
+/** How to draw every prop in shared/src/data/props.ts. Add new props to both tables. */
+export const PROP_BUILDERS: Record<PropType, (k: Kit) => void> = {
+  crate: common.crate,
+  crate_stack: common.crateStack,
+  crate_small: common.crateSmall,
+  barrel: common.barrel,
+  barrels: common.barrels,
+  shelf: common.shelf,
+  locker: common.locker,
+  table: common.table,
+  table_long: common.tableLong,
+  table_small: common.tableSmall,
+  bench: common.bench,
+  desk: common.desk,
+  chair_tipped: common.chairTipped,
+  stool: common.stool,
+  rubble: common.rubble,
+  planks: common.planks,
+  papers: common.papers,
+  pipes: common.pipes,
+  cable: common.cable,
+  pipe_drop: common.pipeDrop,
+  sign: common.sign,
+  vent: common.vent,
+  spool: gen.spool,
+  tyres: motor.tyres,
+  tyre: motor.tyre,
+  tool_chest: motor.toolChest,
+  brazier: motor.brazier,
+  stripes: gen.stripes,
+  icicles: cold.icicles,
+  drip: cold.drip,
+  timber_frame: cold.timberFrame,
+  wall_fan: gen.wallFan,
+  ladder: gen.ladder,
+  range: mess.range,
+  counter: mess.counter,
+  notice_board: mess.noticeBoard,
+  bunk_bed: bunk.bunkBed,
+  footlocker: bunk.footlocker,
+  potbelly: bunk.potbelly,
+  lantern: bunk.lantern,
+  sink: bunk.sink,
+  stall: bunk.stall,
+  boiler: bunk.boiler,
+  bin: bunk.bin,
+  lab_bench: lab.labBench,
+  tank: lab.tank,
+  computer: lab.computer,
+  chalkboard: lab.chalkboard,
+  shelf_toppled: lab.shelfToppled,
+  rack: cold.rack,
+  ice_block: cold.iceBlock,
+  ice_stack: cold.iceStack,
+  hook_rail: cold.hookRail,
+  chiller: cold.chiller,
+  generator: gen.generator,
+  fuel_tank: gen.fuelTank,
+  switchgear: gen.switchgear,
+  catwalk: gen.catwalk,
+  truck_cab: motor.truckCab,
+  truck_bed: motor.truckBed,
+  workbench: motor.workbench,
+  tool_board: motor.toolBoard,
+  roller_door: motor.rollerDoor,
+  creeper: motor.creeper,
+  oil_stain: motor.oilStain,
+  snowcat: yard.snowcat,
+  flagpole: yard.flagpole,
+  mast: yard.mast,
+  anchor_block: yard.anchorBlock,
+  guy_wire: yard.guyWire,
+  sandbags: yard.sandbags,
+  snow_drift: yard.snowDrift,
+  tracks: yard.tracks,
+  wire_top: yard.wireTop,
+  console: comms.opsConsole,
+  radar: comms.radar,
+  map_table: comms.mapTable,
+  radio_rack: comms.radioRack,
+  teleprinter: comms.teleprinter,
+  wall_map: comms.wallMap,
+  forge: vault.forge,
+  capacitor: vault.capacitor,
+  transformer: vault.transformer,
+  cable_bundle: vault.cableBundle,
+  wallbuy: mounts.wallbuy,
+  tonic: mounts.tonic,
+  cache_site: mounts.cacheSite,
+};
+
+export { Kit } from './kit';
+export { fixture } from './fixtures';

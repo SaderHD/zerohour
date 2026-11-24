@@ -1,0 +1,11 @@
+{
+  "name": "@zh/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node22 --packages=external --alias:@zh/shared=../shared/src/index.ts --outfile=dist/index.js"
+  },
+  "dependencies": { "ws": "^8.18.0" }
+}

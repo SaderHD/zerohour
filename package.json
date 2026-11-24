@@ -1,0 +1,48 @@
+{
+  "name": "zerohour",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "shared",
+    "server",
+    "client"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "npm run build -w client && npm run build -w server",
+    "start": "node server/dist/index.js",
+    "test": "vitest run",
+    "typecheck": "tsc -p shared && tsc -p server && tsc -p client",
+    "lint": "eslint .",
+    "smoke": "node scripts/smoke.cjs",
+    "rounds": "node scripts/rounds.cjs",
+    "map": "tsx scripts/map.ts",
+    "tour": "node scripts/tour.cjs",
+    "bot": "tsx server/src/bot.ts",
+    "e2e": "node scripts/mp.cjs",
+    "soak": "tsx scripts/soak.ts",
+    "horde": "node scripts/horde.cjs",
+    "economy": "node scripts/economy.cjs",
+    "wonders": "node scripts/wonders.cjs",
+    "audio": "node scripts/audio.cjs",
+    "ux": "node scripts/ux.cjs",
+    "campaign": "tsx scripts/campaign.ts",
+    "ship": "node scripts/ship.cjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.6.6",
+    "@types/three": "^0.187.0",
+    "@types/ws": "^8.18.2",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.15.0",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.73.0",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1"
+  }
+}

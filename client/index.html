@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Zero Hour</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+    <div id="ui">
+      <div id="tags"></div>
+      <div id="marks"></div>
+      <div id="hud">
+        <div id="hurt"></div>
+        <div id="damage"></div>
+        <div id="zone"></div>
+        <div id="stats"></div>
+        <div id="scope"></div>
+        <div id="crosshair"><i></i><i></i><i></i><i></i></div>
+        <div id="hitmarker"></div>
+        <div id="ammo">
+          <div id="ammo-name"></div>
+          <div><span id="ammo-mag"></span><span id="ammo-reserve"></span></div>
+          <div><span id="ammo-tacticals"></span> <span id="ammo-nades"></span></div>
+        </div>
+        <div id="prompt"></div>
+        <div id="progress"><i></i></div>
+        <div id="round"></div>
+        <div id="perks"></div>
+        <div id="effects"></div>
+        <div id="banner"><div id="banner-title"></div><div id="banner-sub"></div></div>
+        <div id="points-pop"></div>
+        <div id="points"></div>
+        <div id="downed">
+          <div id="downed-title"></div>
+          <div id="downed-bar"><i></i></div>
+          <div id="downed-sub"></div>
+        </div>
+        <div id="scoreboard"><div class="sub" id="scoreboard-title"></div><table></table></div>
+        <div id="hint"></div>
+        <div id="chat">
+          <div id="chat-log" class="chatlog"></div>
+          <input id="chat-input" placeholder="Say something — Enter sends" autocomplete="off" spellcheck="false" />
+        </div>
+        <div id="stamina"><div id="stamina-fill"></div></div>
+      </div>
+
+      <div id="menu" class="screen">
+        <h1>ZERO HOUR</h1>
+        <p class="sub">Harrow Ridge Station · 1–4 survivors</p>
+        <label>Name <input id="name" maxlength="16" autocomplete="off" spellcheck="false" /></label>
+        <button id="create">Create game</button>
+        <div class="row">
+          <input id="code" maxlength="4" placeholder="CODE" autocomplete="off" spellcheck="false" />
+          <button id="join">Join</button>
+        </div>
+        <button id="rejoin" class="on" hidden></button>
+        <div class="row">
+          <button id="menu-help" class="quiet">How to play</button>
+          <button id="menu-settings" class="quiet">Settings</button>
+        </div>
+        <p id="menu-error" class="error"></p>
+      </div>
+
+      <div id="lobby" class="screen">
+        <p class="sub">Room code</p>
+        <h1 id="lobby-code"></h1>
+        <button id="copy-link" class="quiet">Copy invite link</button>
+        <ul id="lobby-players"></ul>
+        <p id="lobby-note" class="sub"></p>
+        <div id="lobby-chat" class="chatlog"></div>
+        <input id="lobby-say" placeholder="Chat — Enter sends" autocomplete="off" spellcheck="false" />
+        <div class="row">
+          <button id="ready">Ready</button>
+          <button id="start">Start</button>
+        </div>
+        <div class="row">
+          <button id="lobby-help" class="quiet">How to play</button>
+          <button id="lobby-settings" class="quiet">Settings</button>
+          <button id="leave" class="quiet">Leave</button>
+        </div>
+        <p id="lobby-error" class="error"></p>
+      </div>
+
+      <div id="pause" class="screen">
+        <h1>PAUSED</h1>
+        <p class="sub" id="pause-sub"></p>
+        <button id="resume">Resume</button>
+        <button id="pause-settings">Settings</button>
+        <button id="pause-help">How to play</button>
+        <button id="pause-leave" class="quiet">Leave game</button>
+      </div>
+
+      <div id="settings" class="screen wide"></div>
+      <div id="help" class="screen wide"></div>
+
+      <div id="results" class="screen">
+        <h1>GAME OVER</h1>
+        <p class="sub" id="results-sub"></p>
+        <table></table>
+        <div class="row">
+          <button id="again">Back to lobby</button>
+          <button id="results-leave" class="quiet">Leave</button>
+        </div>
+      </div>
+
+      <div id="netlost" class="screen">
+        <h1 id="netlost-title"></h1>
+        <p id="netlost-text"></p>
+        <button id="netlost-reload">Reload</button>
+      </div>
+      <div id="status" data-state="connecting">connecting…</div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
