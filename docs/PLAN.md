@@ -1850,6 +1850,15 @@ Asked for by the owner: a second map chosen in the lobby, a winter city at Chris
   before and after differ only in those and in lights still stuttering up.
   **Also.** The menu names the map it stands in front of, and "How to play" no longer says
   "station". README has the two maps, `ZH_MAP` and the new scripts.
+  **`ship` on each**, from a fresh clone of this session's commit (`npm ci`, build, `npm start`,
+  no debug, four browser players on the autopilot). The city, picked by the host in the lobby:
+  ten rounds cleared in 15:44, one down and one revive, the power on, tonics, the Forge used;
+  nothing in four consoles or the server's log; 112 draw calls in the busiest frame. The
+  station: ten rounds in 15:46, nobody down, nothing logged, 80 draw calls at most (it was 119
+  in session 14). Before them, on this checkout: typecheck, lint, 312 tests, and all fourteen
+  browser scripts on the maps they run on (`smoke`, `rounds`, `economy` and `horde` and
+  `wonders` on both, `site`, `city`, `heights`, `maps`, `ux`, `e2e`). `audio` was not run again:
+  nothing it listens to was touched.
   Not done: nobody but bots and the autopilot has played the city - how it plays for people,
   the air's level outdoors (M8) and whether rounds of two to three minutes are too long are
   still unjudged, and are now for players to say. `rounds`, `ux`, `e2e`, `smoke` and `audio`'s
