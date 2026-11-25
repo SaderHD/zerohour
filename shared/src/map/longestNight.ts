@@ -1,14 +1,17 @@
-import { rail } from './dressing/helpers';
+import { prop, rail } from './dressing/helpers';
 import { hallLights, hallProps } from './dressing/nightHalls';
+import { homeLights, homeProps } from './dressing/nightHomes';
 import { SQUARE_POSTS, streetLights, streetProps } from './dressing/nightStreets';
-import type { BlockDef, LightDef, MapDef, Opening, Room, WallStyle } from './types';
+import { subwayLights, subwayProps } from './dressing/nightSubway';
+import type { BlockDef, LightDef, MapDef, Opening, PropInst, Room, WallStyle } from './types';
 
 // The Longest Night - Wexler Square on Christmas Eve. See docs/PLAN.md 4.12.
 // This is the blockout (PLAN section 9, M3 and M4): the streets, every floor of every building,
-// the roofs and the subway, with doors and prices and enough light to see by. The square, the
-// avenue and the lane are dressed (M5: `dressing/nightStreets.ts`), and Abelard's, the Lyric and
-// the chapel (M6: `dressing/nightHalls.ts`); the diner, the tenement, the roofs and the subway
-// are bare, and nothing is sold yet. Run `npm run map -- longest_night` after any edit.
+// the roofs and the subway, with doors and prices and enough light to see by. All of it is
+// dressed: the square, the avenue and the lane (M5: `dressing/nightStreets.ts`); Abelard's, the
+// Lyric and the chapel (M6: `dressing/nightHalls.ts`); the diner, the tenement and the roofs
+// (M7: `dressing/nightHomes.ts`) and the subway (M7: `dressing/nightSubway.ts`). Nothing is sold
+// yet. Run `npm run map -- longest_night` after any edit.
 //
 //                  [St Audra's]                              [subway head house]
 //   ===============  DRAY AVENUE  ========================================   (the platform and
@@ -50,6 +53,8 @@ const CINEMA = 0xd0a8a0;
 const STORE = 0xc8d0c4;
 const DINER = 0xb8c8d0;
 const BOARDS = 0xffffff;
+/** Ironwork: the fire escape's, seen from the lane. */
+const IRON = 0xb8bcc4;
 
 type Rest = Omit<Room, 'id' | 'x' | 'z' | 'w' | 'd'>;
 const room = (id: string, x: number, z: number, w: number, d: number, rest: Rest): Room => ({ id, x, z, w, d, ...rest });
@@ -100,6 +105,22 @@ const win = (id: string, zone: string, out: 'n' | 's' | 'e' | 'w', x: number, z:
 const dark = (id: string, zone: string, out: 'n' | 's' | 'e' | 'w', x: number, z: number, level?: number): Opening => win(id, zone, out, x, z, 1.5, { behind: 'tunnel', ...(level === undefined ? {} : { level }) });
 /** Upstairs or over a parapet: the dead stand on a ledge in the open air outside it. */
 const ledge = (id: string, zone: string, out: 'n' | 's' | 'e' | 'w', x: number, z: number, level: number): Opening => win(id, zone, out, x, z, 1.5, { behind: 'air', level });
+
+/** The iron of a ledge: brackets under its planks (not where it lies on a roof or over a stair) and a rail round it. */
+function ledgeIron(o: Opening, bare = false): PropInst {
+  const len = o.out === 'n' || o.out === 's' ? o.w : o.d;
+  const [x, z] =
+    o.out === 'w' ? [o.x - 1.5, o.z + len / 2] : o.out === 'e' ? [o.x + 2, o.z + len / 2] : o.out === 'n' ? [o.x + len / 2, o.z - 1.5] : [o.x + len / 2, o.z + 2];
+  return prop('ledge_iron', x, z, o.out!, { s: 3, level: o.level, ...(bare ? { variant: 1 } : {}) });
+}
+/** Upstairs: onto the diner's roof, onto the fire escape, onto the awning over the square. */
+const FLAT_LEDGES = [ledge('w_flat_w', 'tenement', 'w', 56.5, 99, 1), ledge('w_flat_n', 'tenement', 'n', 64.5, 98, 1)];
+const UPPER_LEDGES = [ledge('w_upper_1', 'abelard_up', 'w', 96, 64.5, 1), ledge('w_upper_2', 'abelard_up', 'w', 96, 80.5, 1)];
+/** Over the parapets. */
+const ROOF_LEDGES = [
+  ledge('w_ten_roof_n', 'ten_roof', 'n', 58.5, 98, 2), ledge('w_ten_roof_w', 'ten_roof', 'w', 56.5, 101.5, 2),
+  ledge('w_abelard_roof_w', 'abelard_roof', 'w', 96, 74, 2), ledge('w_abelard_roof_s', 'abelard_roof', 's', 106, 91.5, 2),
+];
 
 const block = (x: number, z: number, w: number, d: number, h: number, face: WallStyle, tint: number, rest: Partial<BlockDef> = {}): BlockDef => ({ x, z, w, d, h, face, tint, ...rest });
 /** Boards across the mouth of a street: over them, whatever stands behind. */
@@ -222,10 +243,12 @@ export const longestNight: MapDef = {
 
     // Tallow Lane.
     room('lane', 67, 92.5, 54.5, 5, LANE),
-    room('lane_head', 58.5, 92.5, 8.5, 3.5, LANE),
-    // The fire escape: up the tenement's wall from the lane to a landing at the flat's door.
-    room('escape', 60, 96, 7, 2, { ...LANE, tint: RED, ceil: 2 * STOREY, rise: { to: 'w', by: STOREY, stairs: true } }),
-    room('escape_landing', 58, 96, 2, 2, { ...LANE, tint: RED, y: STOREY, ceil: STOREY }),
+    room('lane_head', 58.5, 92.5, 8.5, 3, LANE),
+    // The fire escape: up the tenement's wall from the lane to a landing at the flat's door. Iron
+    // underfoot, and iron to whoever looks at it from the lane (the strip along its foot).
+    room('lane_iron', 58.5, 95.5, 8.5, 0.5, { ...LANE, wall: 'iron', tint: IRON }),
+    room('escape', 60, 96, 7, 2, { ...LANE, floor: 'metal', tint: RED, ceil: 2 * STOREY, rise: { to: 'w', by: STOREY, stairs: true } }),
+    room('escape_landing', 58, 96, 2, 2, { ...LANE, floor: 'metal', tint: RED, y: STOREY, ceil: STOREY }),
     ...alongX('lane_n', LANE, 92, [[58.5, 96, 'brick', SOOT], [96, 121.5, 'brick', STORE]]),
     ...alongX('lane_s', LANE, 97.5, [
       [67, 72.5, 'brick', RED], [72.5, 89, 'brick', PALE], [89, 93, 'fence', BOARDS], [93, 96, 'brick', PALE],
@@ -386,16 +409,9 @@ export const longestNight: MapDef = {
     dark('w_abelard_n2', 'abelard', 'n', 118, 61.5),
     dark('w_abelard_e', 'abelard', 'e', 126.5, 72),
     dark('w_abelard_s', 'abelard', 's', 100, 86),
-    // Upstairs: onto the diner's roof, onto the fire escape, onto the awning over the square.
-    ledge('w_flat_w', 'tenement', 'w', 56.5, 99, 1),
-    ledge('w_flat_n', 'tenement', 'n', 64.5, 98, 1),
-    ledge('w_upper_1', 'abelard_up', 'w', 96, 64.5, 1),
-    ledge('w_upper_2', 'abelard_up', 'w', 96, 80.5, 1),
-    // Over the parapets.
-    ledge('w_ten_roof_n', 'ten_roof', 'n', 58.5, 98, 2),
-    ledge('w_ten_roof_w', 'ten_roof', 'w', 56.5, 101.5, 2),
-    ledge('w_abelard_roof_w', 'abelard_roof', 'w', 96, 74, 2),
-    ledge('w_abelard_roof_s', 'abelard_roof', 's', 106, 91.5, 2),
+    ...FLAT_LEDGES,
+    ...UPPER_LEDGES,
+    ...ROOF_LEDGES,
     // Out of the dark of the tunnels.
     dark('w_platform_w', 'platform', 'w', 65.5, 35, -2),
     dark('w_platform_e', 'platform', 'e', 116, 35, -2),
@@ -403,9 +419,11 @@ export const longestNight: MapDef = {
     dark('w_service', 'service', 'e', 70, 66, -2),
   ],
   props: [
-    // Wherever a floor ends in a drop. The fire escape, tread by tread.
-    rail(58, 96.25, 60, 96.25),
-    ...Array.from({ length: 14 }, (_, i) => rail(60 + i * 0.5, 96.25, 60.5 + i * 0.5, 96.25)),
+    // Wherever a floor ends in a drop. The fire escape: its landing's rail, and the iron of the flight.
+    rail(58, 96.15, 60, 96.15, { variant: 2 }),
+    prop('fire_escape', 63.5, 97, 'w', { s: 7, y2: STOREY }),
+    // The ledges: the two over the square on brackets, the two outside the flat lying on what is under them.
+    ...FLAT_LEDGES.map((o) => ledgeIron(o, true)), ...UPPER_LEDGES.map((o) => ledgeIron(o)), ...ROOF_LEDGES.map((o) => ledgeIron(o)),
     // The plank bridge, and the planks over the passage.
     rail(67.6, 92, 67.6, 98, { level: 2 }), rail(68.9, 92, 68.9, 98, { level: 2 }),
     rail(82, 89.6, 85, 89.6, { level: 2 }), rail(82, 91.4, 85, 91.4, { level: 2 }),
@@ -416,6 +434,8 @@ export const longestNight: MapDef = {
     rail(34.1, 46, 34.1, 62, { level: 1 }),
     ...streetProps,
     ...hallProps,
+    ...homeProps,
+    ...subwayProps,
   ],
   interactables: [],
   playerSpawns: [
@@ -465,5 +485,7 @@ export const longestNight: MapDef = {
     bulb(78.2, 90.5, 2.2, 5, { color: 0xffa040, fixture: 'cage' }),
     ...streetLights,
     ...hallLights,
+    ...homeLights,
+    ...subwayLights,
   ],
 };

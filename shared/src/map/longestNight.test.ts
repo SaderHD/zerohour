@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { CELL_SIZE, PLAYER_RADIUS } from '../constants';
-import { moveCircle } from '../nav/collide';
+import { circleFits, moveCircle } from '../nav/collide';
 import { FlowField, UNREACHABLE } from '../nav/flowfield';
 import { lineOfSight } from '../nav/los';
 import { rayWorld } from '../nav/ray';
 import { Cell, DECK, compileMap, type DoorSet } from './compile';
+import { FLOOR_STYLES, WALL_STYLES } from './types';
 import { propDef } from '../data/props';
 import { TREE } from './dressing/nightStreets';
 import { longestNight } from './longestNight';
@@ -13,7 +14,7 @@ import { validateMap } from './validate';
 import { mapWindows } from './windows';
 
 // The Longest Night's blockout (PLAN 4.12; section 9, M3 and M4): the streets, every floor, the roofs, the subway;
-// and the streets as dressed (M5).
+// and the streets as dressed (M5), the halls (M6), the diner, the tenement, the roofs and the subway (M7).
 
 const map = compileMap(longestNight);
 const doors = (...ids: string[]): DoorSet => new Set(ids);
@@ -188,7 +189,7 @@ describe('upstairs', () => {
   };
   const FLAT: [number, number, number] = [61, 4, 104];
   const TEN_ROOF: [number, number, number] = [63, 8, 104];
-  const ABE_ROOF: [number, number, number] = [110, 8, 75];
+  const ABE_ROOF: [number, number, number] = [117, 8, 75];
   const GALLERY: [number, number, number] = [101, 4, 74];
 
   it('every new flight is walked: the tenement\'s two, the fire escape, both escalators, the roof stairs, the Lyric\'s', () => {
@@ -253,7 +254,7 @@ describe('upstairs', () => {
     // Across the lane, from the walk to the tenement's roof, over two parapets.
     expect(lineOfSight(map, 75, 8, 90.5, 62, 8, 100)).toBe(true);
     // Not through the taller building between Abelard's roof and the tenement's.
-    expect(lineOfSight(map, 110, 8, 75, 63, 8, 104)).toBe(false);
+    expect(lineOfSight(map, 104, 8, 75, 63, 8, 104)).toBe(false);
     // Not from the lane up through a parapet to someone standing behind it.
     expect(lineOfSight(map, 90, 0, 95, 90, 8, 90.5)).toBe(false);
     // Over the diner's roof from the tenement's, as far as the next tall wall; into the parapet below eye level.
@@ -417,5 +418,116 @@ describe('the halls dressed (M6)', () => {
     expect(validateMap(map).errors).toEqual([]);
     for (const w of mapWindows(map)) expect(Number.isFinite(walkTo('all', [w.inX, w.y, w.inZ], DINER)), w.id).toBe(true);
     for (const p of longestNight.props) expect(propDef(p.type), p.type).toBeDefined();
+  });
+});
+
+
+describe('the rest dressed (M7)', () => {
+  const at = (type: string): { x: number; y: number; z: number }[] => longestNight.props.filter((p) => p.type === type).map((p) => ({ x: p.x, y: (p.level ?? 0) * 4, z: p.z }));
+  const zones = (type: string): string[] => [...new Set(at(type).map((p) => map.zoneAt(p.x, p.y, p.z) ?? map.zoneAt(p.x + 0.3, p.y, p.z + 0.3) ?? ''))].sort();
+  const cell = (x: number, y: number, z: number): number => map.cellAt(x, y, z);
+
+  it('the diner: booths under two walls, the counter in front of the kitchen with a way round behind it, nobody starting in the furniture', () => {
+    expect(at('diner_booth')).toHaveLength(6);
+    expect(at('diner_counter')).toHaveLength(3);
+    for (const type of ['diner_booth', 'diner_counter', 'jukebox', 'fridge']) expect(zones(type), type).toEqual(['diner']);
+    for (const s of map.playerSpawns) expect(circleFits(map, 'all', s.x, s.y, s.z, PLAYER_RADIUS)).toBe(true);
+    // Behind the counter from either end, and through the arch to the kitchen.
+    expect(walkTo(doors(), DINER, [44.5, 0, 95.75])).toBeLessThan(12);
+    expect(walkTo(doors(), [40.75, 0, 95.75], [51, 0, 99])).toBeLessThan(14);
+    // A counter and a booth stop nobody's shot.
+    expect(lineOfSight(map, 44.5, 0, 92, 44.5, 0, 96)).toBe(true);
+    expect(lineOfSight(map, 41, 0, 90, 55, 0, 88)).toBe(true);
+    // Its sign hangs on the square's side of the door.
+    expect(at('diner_sign')).toEqual([{ x: 54, y: 0, z: 86 }]);
+  });
+
+  it('the tenement: letter boxes in the hall; upstairs the table, the television and the tree, and room to run between them', () => {
+    expect(zones('mailboxes')).toEqual(['tenement']);
+    for (const type of ['dinner_table', 'television', 'armchair', 'sofa', 'bed', 'wardrobe', 'sideboard']) {
+      expect(at(type).map((p) => p.y), type).toEqual([4]);
+      expect(zones(type), type).toEqual(['tenement']);
+    }
+    // In at the fire escape's door, round the table and out to the stairs.
+    expect(walkTo('all', [59.25, 4, 99.5], [65.5, 4, 109])).toBeLessThan(16);
+    // The wardrobe hides; the table does not.
+    expect(propDef('wardrobe')!.tall).toBe(true);
+    expect(lineOfSight(map, 62, 4, 99.6, 62, 4, 105)).toBe(true);
+  });
+
+  it('the fire escape is iron: plate underfoot, iron to the lane, and still climbed', () => {
+    expect(FLOOR_STYLES[map.floorStyle[cell(63, 2, 97)]!]).toBe('metal');
+    expect(FLOOR_STYLES[map.floorStyle[cell(59, 4, 97)]!]).toBe('metal');
+    expect(WALL_STYLES[map.wallStyle[cell(63, 0, 95.75)]!]).toBe('iron');
+    expect(map.zoneAt(63, 0, 95.75)).toBe('lane');
+    expect(at('fire_escape')).toEqual([{ x: 63.5, y: 0, z: 97 }]);
+  });
+
+  it('every ledge in the open air has its iron: eight of them, each on the planks outside its window', () => {
+    const iron = longestNight.props.filter((p) => p.type === 'ledge_iron');
+    expect(iron).toHaveLength(8);
+    for (const p of iron) {
+      const c = cell(p.x, (p.level ?? 0) * 4, p.z);
+      expect(map.kind[c], `${p.x}, ${p.z}`).toBe(Cell.Outside);
+      expect(map.deck[c], `${p.x}, ${p.z}`).toBe(1);
+    }
+    // The two outside the flat lie on something, and have no brackets under them.
+    expect(iron.filter((p) => p.variant === 1).map((p) => p.level)).toEqual([1, 1]);
+  });
+
+  it('the roofs: the tank hides whoever is behind it, the lantern over the atrium is shot across and walked round', () => {
+    expect(zones('water_tank')).toEqual(['ten_roof']);
+    expect(lineOfSight(map, 60.5, 8, 104.5, 60.5, 8, 110.5)).toBe(false);
+    expect(lineOfSight(map, 58, 8, 100.5, 66, 8, 100.5)).toBe(true);
+    for (const type of ['chimney', 'pigeon_coop', 'aerial', 'reindeer']) expect(at(type).length, type).toBeGreaterThan(0);
+    const sky = at('skylight')[0]!;
+    expect([sky.x, sky.y, sky.z]).toEqual([111.5, 8, 74]);
+    expect(map.walkAt(Math.floor(sky.x / CELL_SIZE), Math.floor(sky.z / CELL_SIZE), 8)).toBe(-1);
+    expect(lineOfSight(map, 106, 8, 74, 117, 8, 74)).toBe(true);
+    expect(walkTo('all', [106, 8, 74], [117, 8, 74])).toBeLessThan(22);
+    expect(propDef('plant_room')!.tall).toBe(true);
+    expect(zones('sign_back')).toEqual(['abelard_roof']);
+    // From the door of each hut to the bridge, and along the walk, nothing stands in the way.
+    expect(walkTo('all', [68, 8, 99.5], [123, 8, 63])).toBeLessThan(110);
+  });
+
+  it('the subway: two lanes of turnstiles between the mezzanine and the stairs; pillars and benches on the platform', () => {
+    expect(at('turnstile')).toHaveLength(3);
+    expect(zones('turnstile')).toEqual(['mezz']);
+    // Both lanes are walked; the fence and the housings are not.
+    for (const x of [87.25, 89.25]) expect(circleFits(map, 'all', x, -4, 56.5, PLAYER_RADIUS), `${x}`).toBe(true);
+    for (const [x, z] of [[86.25, 56.5], [88.25, 56.5], [90.25, 56.5], [90.25, 55.25]] as const) expect(map.walkAt(Math.floor(x / CELL_SIZE), Math.floor(z / CELL_SIZE), -4), `${x}, ${z}`).toBe(-1);
+    expect(walkTo('all', [95, -4, 60], PLAT_W)).toBeLessThan(45);
+    expect(zones('token_booth')).toEqual(['mezz']);
+    expect(zones('tiled_pillar')).toEqual(['mezz', 'platform']);
+    expect(at('platform_bench')).toHaveLength(7);
+    // A pillar hides; a bench does not.
+    expect(lineOfSight(map, 79.25, -8, 34, 79.25, -8, 38)).toBe(false);
+    expect(lineOfSight(map, 76, -8, 34, 76, -8, 38)).toBe(true);
+  });
+
+  it('the train: a bench down each side wherever there is no door, in plain sight from end to end, every door clear', () => {
+    expect(at('train_seats')).toHaveLength(23);
+    expect(at('train_bulkhead')).toHaveLength(2);
+    expect(lineOfSight(map, 70.5, -8, 30, 105.5, -8, 30)).toBe(true);
+    expect(walkTo('all', [70.5, -8, 30], [105.5, -8, 30])).toBeLessThan(37);
+    for (const o of longestNight.openings.filter((v) => v.id.startsWith('a_train'))) {
+      expect(circleFits(map, 'all', o.x + 0.75, -8, 31, PLAYER_RADIUS), o.id).toBe(true);
+      expect(circleFits(map, 'all', o.x + 0.75, -8, 32.5, PLAYER_RADIUS), o.id).toBe(true);
+    }
+    // The side of the train is on the platform's wall wherever the train is, and nowhere else.
+    const sides = longestNight.props.filter((p) => p.type === 'train_side');
+    expect(sides.reduce((n, p) => n + (p.s ?? 0), 0)).toBeCloseTo(26);
+    for (const p of sides) expect(p.x - p.s! / 2 >= 70 && p.x + p.s! / 2 <= 106, `${p.x}`).toBe(true);
+  });
+
+  it('the signal room keeps its west wall for the Forge; nothing dressed blocks a way through', () => {
+    expect(zones('lever_frame')).toEqual(['service']);
+    expect(zones('relay_cabinet')).toEqual(['service']);
+    for (let z = 59.25; z < 63; z += 0.5) for (let x = 57.75; x < 59.5; x += 0.5) expect(map.walkAt(Math.floor(x / CELL_SIZE), Math.floor(z / CELL_SIZE), -8), `${x}, ${z}`).toBeGreaterThanOrEqual(0);
+    expect(validateMap(map).errors).toEqual([]);
+    for (const w of mapWindows(map)) expect(Number.isFinite(walkTo('all', [w.inX, w.y, w.inZ], DINER)), w.id).toBe(true);
+    for (const p of longestNight.props) expect(propDef(p.type), p.type).toBeDefined();
+    expect(longestNight.interactables).toEqual([]);
   });
 });

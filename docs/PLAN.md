@@ -320,7 +320,7 @@ Props that are ≥0.5 m tall block movement (and bullets if tall); small clutter
 Keep every lane ≥1.5 m wide. Varied ceiling heights, skybox gradient with mountains silhouette and
 aurora for the outdoor zone.
 
-### 4.12 Map — "The Longest Night" (second map; being built: blocked out on all five storeys; the streets, Abelard's, the Lyric and the chapel dressed)
+### 4.12 Map — "The Longest Night" (second map; being built: blocked out and dressed on all five storeys; nothing sold yet)
 Wexler Square, in the middle of a big, old, fictional American city, Christmas Eve in the early 1990s.
 Deep in the canyons between the towers, snowing, every decoration still lit and nobody left to look
 at them. Chosen by the host in the lobby; Harrow Ridge stays as it is. Same weapons, tonics, Cache,
@@ -474,6 +474,44 @@ stand of votive candles in each corner of the nave, lancets of coloured glass do
 On the avenue: a stone doorway with a gable and a cross, a lantern in it, a lancet each side and
 a rose over it. Seats, pews, counters and tables stop nobody's shot; shelves, the booth, the
 cabin and the organ do.
+
+**The rest dressed (M7; `shared/src/map/dressing/nightHomes.ts`, `nightSubway.ts`).** *The
+Starlight.* Six booths, four under the north wall and two under the east, plates still on their
+tables; six metres of counter in front of the kitchen arch with stools along it (the till and
+the urn, then the pie case with its lamp on), a metre and a half behind it and a way round its
+west end; the jukebox lit on the west wall, a tree in the south-east corner, paper chains from
+wall to wall. The middle of the floor is clear: it is where everyone starts. The kitchen has its
+range, sink, refrigerator and shelves down two walls. Outside, over the door on the square: three
+bands of neon and a star on a mast above the roof (the name's tubes are there, with no name in
+them: M8).
+*The tenement.* The hall has letter boxes, a radiator and somebody's bicycle. The flat is one
+room: the table laid for six in the north half with the bird on it and the candles lit, a
+sideboard with the wireless on; in the south half an armchair and a sofa turned to a television
+showing snow, the tree and its presents in the corner; a bed and a wardrobe against the east wall.
+The fire escape is iron now: tread plate underfoot (it rings), black rails on balusters up both
+sides of the flight, and to the lane a face of flat bars and stays (a wall style of its own,
+`iron`, on a half-metre strip along its foot). Every ledge in the open air has an iron rail round
+its three open sides, and the six that hang clear have brackets back to the wall under them.
+*The roofs.* The tenement's: a timber water tank on iron legs in the south-west (it hides whoever
+is behind it), two chimney stacks, a pigeon coop against the hut, two aerials, bulbs along the
+north parapet and a plastic reindeer, lit, looking over the lane. Abelard's: a glazed lantern six
+metres by eight over the atrium with the store's light coming up through it (a metre high: shot
+across, walked round), the plant room in the north-west corner with its door to the south, two
+condensers whose fans turn with the mains, four vent stacks (three breathing), and along the west
+parapet the back of the store's sign, eight metres of frame with the red of nine letters round
+their cans.
+*The subway.* On the mezzanine the way north to the platform is through a bank of three turnstile
+housings (two lanes, a metre and a half each) fenced off from the hall, the token booth beside it
+with tinsel on its glass; four tiled pillars, benches, posters, two telephones, a stopped clock.
+The platform has a row of pillars down each half, benches under the south wall, a yellow line at
+the edge, rubble where the roof came down; along its north wall wherever the train stands is the
+train's side - steel to the sill, a band of windows (lit a little without the mains, and properly
+with them), the dark over its roof. Inside, the train is three carriages: a bench down each side
+wherever there is no door, two metres between them, a frame across at each carriage end, poles.
+The service tunnel has cable down both walls, pipes overhead and relay cabinets; the signal room
+a lever frame under a lit diagram of the line on its north wall, relays along the south, and its
+west wall left clear for the Forge (M8). Pillars, the tank, the plant room, the booth, cabinets
+and the wardrobe block sight; booths, counters, benches, seats and the lantern do not.
 
 **The look.** The same 90s horror as the station - dark, grain, hard pools of light, nothing clean
 - with Christmas as the only colour in it. Warm strings of bulbs over grey snow; the tree lit over
@@ -1482,7 +1520,44 @@ Asked for by the owner: a second map chosen in the lobby, a winter city at Chris
   the booth, the cabin and the posters have no names on them (M8); no sound (M8). The world is
   now 267,000 triangles (it was 234,000) and takes 1.5 s to build and bake in headless Chromium
   (1.3-1.4): M9 measures and cuts.
-- [ ] M7 Dressing III: the diner, the tenement, the roofs, the subway and its train.
+- [x] M7 Dressing III: the diner, the tenement, the roofs, the subway and its train - done (4.12,
+  "The rest dressed", says where everything is). 45 new props in four kits, each a builder in
+  code: *the diner's* (`models/props/diner.ts`: booths, the counter and its stools, the jukebox,
+  a refrigerator, the sign), *the home's* (`home.ts`: letter boxes, a radiator, pictures, a
+  bicycle; the dinner table, television, armchair, sofa, bed, wardrobe, sideboard, a rug), *the
+  roofs'* (`roofs.ts`: water tank, chimneys, coop, aerials, the reindeer; plant room, condensers,
+  vent stacks, the lantern, the back of the sign; the iron of a ledge and of a fire escape) and
+  *the subway's* (`subway.ts`: token booth, turnstiles, fence, pillars, benches, posters,
+  telephones, clocks; the train's side, seats, poles and carriage ends; relay cabinets, the lever
+  frame, the diagram); paper chains are in the Christmas kit. 236 props and 14 lights placed.
+  Four more things move (the condensers' fans, on the mains).
+  The engine: one new wall style, `iron` (flat bars and stays over the dark), which is how the
+  fire escape stopped being a stoop of brick - its flight is still solid, but the lane sees iron
+  (a strip room along its foot, as every street's wall is) and its floor is tread plate. M4's
+  other leftover, the bare ledges, is a prop (`ledge_iron`) made from each `behind: 'air'`
+  window in `longestNight.ts`. A railing has an iron variant. Nothing else in the engine changed.
+  The game on it: the layout test holds the diner (booths, the way round the counter, nobody
+  starting in the furniture), the flat, the iron, the eight ledges, the roofs (what hides and
+  what does not), the turnstiles' two lanes, the train (23 benches, in sight from end to end,
+  every door clear) and the Forge's wall; `night.test.ts` (four bots, a full horde, four
+  minutes; worst idle 3.0 s) and `campaign --god --map=longest_night` (ten rounds, worst idle
+  3.0 s, no correction) run clean through all of it. `npm run tour -- --night` takes 121
+  pictures (26 new). Harrow Ridge is as it was: a seeded ten-round campaign is the same to the
+  shot.
+  Found on the way: the soak's count of zones its four bots wander into goes by the seed more
+  than by the map (9 to 13 over eight seeds with the dressing, three of them under the bar of
+  ten; one of six was under it before): adding a room moved the seed it ran on to the wrong
+  side, and it has another now. The roof tests stood on what is now the lantern.
+  Not done: the train's side is on the platform's wall and its carriages inside do not line up
+  with the windows outside; the turnstiles' arms are for show (nobody is stopped or slowed by
+  one); the fire escape is still solid under its treads, and the lower ledges still hang on
+  brackets with no ladder between them; the diner's sign and the store's have tubes and cans
+  but no letters, and nothing else is named (M8); nothing sold, no sound (M8). A mortal campaign
+  (`--runs=4`) clears 3, 3, 5 and 3 rounds with up to four corrections in a run (the last
+  commit's had them too, and its seed 4 was stopped after ten minutes without finishing; not
+  looked into: M8 gives the bots something to buy and M9 measures). The world is now 296,000
+  triangles (it was 267,000) and takes 1.85 s to build and bake in headless Chromium (1.5): M9
+  measures and cuts.
 - [ ] M8 Things to buy, bots, sound. Mounts for every wall gun, tonic and Cache site, the switch,
   the Forge; whatever the bots need to know about a map this size; the city's ambience, the
   carols, zone fog; signs.

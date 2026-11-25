@@ -143,6 +143,14 @@ const WALL_DRAW: Record<WallStyle, Draw> = {
       const band = row === 4;
       px(x, y, grout ? 176 : (band ? 170 : 226) + r.range(-7, 7) + (y % 4 === 0 ? 14 : 0) - (r.chance(0.02) ? 50 : 0), band && !grout ? [0.45, 0.8, 0.62] : [1, 1, 0.96]);
     }),
+  // Ironwork with the dark behind it: flat bars a quarter of a metre apart, a rail every metre, a stay across each bay.
+  iron: (px, r) =>
+    each((x, y) => {
+      const rail = y % 16 === 0 || y % 16 === 1;
+      const bar = x % 4 === 0;
+      const stay = (x + y) % 32 === 0 || (x - y + 64) % 32 === 0;
+      px(x, y, rail ? 150 + r.range(-10, 10) : bar ? 120 + r.range(-14, 14) : stay ? 92 + r.range(-8, 8) : 14 + r.range(0, 8), rail || bar || stay ? [1, 0.9, 0.82] : [0.8, 0.9, 1]);
+    }),
   rock: (px, r) => {
     const blobs = Array.from({ length: 9 }, () => [r.int(0, 31), r.int(0, 31), r.range(60, 150)] as const);
     each((x, y) => {

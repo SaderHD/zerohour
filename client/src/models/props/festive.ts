@@ -280,6 +280,19 @@ export function washingLine(k: Kit): void {
   }
 }
 
+/** A paper chain from wall to wall under a ceiling: links of coloured paper, a little faded. */
+export function paperChain(k: Kit): void {
+  const len = k.inst.s ?? 6;
+  const at = slung(k, len);
+  const n = Math.max(4, Math.round(len / 0.22));
+  for (let i = 0; i < n; i++) {
+    const x = -len / 2 + ((i + 0.5) * len) / n;
+    const c = k.tone(WRAPS[i % WRAPS.length]!, 0.1);
+    if (i % 2) k.cube(x, at(x), 0, 0.2, 0.1, 0.03, c, { bottom: true });
+    else k.cube(x, at(x), 0, 0.2, 0.03, 0.1, c, { bottom: true });
+  }
+}
+
 /** A small tree in a pot, indoors: tinsel wound round it, bulbs, a star, presents at its foot. */
 export function tinselTree(k: Kit): void {
   k.cyl(0, 0, 0, 0.3, 0.17, 0.22, k.tone(0x8a3028, 0.06), 6);

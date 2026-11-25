@@ -66,7 +66,7 @@ export const PROPS = {
   wall_fan: onWall(1.2, 1.2),
   /** Rungs up a wall to `y`. */
   ladder: onWall(0.5, 3),
-  /** A handrail along local x at the edge of a drop; `s` is its length. Variant 1 is timber, for outdoors. */
+  /** A handrail along local x at the edge of a drop; `s` is its length. Variant 1 is timber, for outdoors; 2 black iron. */
   railing: clutter(1, 0.1, 1),
 
   // --- Mess hall
@@ -260,6 +260,93 @@ export const PROPS = {
   stained_glass: onWall(1.4, 3),
   /** A stone doorway: piers, a gable and a cross over a door two metres wide. */
   porch: onWall(3.2, 5.6),
+
+  // --- The diner kit (the Starlight)
+  /** A booth against a wall (+z): two benches and a table between them, the plates still laid. */
+  diner_booth: solid(2, 1.5, 1.2),
+  /** Two metres of counter, stools along its front. Variant 1 has the pie case on it, 2 the till and the urn. */
+  diner_counter: solid(2, 1, 1.05),
+  /** A jukebox, lit, the arm still on the record. */
+  jukebox: solid(1, 1, 1.6),
+  /** A paper chain along local x from height `y` at one end to `y2` at the other; `s` is its length. */
+  paper_chain: clutter(1, 0.1, 0.3),
+  fridge: solid(1, 1, 2, true),
+  /** The diner's sign over its door, its foot at `y`: bands of neon and a star on a mast. */
+  diner_sign: onWall(3, 3.4),
+
+  // --- The home kit (the tenement)
+  /** A bank of brass letter boxes, its foot at `y`. */
+  mailboxes: onWall(1.6, 0.9),
+  radiator: onWall(1.2, 0.7),
+  /** A picture in a frame at `y`; `variant` picks it. */
+  picture_frame: onWall(0.8, 0.6),
+  /** A bicycle leant on a wall (+z). */
+  bicycle: solid(2, 0.5, 1),
+  /** A table laid for Christmas dinner, a chair at each place. */
+  dinner_table: solid(2, 2, 0.9),
+  /** A television on a stand, showing snow. */
+  television: solid(1, 0.5, 1.2),
+  armchair: solid(1, 1, 0.9),
+  sofa: solid(2, 1, 0.9),
+  /** A bed, made: the head at +z. */
+  bed: solid(1.5, 2, 0.6),
+  wardrobe: solid(1.5, 0.5, 2, true),
+  /** A sideboard: a wireless and a row of cards on it. */
+  sideboard: solid(2, 0.5, 0.9),
+  rug: clutter(2.4, 1.6, 0.01),
+
+  // --- The roof kit
+  /** A water tank on iron legs: timber staves, a conical lid. */
+  water_tank: solid(3, 3, 4.6, true),
+  /** A chimney stack and its pots; variant 1 is still drawing. */
+  chimney: solid(1, 1, 2.2, true),
+  pigeon_coop: solid(2, 1, 1.8, true),
+  /** A television aerial on a weighted foot. */
+  aerial: solid(0.5, 0.5, 0.4),
+  /** A plastic reindeer, lit from inside. */
+  reindeer: solid(1, 0.5, 1.3),
+  /** A plant room: louvres, a steel door to the front. */
+  plant_room: solid(4, 3, 2.8, true),
+  /** A condenser, its fan turning when the mains are on. */
+  ac_unit: solid(2, 1, 1.2),
+  /** A vent stack under a cowl, breathing. */
+  roof_vent: solid(1, 1, 1.5),
+  /** The glazed lantern over an atrium, the store's light coming up through it. */
+  skylight: solid(6, 8, 1),
+  /** A lit sign seen from behind: its frame, its stays and the glow round its letters. The lettering faces the front. */
+  sign_back: solid(8, 0.5, 3.2),
+  /** The iron under a ledge and the rail round it: the wall is at +z, `s` is how far it stands out. Variant 1 has no brackets. */
+  ledge_iron: clutter(2.5, 3, 0.1),
+  /** The iron of a fire escape on a flight that climbs towards its front: `s` is the flight's length, `y2` its rise. */
+  fire_escape: clutter(2, 7, 1),
+
+  // --- The subway kit
+  /** The token booth: glass over a tiled sill, tinsel on the glass. */
+  token_booth: solid(2, 1.5, 2.6, true),
+  /** A turnstile's housing, its arms across the lane at local +x. Variant 1 has none. */
+  turnstile: solid(0.5, 1, 1.05),
+  iron_fence: solid(1.5, 0.5, 1.2),
+  /** A tiled column, floor to ceiling. */
+  tiled_pillar: solid(0.5, 0.5, 3, true),
+  platform_bench: solid(2, 0.5, 0.9),
+  /** A poster or the line's map in a frame at `y`; `variant` picks it. */
+  transit_poster: onWall(1.4, 1),
+  payphone: onWall(0.6, 0.8),
+  /** A clock hung from the ceiling down to `y`, stopped. */
+  station_clock: clutter(0.6, 0.3, 0.6),
+  /** The side of a stalled train along a platform's wall: `s` is its length. Its windows are still lit. */
+  train_side: onWall(1, 3.5),
+  /** A bench seat along the side of a carriage (+z), a window over it. */
+  train_seats: solid(2, 0.5, 1),
+  grab_pole: clutter(0.1, 0.1, 2.4),
+  /** The end of a carriage: a frame across the train with a way through the middle. `s` is the train's width. */
+  train_bulkhead: clutter(0.2, 3, 2.4),
+  /** A cabinet of relays, lamps on its face. */
+  relay_cabinet: solid(1, 0.5, 2, true),
+  /** A frame of signal levers. */
+  lever_frame: solid(3, 1, 1.4),
+  /** The lines as lamps on a board, its foot at `y`: lit when the mains are on. */
+  track_diagram: onWall(3, 1.2),
 
   // --- Mounts: where the things players buy stand (the buying itself is in the server's interactables).
   /** A board a wall weapon hangs on; `text` is the weapon's name. */

@@ -3,16 +3,20 @@ import * as bunk from './bunk';
 import * as cold from './cold';
 import * as common from './common';
 import * as comms from './comms';
+import * as diner from './diner';
 import * as festive from './festive';
 import * as gen from './gen';
 import * as halls from './halls';
+import * as home from './home';
 import type { Kit } from './kit';
 import * as lab from './lab';
 import * as mess from './mess';
 import * as motor from './motor';
 import * as mounts from './mounts';
+import * as roofs from './roofs';
 import * as store from './store';
 import * as street from './street';
+import * as subway from './subway';
 import * as vault from './vault';
 import * as yard from './yard';
 
@@ -156,6 +160,51 @@ export const PROP_BUILDERS: Record<PropType, (k: Kit) => void> = {
   candle_stand: halls.candleStand,
   stained_glass: halls.stainedGlass,
   porch: halls.porch,
+  diner_booth: diner.dinerBooth,
+  diner_counter: diner.dinerCounter,
+  jukebox: diner.jukebox,
+  paper_chain: festive.paperChain,
+  fridge: diner.fridge,
+  diner_sign: diner.dinerSign,
+  mailboxes: home.mailboxes,
+  radiator: home.radiator,
+  picture_frame: home.pictureFrame,
+  bicycle: home.bicycle,
+  dinner_table: home.dinnerTable,
+  television: home.television,
+  armchair: home.armchair,
+  sofa: home.sofa,
+  bed: home.bed,
+  wardrobe: home.wardrobe,
+  sideboard: home.sideboard,
+  rug: home.rug,
+  water_tank: roofs.waterTank,
+  chimney: roofs.chimney,
+  pigeon_coop: roofs.pigeonCoop,
+  aerial: roofs.aerial,
+  reindeer: roofs.reindeer,
+  plant_room: roofs.plantRoom,
+  ac_unit: roofs.acUnit,
+  roof_vent: roofs.roofVent,
+  skylight: roofs.skylight,
+  sign_back: roofs.signBack,
+  ledge_iron: roofs.ledgeIron,
+  fire_escape: roofs.fireEscape,
+  token_booth: subway.tokenBooth,
+  turnstile: subway.turnstile,
+  iron_fence: subway.ironFence,
+  tiled_pillar: subway.tiledPillar,
+  platform_bench: subway.platformBench,
+  transit_poster: subway.transitPoster,
+  payphone: subway.payphone,
+  station_clock: subway.stationClock,
+  train_side: subway.trainSide,
+  train_seats: subway.trainSeats,
+  grab_pole: subway.grabPole,
+  train_bulkhead: subway.trainBulkhead,
+  relay_cabinet: subway.relayCabinet,
+  lever_frame: subway.leverFrame,
+  track_diagram: subway.trackDiagram,
   wallbuy: mounts.wallbuy,
   tonic: mounts.tonic,
   cache_site: mounts.cacheSite,
