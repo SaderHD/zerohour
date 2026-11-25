@@ -323,6 +323,15 @@ export class CompiledMap {
     return this.kind[i] === Cell.Door ? !this.isDoorOpen(i, open) : this.block[i] === 2;
   }
 
+  /**
+   * Does this cell stop sight and shots at height `y`? As `shut`, but where solid has a top (a city)
+   * so has tall furniture standing under the sky: over a kiosk, a bus or the tree there is air.
+   */
+  shutAt(i: number, y: number, open?: DoorSet): boolean {
+    if (!this.shut(i, open)) return false;
+    return !(this.skyline && this.block[i] === 2 && this.cap[i] === Infinity && y > this.lo[i]! + this.propH[i]!);
+  }
+
   /** Can a sight line cross this column between heights `a` and `b` (a <= b)? Low props do not stop it. */
   seeThrough(cx: number, cz: number, a: number, b: number, open?: DoorSet): boolean {
     if (!this.inBounds(cx, cz)) return false;
@@ -330,7 +339,7 @@ export class CompiledMap {
       const k = this.kind[i];
       if (k === Cell.Solid || a < this.lo[i]! - 0.01) continue;
       if (b > this.cap[i]! + 0.01) continue;
-      return !this.shut(i, open);
+      return !this.shutAt(i, a, open);
     }
     // In no one cell: over a roof lower than the line, unless it comes through something that hangs there.
     return this.clearAir(cx, cz, a, b);

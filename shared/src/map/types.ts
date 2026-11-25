@@ -186,6 +186,8 @@ export interface PropInst {
   y?: number;
   /** Length in metres, for runs (pipes, cables). */
   s?: number;
+  /** Height of the far end, for things strung between two points (`y` is the near end's). */
+  y2?: number;
   /** Lettering, for signs. */
   text?: string;
   /** The storey it stands on (default 0). */
@@ -221,9 +223,10 @@ export interface LightDef {
   flicker?: boolean;
   /**
    * The lamp drawn at the light: default 'shade'. 'swing' is a caged lamp swaying on its chain,
-   * 'none' when a prop is the source (a stove, a tank).
+   * 'none' when a prop is the source (a stove, a tank). 'post' is a street lamp on an iron post,
+   * a wreath hung on it.
    */
-  fixture?: 'shade' | 'tube' | 'cage' | 'flood' | 'swing' | 'none';
+  fixture?: 'shade' | 'tube' | 'cage' | 'flood' | 'swing' | 'post' | 'none';
 }
 
 export interface MapDef {

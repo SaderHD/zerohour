@@ -48,7 +48,7 @@ function blocked(g: Game, x: number, y: number, z: number): boolean {
   const cz = Math.floor(z / CELL_SIZE);
   const i = g.map.holdAt(cx, cz, y);
   // (Over a roof lower than it is, it is in the air.)
-  return i < 0 ? !g.map.aloft(cx, cz, y) : g.map.shut(i, g.openDoors);
+  return i < 0 ? !g.map.aloft(cx, cz, y) : g.map.shutAt(i, y, g.openDoors);
 }
 
 /** Has it come down onto a floor (as opposed to a window's sill)? */

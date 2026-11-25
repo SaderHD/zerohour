@@ -3,12 +3,14 @@ import * as bunk from './bunk';
 import * as cold from './cold';
 import * as common from './common';
 import * as comms from './comms';
+import * as festive from './festive';
 import * as gen from './gen';
 import type { Kit } from './kit';
 import * as lab from './lab';
 import * as mess from './mess';
 import * as motor from './motor';
 import * as mounts from './mounts';
+import * as street from './street';
 import * as vault from './vault';
 import * as yard from './yard';
 
@@ -99,6 +101,31 @@ export const PROP_BUILDERS: Record<PropType, (k: Kit) => void> = {
   capacitor: vault.capacitor,
   transformer: vault.transformer,
   cable_bundle: vault.cableBundle,
+  car: street.car,
+  bus: street.bus,
+  van: street.van,
+  kiosk: street.kiosk,
+  phone_booth: street.phoneBooth,
+  sawhorse: street.sawhorse,
+  jersey: street.jersey,
+  hydrant: street.hydrant,
+  mailbox: street.mailbox,
+  dumpster: street.dumpster,
+  steam_grate: street.steamGrate,
+  manhole: street.manhole,
+  washing_line: festive.washingLine,
+  xmas_tree: festive.xmasTree,
+  fir: festive.fir,
+  light_string: festive.lightString,
+  wreath: festive.wreath,
+  garland: festive.garland,
+  presents: festive.presents,
+  market_stall: festive.marketStall,
+  rink_board: festive.rinkBoard,
+  rink_ice: festive.rinkIce,
+  bandstand: festive.bandstand,
+  park_bench: festive.parkBench,
+  snowman: festive.snowman,
   wallbuy: mounts.wallbuy,
   tonic: mounts.tonic,
   cache_site: mounts.cacheSite,

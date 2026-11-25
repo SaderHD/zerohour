@@ -5,12 +5,15 @@ import { FlowField, UNREACHABLE } from '../nav/flowfield';
 import { lineOfSight } from '../nav/los';
 import { rayWorld } from '../nav/ray';
 import { Cell, DECK, compileMap, type DoorSet } from './compile';
+import { propDef } from '../data/props';
+import { TREE } from './dressing/nightStreets';
 import { longestNight } from './longestNight';
 import { massing } from './massing';
 import { validateMap } from './validate';
 import { mapWindows } from './windows';
 
-// The Longest Night's blockout (PLAN 4.12; section 9, M3 and M4): the streets, every floor, the roofs, the subway.
+// The Longest Night's blockout (PLAN 4.12; section 9, M3 and M4): the streets, every floor, the roofs, the subway;
+// and the streets as dressed (M5).
 
 const map = compileMap(longestNight);
 const doors = (...ids: string[]): DoorSet => new Set(ids);
@@ -23,7 +26,8 @@ function walkTo(open: DoorSet, from: [number, number, number], to: [number, numb
 }
 
 const DINER: [number, number, number] = [47, 0, 92];
-const SQUARE: [number, number, number] = [74, 0, 68];
+// (On the ice, north of the tree.)
+const SQUARE: [number, number, number] = [74, 0, 64];
 const PLAT_W: [number, number, number] = [80, -8, 36];
 const PLAT_E: [number, number, number] = [107, -8, 36];
 const SIGNAL: [number, number, number] = [61, -8, 61];
@@ -77,14 +81,16 @@ describe('The Longest Night compiles', () => {
   it('starts everyone in the diner, shut in until a door is bought', () => {
     for (const s of map.playerSpawns) expect(map.zoneAt(s.x, s.y, s.z)).toBe('diner');
     expect(walkTo(undefined, DINER, SQUARE)).toBeNaN();
-    expect(walkTo(doors('d_diner_square'), DINER, SQUARE)).toBeLessThan(40);
+    expect(walkTo(doors('d_diner_square'), DINER, SQUARE)).toBeLessThan(45);
   });
 });
 
 describe('the streets', () => {
-  it('the avenue is a hundred metres from end to end, in plain sight, up a kerb at each side', () => {
+  it('the avenue is a hundred metres from end to end, up a kerb at each side; the bus stands across the road', () => {
     expect(walkTo('all', [21.5, 0, 36], [118.5, 0, 36])).toBeGreaterThan(96);
-    expect(lineOfSight(map, 21.5, 0, 36, 118.5, 0, 36)).toBe(true);
+    // In plain sight from end to end along the north pavement, which is also the way past the bus.
+    expect(lineOfSight(map, 21.5, 0.15, 31.75, 118.5, 0.15, 31.75)).toBe(true);
+    expect(lineOfSight(map, 21.5, 0, 36, 118.5, 0, 36)).toBe(false);
     let p = { x: 60, y: 0, z: 34 };
     for (let d = 0; d < 3; d += 0.1) p = moveCircle(map, 'all', p.x, p.y, p.z, 0, -0.1, PLAYER_RADIUS);
     expect(p.y).toBeCloseTo(0.15);
@@ -296,3 +302,54 @@ describe('upstairs', () => {
     expect(validateMap(sunk).errors.join()).toMatch(/hangs in the air/);
   });
 });
+
+describe('the streets dressed (M5)', () => {
+  const count = (type: string): number => longestNight.props.filter((p) => p.type === type).length;
+  const zoneOfProp = (type: string): string[] => longestNight.props.filter((p) => p.type === type).map((p) => map.zoneAt(p.x, 0, p.z) ?? '');
+
+  it('the tree stands in the middle of the square, taller than any storey, the rink round it with a gate in each side', () => {
+    expect(propDef('xmas_tree')!.h).toBeGreaterThan(12);
+    expect(map.walkAt(TREE.x / CELL_SIZE, TREE.z / CELL_SIZE, 0)).toBe(-1);
+    // Whoever is north of it cannot see whoever is south of it; from one side of the rink to the other is clear.
+    expect(lineOfSight(map, TREE.x, 0, TREE.z - 4, TREE.x, 0, TREE.z + 4)).toBe(false);
+    expect(lineOfSight(map, TREE.x - 6, 0, TREE.z - 4, TREE.x + 6, 0, TREE.z - 4)).toBe(true);
+    // In at any gate and round the tree.
+    for (const [x, z] of [[74, 60], [74, 76], [64, 68], [84, 68]] as const) expect(walkTo(doors(), [x, 0, z], SQUARE), `${x}, ${z}`).toBeLessThan(22);
+    expect(count('rink_board')).toBe(20);
+  });
+
+  it('the avenue has its traffic, the bus and the police line; the lane its van; the square its market', () => {
+    expect(zoneOfProp('car').every((z) => z === 'avenue')).toBe(true);
+    expect(count('car')).toBeGreaterThanOrEqual(10);
+    expect(zoneOfProp('bus')).toEqual(['avenue']);
+    expect(zoneOfProp('van')).toEqual(['lane']);
+    expect(zoneOfProp('market_stall').every((z) => z === 'square')).toBe(true);
+    expect(count('market_stall')).toBeGreaterThanOrEqual(8);
+    for (const type of ['light_string', 'wreath', 'garland', 'presents', 'sawhorse', 'kiosk', 'steam_grate']) expect(count(type), type).toBeGreaterThan(0);
+  });
+
+  it('what stands in the street has a top: a shot or a look from above passes over the bus, and stops at it below', () => {
+    const bus = longestNight.props.find((p) => p.type === 'bus')!;
+    const top = propDef('bus')!.h;
+    // Southwards across the road from the north pavement: into the bus at chest height, over it to the far wall from a storey up.
+    expect(rayWorld(map, 'all', bus.x, 1.4, 31, 0, 0, 1, 40)).toBeCloseTo(2, 1);
+    expect(rayWorld(map, 'all', bus.x, top + 1, 31, 0, 0, 1, 40)).toBeCloseTo(11, 1);
+    // Down onto its roof.
+    const d = rayWorld(map, 'all', bus.x, 8, 37.5, 0, -1, 0, 40);
+    expect(d).toBeCloseTo(8 - top, 1);
+    // A line of sight a storey up crosses over a market stall; nothing crosses the tree below its top.
+    const stall = longestNight.props.find((p) => p.type === 'market_stall')!;
+    expect(map.seeThrough(Math.floor(stall.x / CELL_SIZE), Math.floor(stall.z / CELL_SIZE), 1, 2)).toBe(false);
+    expect(map.seeThrough(Math.floor(stall.x / CELL_SIZE), Math.floor(stall.z / CELL_SIZE), 4, 5)).toBe(true);
+    expect(map.seeThrough(TREE.x / CELL_SIZE, TREE.z / CELL_SIZE, 9, 10)).toBe(false);
+    expect(map.seeThrough(TREE.x / CELL_SIZE, TREE.z / CELL_SIZE, 15, 16)).toBe(true);
+  });
+
+  it('nothing dressed blocks a way through: every door is still reached, every window still lands on clear floor', () => {
+    expect(validateMap(map).errors).toEqual([]);
+    for (const w of mapWindows(map)) expect(Number.isFinite(walkTo('all', [w.inX, w.y, w.inZ], DINER)), w.id).toBe(true);
+    // Past the bus on the north pavement; round it is no longer than the avenue.
+    expect(walkTo('all', [84, 0, 36], [95, 0, 36])).toBeLessThan(20);
+  });
+});
+

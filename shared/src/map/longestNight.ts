@@ -1,10 +1,12 @@
 import { rail } from './dressing/helpers';
+import { SQUARE_POSTS, streetLights, streetProps } from './dressing/nightStreets';
 import type { BlockDef, LightDef, MapDef, Opening, Room, WallStyle } from './types';
 
 // The Longest Night - Wexler Square on Christmas Eve. See docs/PLAN.md 4.12.
 // This is the blockout (PLAN section 9, M3 and M4): the streets, every floor of every building,
-// the roofs and the subway, with doors and prices and enough light to see by. Nothing is dressed
-// and nothing is sold yet. Run `npm run map -- longest_night` after any edit.
+// the roofs and the subway, with doors and prices and enough light to see by. The square, the
+// avenue and the lane are dressed (M5: `dressing/nightStreets.ts`); indoors, the roofs and the
+// subway are bare, and nothing is sold yet. Run `npm run map -- longest_night` after any edit.
 //
 //                  [St Audra's]                              [subway head house]
 //   ===============  DRAY AVENUE  ========================================   (the platform and
@@ -104,7 +106,7 @@ const boards = (x: number, z: number, w: number, d: number): BlockDef => block(x
 const SODIUM = 0xffb060;
 const WARM = 0xffd9a0;
 const TUBE = 0xc0ffe8;
-const street = (x: number, z: number, radius = 14): LightDef => ({ x, y: 4.6, z, color: SODIUM, radius, intensity: 1.2, fixture: 'flood' });
+const street = (x: number, z: number, radius = 14): LightDef => ({ x, y: 4.6, z, color: SODIUM, radius, intensity: 1.2, fixture: 'post' });
 const bulb = (x: number, z: number, y: number, radius: number, rest: Partial<LightDef> = {}): LightDef => ({ x, y, z, color: WARM, radius, intensity: 1, ...rest });
 const roofLamp = (x: number, z: number, radius = 13): LightDef => ({ x, y: 2.2, z, level: 2, color: 0xa8c8ff, radius, intensity: 0.7, fixture: 'flood' });
 const tube = (x: number, z: number, y: number, level: number, rest: Partial<LightDef> = {}): LightDef => ({ x, y, z, level, color: TUBE, radius: 9, intensity: 0.9, fixture: 'tube', ...rest });
@@ -410,6 +412,7 @@ export const longestNight: MapDef = {
     rail(106.4, 69, 106.4, 79, { level: 1 }), rail(116.6, 69, 116.6, 79, { level: 1 }),
     // The balcony's front.
     rail(34.1, 46, 34.1, 62, { level: 1 }),
+    ...streetProps,
   ],
   interactables: [],
   playerSpawns: [
@@ -419,11 +422,12 @@ export const longestNight: MapDef = {
     { x: 49, z: 93, yaw: 0 },
   ],
   lights: [
-    // Street lamps: the avenue's on alternate sides, six round the square, the lane's few and dim.
+    // Street lamps: the avenue's on alternate sides, six round the square (the tree's strings come
+    // down to them); the lane has a bulkhead lamp on a wall here and there.
     ...[28, 60, 92, 116].map((x) => street(x, 31.2)),
     ...[44, 76, 104].map((x) => street(x, 40.8)),
-    ...[60, 74, 88].flatMap((x) => [street(x, 58), street(x, 78)]),
-    ...[64, 80, 98, 116].map((x) => ({ ...street(x, 95, 11), y: 4.2, intensity: 0.9 })),
+    ...SQUARE_POSTS.map(([x, z]) => street(x, z)),
+    ...[64, 80, 98, 116].map((x) => bulb(x, 92.8, 3.6, 11, { color: SODIUM, intensity: 0.9, fixture: 'cage' })),
     bulb(74, 46.5, 3.6, 7, { fixture: 'cage' }),
     bulb(83.5, 89.5, 3.6, 7, { fixture: 'cage' }),
     // Indoors.
@@ -456,5 +460,6 @@ export const longestNight: MapDef = {
     bulb(68, 87, 2.7, 7, { level: -1, color: 0xffa040, fixture: 'cage' }),
     bulb(73.5, 90.5, 5.6, 7, { level: -1, color: 0xffa040, fixture: 'cage' }),
     bulb(78.2, 90.5, 2.2, 5, { color: 0xffa040, fixture: 'cage' }),
+    ...streetLights,
   ],
 };

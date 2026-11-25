@@ -320,7 +320,7 @@ Props that are ≥0.5 m tall block movement (and bullets if tall); small clutter
 Keep every lane ≥1.5 m wide. Varied ceiling heights, skybox gradient with mountains silhouette and
 aurora for the outdoor zone.
 
-### 4.12 Map — "The Longest Night" (second map; being built: blocked out on all five storeys)
+### 4.12 Map — "The Longest Night" (second map; being built: blocked out on all five storeys, the streets dressed)
 Wexler Square, in the middle of a big, old, fictional American city, Christmas Eve in the early 1990s.
 Deep in the canyons between the towers, snowing, every decoration still lit and nobody left to look
 at them. Chosen by the host in the lobby; Harrow Ridge stays as it is. Same weapons, tonics, Cache,
@@ -428,6 +428,23 @@ and one off the service tunnel; the tenement's cellar; and the stock rooms behin
 ground-floor windows, which were yards until its roof had to lie over them). A walked roof is a
 block with a metre of parapet all round wherever something lower lies beyond; against a taller
 neighbour it runs to that building's wall.
+
+**The streets dressed (M5; `shared/src/map/dressing/nightStreets.ts`).** The tree stands in a
+stone tub in the middle of the square (74, 68), fourteen metres of it, and blocks sight like a
+wall up to its top. The rink is round it: 16 x 12 m of ice inside boards a metre high, a gate in
+the middle of each side, so the tree can be run round and the ring left four ways. Strings of
+bulbs run from the tree down to the square's six lamp posts and across to the Lyric and to
+Abelard's. The market is ten stalls (three with the canopy down, their bulbs still lit) in a row
+along the north side with an alley behind it, down the east side and along the south; the
+bandstand is on the Lyric's side; benches face the ice. Dray Avenue has seven cars nose to tail
+west of the cut, a police line and a patrol car across the road at it, and the bus over the south
+kerb and into the wall east of that: the way past the bus is the north pavement, three metres
+wide, and it is the avenue's one narrow place. Three more cars, a kiosk, a telephone box, steam
+off three gratings and a manhole, eight strings of bulbs from wall to wall. Tallow Lane has the
+van that was unloading at Abelard's, dumpsters, bins, crates, a brazier by the hatch, five lines
+of washing overhead and one string of bulbs; its lamps are bulkheads on the wall, not posts. The
+sketch's manhole as a way in was not built (the avenue's four are barricades). Nothing sold yet,
+no signs (M8); the Lyric's, the chapel's and the diner's own fronts are M6 and M7.
 
 **The look.** The same 90s horror as the station - dark, grain, hard pools of light, nothing clean
 - with Christmas as the only colour in it. Warm strings of bulbs over grey snow; the tree lit over
@@ -616,7 +633,9 @@ heights, a shop, a flat, a walked roof and an underpass.
 Sight and shots know the heights too (`CompiledMap.skyline`, which is `massing().top`; null on a
 map whose solid has none, where solid is endlessly tall as it always was): a point above the top of
 its column and in no cell is in the open air (`aloft`), so `seeThrough`, `rayWorld` and thrown
-things pass over a roof or a parapet lower than they are and stop at one that is not. To the
+things pass over a roof or a parapet lower than they are and stop at one that is not. On such a
+map tall furniture under the sky has a top as well (`shutAt(i, y)`): a look or a shot from a roof
+passes over a kiosk, a bus or a market stall, and the tree stops it for fourteen metres. To the
 buildings, what hangs in the air is not there: a column is open from its *lowest* floor under the
 sky, so the lane under a bridge is still street, a ledge over a lower roof leaves that roof as it
 was (the validator refuses one sunk into it), and a gap in a parapet is part of the parapet.
@@ -1366,9 +1385,42 @@ Asked for by the owner: a second map chosen in the lobby, a winter city at Chris
   map; outdoors a frame is now up to 200,000 triangles and the world takes 1.06 s to build and
   bake in headless Chromium (M9 measures and cuts); no browser walk of the heights beyond the
   tour (M10).
-- [ ] M5 Dressing I: the square and the streets. The Christmas kit (the tree as a landmark taller
-  than its storey, light strings, wreaths, garlands, presents, stalls) and the street kit (cars,
-  bus, lamp posts, kiosks, barricades, steam).
+- [x] M5 Dressing I: the square and the streets - done (4.12, "The streets dressed", says where
+  everything is). 25 new props in two kits, each a builder in code like the station's.
+  *The Christmas kit* (`models/props/festive.ts`): the tree, cut firs, strings of bulbs, wreaths,
+  garlands, presents, market stalls, the rink's boards and ice, the bandstand, benches, a
+  snowman; whatever glows in it is always on, mains or no mains. *The street kit*
+  (`models/props/street.ts`): cars (saloons, an estate, a cab, a patrol car; two with their lamps
+  on), the bus with its inside lights failing, a van, a kiosk, a telephone box, police trestles,
+  concrete barriers, hydrants, a mailbox, dumpsters, gratings and manholes, washing lines. A
+  street lamp is a new fixture (`'post'`: an iron post, a lantern, a wreath). 212 props and 32
+  lights placed over the three streets, the cut and the passage.
+  The engine:
+  - *Strung things.* `PropInst.y2` is the far end's height; `strung(type, x0, z0, y0, x1, z1, y1)`
+    places a string of bulbs or a clothes line by its two ends.
+  - *Steam.* A builder marks a vent with `k.steam(...)`; `render/ambient.ts` draws every plume in
+    one mesh (two crossed sheets of the mist's wisps, climbing, lit by whatever lamp is near).
+  - *Tall furniture has a top* where solid has one (6.1): `CompiledMap.shutAt`. Without it the tree,
+    the bus and every stall would have been walls into the sky to anyone on a roof. Maps without
+    blocks are untouched.
+  The game on it: the layout test holds the tree, the rink's four gates, the bus and the way past
+  it, and that every door and window is still reached; `night.test.ts` (four bots, a full horde,
+  four minutes, every door open) and `campaign --god --map=longest_night` (ten rounds, worst idle
+  3.0 s, no correction) run clean round the new obstacles. `npm run tour -- --night` takes 77
+  pictures (15 new: the tree from the ground and the air, the rink, the market, the bandstand,
+  Abelard's front, the bus, the traffic, the police line, the kiosk, the steam, the lane's van
+  and brazier).
+  Found on the way: three firs at the end of a stall boxed in a cell of floor; the lane's lamps
+  were masts standing in the middle of it.
+  Not done: the boards across a side street got wire along the top and barriers inside, but the
+  wall round a barricade is still the building behind it; the stalls sell presents and nothing
+  else, and nothing has a name on it (signs are M8); the bus and the patrol car's lights waver as
+  flames do rather than blink; the manhole is not a way in; no sound for any of it (M8). A frame
+  outdoors is now up to 233,000 triangles (it was 200,000) and the world takes 1.25-1.4 s to
+  build and bake in headless Chromium (1.06): M9 measures and cuts - the bulbs are five faces
+  each and there are about 800 of them. Untried in play: whether the rink's boards and the bus
+  make the square and the avenue better to fight in or only slower to cross (M9, with things to
+  buy).
 - [ ] M6 Dressing II: Abelard's, the Lyric, the chapel.
 - [ ] M7 Dressing III: the diner, the tenement, the roofs, the subway and its train.
 - [ ] M8 Things to buy, bots, sound. Mounts for every wall gun, tonic and Cache site, the switch,

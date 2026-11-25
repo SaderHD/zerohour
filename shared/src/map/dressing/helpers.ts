@@ -6,7 +6,7 @@ import type { PropType } from '../../data/props';
 
 const ROT: Record<Dir, number> = { n: 0, w: 90, s: 180, e: 270 };
 
-type Extra = Pick<PropInst, 'variant' | 'y' | 's' | 'text' | 'level'> & { rot?: number };
+type Extra = Pick<PropInst, 'variant' | 'y' | 's' | 'y2' | 'text' | 'level'> & { rot?: number };
 
 export const prop = (type: PropType, x: number, z: number, face: Dir = 'n', extra: Extra = {}): PropInst => ({
   type, x, z, ...extra, rot: extra.rot ?? ROT[face],
@@ -44,6 +44,15 @@ export function stairRail(x: number, z0: number, z1: number, extra: Extra = {}):
   const out: PropInst[] = [];
   for (let z = z0; z < z1 - 1e-6; z += 0.5) out.push(rail(x, z, x, z + 0.5, extra));
   return out;
+}
+
+/**
+ * Something strung from (x0, z0) at height y0 to (x1, z1) at height y1: a string of bulbs, a
+ * clothes line. It is placed at its middle, which must be over open floor.
+ */
+export function strung(type: 'light_string' | 'washing_line', x0: number, z0: number, y0: number, x1: number, z1: number, y1: number, variant = 0): PropInst {
+  const rot = (Math.atan2(-(z1 - z0), x1 - x0) * 180) / Math.PI;
+  return prop(type, (x0 + x1) / 2, (z0 + z1) / 2, 'n', { rot, s: Math.hypot(x1 - x0, z1 - z0), y: y0, y2: y1, variant });
 }
 
 /** The same things a storey up or down. */

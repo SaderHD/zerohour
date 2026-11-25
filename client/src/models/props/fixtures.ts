@@ -1,5 +1,6 @@
 import type { LightDef } from '@zh/shared';
 import type { GlowMode, RGB } from '../../render/bake';
+import { wreathAt } from './festive';
 import { C } from './palette';
 import type { Kit } from './kit';
 
@@ -28,6 +29,16 @@ export function fixture(k: Kit, l: LightDef, rgb: RGB, mode: GlowMode): void {
       k.box(-0.05, 0, -0.05, 0.05, y, 0.05, C.steelDark);
       k.cube(0, y, 0, 0.5, 0.3, 0.3, C.iron, { bottom: true });
       k.cube(0, y - 0.16, 0, 0.42, 0.03, 0.24, glow, { glow: mode, bottom: true });
+      return;
+    case 'post':
+      // A street lamp: a fluted iron post, a lantern, and this year's wreath.
+      k.cyl(0, 0, 0, 0.55, 0.15, 0.1, C.iron, 6);
+      k.cyl(0, 0, 0.55, y - 0.2, 0.065, 0.05, C.iron, 6, { noTop: true });
+      k.cube(0, y - 0.2, 0, 0.36, 0.05, 0.36, C.iron, { bottom: true });
+      k.sub(0, 0, 0, 45).cyl(0, 0, y - 0.17, y + 0.14, 0.13, 0.2, glow, 4, { glow: mode, noTop: true });
+      k.sub(0, 0, 0, 45).cyl(0, 0, y + 0.14, y + 0.3, 0.3, 0.03, C.iron, 4, { bottom: true });
+      k.cyl(0, 0, y + 0.3, y + 0.34, 0.2, 0.08, k.tone(C.snow, 0.04), 4);
+      for (const yaw of [0, 180]) wreathAt(k.sub(0, 0, 0, yaw), 0, 2.9, -0.07, 0.26);
       return;
     case 'swing': {
       // A caged work lamp on a chain, never quite still.

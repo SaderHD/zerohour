@@ -156,6 +156,53 @@ export const PROPS = {
   /** Heavy cables clipped along a wall at `y`; `s` is the length. */
   cable_bundle: onWall(1, 0.3),
 
+  // --- The street kit (The Longest Night). A vehicle's front is -z.
+  /** A car left where it stopped. Variants 0-4 are saloons by colour, 5 an estate, 6 a cab, 7 a patrol car; add 10 and its lamps are still on. */
+  car: solid(2, 4.5, 1.45),
+  /** A city bus, its inside lights still failing. */
+  bus: solid(2.5, 9, 3.1, true),
+  /** A delivery van; variant 1 has its back doors open. */
+  van: solid(2, 5, 2.5, true),
+  /** A news kiosk: the hatch to the front. */
+  kiosk: solid(2, 1.5, 2.7, true),
+  phone_booth: solid(1, 1, 2.4, true),
+  /** A police trestle: a striped board on two A-frames. */
+  sawhorse: solid(2, 0.5, 1.05),
+  /** A concrete road barrier. */
+  jersey: solid(2, 0.5, 0.85),
+  hydrant: solid(0.5, 0.5, 0.8),
+  mailbox: solid(0.5, 0.5, 1.2),
+  dumpster: solid(2, 1, 1.4),
+  /** A grating in the road with steam coming up through it. */
+  steam_grate: clutter(1, 1, 0.02),
+  /** A manhole cover; variant 1 is ajar and steams. */
+  manhole: clutter(0.8, 0.8, 0.03),
+  /** A clothes line along local x from height `y` at one end to `y2` at the other; `s` is its length. */
+  washing_line: clutter(1, 0.1, 0.8),
+
+  // --- The Christmas kit
+  /** The tree in Wexler Square: fourteen metres of it in a stone tub, lit. */
+  xmas_tree: solid(3, 3, 14, true),
+  /** A cut fir on a stand, for sale. */
+  fir: solid(0.5, 0.5, 2.2),
+  /** Bulbs on a wire along local x, from height `y` at one end to `y2` at the other, sagging; `s` is its length. Variant 1 is coloured. */
+  light_string: clutter(1, 0.1, 0.3),
+  wreath: onWall(0.9, 0.9),
+  /** Swags of greenery and bulbs along a wall at `y`; `s` is the length. */
+  garland: onWall(1, 0.5),
+  /** A heap of wrapped presents. */
+  presents: clutter(1, 1, 0.5),
+  /** A market stall: counter to the front under a striped canopy. Variants 0-2 by colour; add 3 and the canopy is down. */
+  market_stall: solid(3, 1.5, 2.7, true),
+  /** Two metres of the boards round the rink. */
+  rink_board: solid(2, 0.5, 1),
+  /** The rink's ice. */
+  rink_ice: clutter(15, 11, 0.02),
+  /** An octagonal bandstand: open, so it does not block sight. */
+  bandstand: solid(4, 4, 1.1),
+  park_bench: solid(2, 0.5, 0.9),
+  snowman: solid(0.5, 0.5, 1.5),
+
   // --- Mounts: where the things players buy stand (the buying itself is in the server's interactables).
   /** A board a wall weapon hangs on; `text` is the weapon's name. */
   wallbuy: onWall(1.4, 0.8),

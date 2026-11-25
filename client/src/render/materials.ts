@@ -213,10 +213,9 @@ export function propMaterial(): THREE.MeshLambertMaterial {
 /** Things that glow by themselves: lamp faces, screens, embers. */
 export const glowMaterial = lit(new THREE.MeshBasicMaterial({ vertexColors: true, fog: true }));
 
-let mistMat: THREE.MeshBasicMaterial | null = null;
-/** Mist lying on a cold floor: wisps added over the scene, lit by the baked lights, drifting (see ambient.ts). */
-export function mistMaterial(): THREE.MeshBasicMaterial {
-  mistMat ??= lit(new THREE.MeshBasicMaterial({
+/** Wisps added over the scene, lit by the baked lights: each caller scrolls its own texture. */
+function wisps(): THREE.MeshBasicMaterial {
+  return lit(new THREE.MeshBasicMaterial({
     map: makeTexture(4111, (px, r) => {
       const blobs = Array.from({ length: 7 }, () => [r.range(0, SIZE), r.range(0, SIZE), r.range(5, 11)] as const);
       each((x, y) => {
@@ -235,7 +234,18 @@ export function mistMaterial(): THREE.MeshBasicMaterial {
     depthWrite: false,
     side: THREE.DoubleSide,
   }));
-  return mistMat;
+}
+
+let mistMat: THREE.MeshBasicMaterial | null = null;
+/** Mist lying on a cold floor, drifting (see ambient.ts). */
+export function mistMaterial(): THREE.MeshBasicMaterial {
+  return (mistMat ??= wisps());
+}
+
+let steamMat: THREE.MeshBasicMaterial | null = null;
+/** Steam off a grating in the road, climbing (see ambient.ts). */
+export function steamMaterial(): THREE.MeshBasicMaterial {
+  return (steamMat ??= wisps());
 }
 
 /** Lettering and drawings from the sign atlas (render/signs.ts), lit like everything else. */

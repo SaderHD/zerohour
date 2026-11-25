@@ -19,7 +19,7 @@ export function rayWorld(
   // In a city the solid has a top, and over it is air (`map.aloft`): a ray is then in a cell, or in none over a roof.
   const tops = map.skyline;
   let i = map.holdAt(cx, cz, oy);
-  if (i < 0 ? !map.aloft(cx, cz, oy) : map.shut(i, open)) return 0;
+  if (i < 0 ? !map.aloft(cx, cz, oy) : map.shutAt(i, oy, open)) return 0;
   const stepX = dx > 0 ? 1 : -1;
   const stepZ = dz > 0 ? 1 : -1;
   const tDeltaX = dx !== 0 ? Math.abs(CELL_SIZE / dx) : Infinity;
@@ -50,7 +50,7 @@ export function rayWorld(
     }
     tEnter = tExit;
     i = map.holdAt(cx, cz, yOut);
-    if (i < 0 ? !map.aloft(cx, cz, yOut) : map.shut(i, open)) return tEnter;
+    if (i < 0 ? !map.aloft(cx, cz, yOut) : map.shutAt(i, yOut, open)) return tEnter;
   }
   return max;
 }

@@ -33,6 +33,8 @@ export interface PropOut {
   movers?: Mover[];
   /** Where water drips from: [x, y, z] of each nozzle. */
   drips?: [number, number, number][];
+  /** Where steam comes up: [x, y, z] of each vent. */
+  steams?: [number, number, number][];
 }
 
 type V3 = [number, number, number];
@@ -101,6 +103,11 @@ export class Kit {
   /** Water drips from this point. */
   drip(x: number, y: number, z: number): void {
     this.out.drips?.push(this.world([x, y, z]));
+  }
+
+  /** Steam rises from this point. */
+  steam(x: number, y: number, z: number): void {
+    this.out.steams?.push(this.world([x, y, z]));
   }
 
   private world(p: V3): V3 {

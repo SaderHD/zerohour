@@ -2,11 +2,11 @@ import * as THREE from 'three';
 import { CELL_SIZE, Cell, type CompiledMap } from '@zh/shared';
 import type { Mover } from '../models/props/kit';
 import { Bucket, type Baker, type Vert } from './bake';
-import { glowMaterial, mistMaterial, propMaterial } from './materials';
+import { glowMaterial, mistMaterial, propMaterial, steamMaterial } from './materials';
 
 // The things in the world that move by themselves: fans, flywheels and swinging lamps (the
-// `Mover`s the prop builders hand over), water dripping from the roof, and mist drifting over a
-// cold floor. None of it touches gameplay.
+// `Mover`s the prop builders hand over), water dripping from the roof, mist drifting over a cold
+// floor and steam climbing off a grating in the road. None of it touches gameplay.
 
 /** Seconds for machinery to run up to speed once the power is on. */
 const SPIN_UP_SECONDS = 2.5;
@@ -19,6 +19,12 @@ const MIST_LAYERS = [[0.2, 1], [0.48, 0.6]] as const;
 const MIST_TILE = 1; // metres
 const MIST_GAIN = 2.4;
 const MIST_DRIFT = 0.012; // texture repeats per second
+/** A plume of steam: how high it climbs, how wide it is at the vent and at the top, how fast. */
+const STEAM_HEIGHT = 4.2;
+const STEAM_WIDTH = [0.5, 1.7] as const;
+const STEAM_BANDS = 4;
+const STEAM_GAIN = 2.2;
+const STEAM_RISE = 0.22; // texture repeats per second
 
 interface Moving {
   mover: Mover;
@@ -44,11 +50,12 @@ export class Ambient {
   private readonly drips: Drip[];
   private readonly dripGeo = new THREE.BufferGeometry();
   private readonly mist: THREE.Texture | null = null;
+  private readonly steam: THREE.Texture | null = null;
   /** 0..1: how far the machinery has run up. */
   private run = 0;
   private readonly axis = new THREE.Vector3();
 
-  constructor(map: CompiledMap, private readonly baker: Baker, movers: Mover[], drips: [number, number, number][]) {
+  constructor(map: CompiledMap, private readonly baker: Baker, movers: Mover[], drips: [number, number, number][], steams: [number, number, number][] = []) {
     this.group.name = 'ambient';
     for (const [i, mover] of movers.entries()) {
       const meshes: THREE.Mesh[] = [];
@@ -89,6 +96,41 @@ export class Ambient {
       this.group.add(mesh);
       this.triangles += mist.triangles;
     }
+
+    const steam = this.buildSteam(map, steams);
+    if (steam.pos.length) {
+      const mat = steamMaterial();
+      this.steam = mat.map;
+      const mesh = new THREE.Mesh(steam.toGeometry(), mat);
+      mesh.name = 'steam';
+      mesh.renderOrder = 5;
+      this.group.add(mesh);
+      this.triangles += steam.triangles;
+    }
+  }
+
+  /** Two crossed sheets of wisps over each vent, widening as they climb and thinning to nothing at the top. */
+  private buildSteam(map: CompiledMap, vents: [number, number, number][]): Bucket {
+    const b = new Bucket();
+    for (const [vi, [x, y, z]] of vents.entries()) {
+      const cell = map.cellAt(x, y, z);
+      if (cell < 0) continue;
+      for (const [sx, sz] of [[1, 0.25], [-0.25, 1]] as const) {
+        for (let i = 0; i < STEAM_BANDS; i++) {
+          const at = (t: number, side: number): Vert => {
+            const w = (STEAM_WIDTH[0] + (STEAM_WIDTH[1] - STEAM_WIDTH[0]) * t) / 2;
+            // Lean with the wind as it climbs.
+            const lean = t * t * 0.9;
+            // Thickest up the middle: nothing at either edge, nothing at the vent or the top.
+            const thick = (1 - Math.abs(side)) * Math.sin(Math.min(1, 0.08 + t * 1.1) * Math.PI) ** 0.7;
+            return { p: [x + sx * side * w + lean, y + t * STEAM_HEIGHT, z + sz * side * w + lean * 0.4], uv: [0.5 + side * 0.22 + vi * 0.31 + (sx > 0 ? 0 : 0.4), t * 0.9 + vi * 0.17], ao: thick };
+          };
+          const [t0, t1] = [i / STEAM_BANDS, (i + 1) / STEAM_BANDS];
+          for (const [a, c] of [[-1, 0], [0, 1]] as const) this.baker.quad(b, [at(t0, a), at(t0, c), at(t1, c), at(t1, a)], [0, 1, 0], cell, [STEAM_GAIN, STEAM_GAIN, STEAM_GAIN]);
+        }
+      }
+    }
+    return b;
   }
 
   get movers(): number {
@@ -132,6 +174,7 @@ export class Ambient {
       for (const mesh of m.meshes) mesh.quaternion.setFromAxisAngle(this.axis, m.angle);
     }
     if (this.mist) this.mist.offset.set(time * MIST_DRIFT, time * MIST_DRIFT * 0.6);
+    if (this.steam) this.steam.offset.set(Math.sin(time * 0.31) * 0.04, -time * STEAM_RISE);
     if (this.drips.length) this.updateDrips(time);
   }
 

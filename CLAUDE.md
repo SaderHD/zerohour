@@ -8,8 +8,9 @@ sessions and the progress checklist (section 9). All 14 sessions are done: the g
 (`README.md` is the player's and host's guide). Later work is maintenance: keep the plan true in
 the same commit as any change to what it describes.
 A second map, "The Longest Night", is being built: PLAN 4.12 is its design, "The second map" in
-section 9 its ten sessions (M1-M10; M1 to M4 are done: all five storeys, from the subway to the roofs, are
-blocked out in `shared/src/map/longestNight.ts`, a hidden map until it is finished).
+section 9 its ten sessions (M1-M10; M1 to M5 are done: all five storeys, from the subway to the roofs, are
+blocked out in `shared/src/map/longestNight.ts`, a hidden map until it is finished, and the square, the avenue
+and the lane are dressed; indoors, the roofs and the subway are still bare).
 
 ## Rules
 - Original content only: reuse genre mechanics, never another game's names, characters, maps,
@@ -113,7 +114,15 @@ blocked out in `shared/src/map/longestNight.ts`, a hidden map until it is finish
   short of every edge with something lower beyond (that strip is the parapet) and runs right up to a taller
   neighbour. A window's pocket is a yard, or `behind: 'air'` (the `ledge` helper: planks in the open, over a
   street or a lower roof; in a parapet the window is a gap) or `behind: 'tunnel'` (`dark`: roofed, under a
-  street or the next floor). Only a floor that is itself outdoors may lie over an outdoor one (the bridge). Tests:
+  street or the next floor). Only a floor that is itself outdoors may lie over an outdoor one (the bridge).
+  Its dressing is `map/dressing/nightStreets.ts` (the square, the avenue, the lane), drawn by two kits:
+  `models/props/street.ts` (cars, the bus, kiosk, trestles, gratings) and `models/props/festive.ts` (the tree,
+  bulbs, wreaths, stalls, the rink; what glows there is `glow: 'on'`, never on the mains). A street's wall face is
+  the outer edge of its half-metre strip: stand a solid prop right on it or 1.5 m off. `strung('light_string' |
+  'washing_line', x0, z0, y0, x1, z1, y1)` hangs something between two points (`PropInst.y2` is the far end);
+  a street lamp is `fixture: 'post'`; `k.steam(x, y, z)` in a builder makes a plume (`render/ambient.ts`). Where
+  solid has a top, so has a tall prop under the sky (`map.shutAt(i, y)`: ask that, not `shut`, when you have a
+  height). Tests:
   `shared/src/map/longestNight.test.ts` (layout), `server/src/game/night.test.ts` (soak across it).
 - Height (PLAN 6.1-6.3): the grid is a stack of layers, one per storey (`Room.level`, floor height
   `Room.y`, ramps and stairs as `Room.rise`). Cells join where their floors are within `STEP_HEIGHT`

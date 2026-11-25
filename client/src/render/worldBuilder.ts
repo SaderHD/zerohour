@@ -208,7 +208,7 @@ export function buildWorld(map: CompiledMap): World {
     triangles += b.triangles;
   };
   // Props and lamp fixtures, merged into three meshes a zone.
-  const all: PropOut = { baker, prop: new Bucket(), glow: new Bucket(), sign: new Bucket(), movers: [], drips: [] };
+  const all: PropOut = { baker, prop: new Bucket(), glow: new Bucket(), sign: new Bucket(), movers: [], drips: [], steams: [] };
 
   // What stands outside the walls. A station's huts and pines are a mesh of their own; a city's
   // buildings go on in the street's own surfaces.
@@ -262,7 +262,7 @@ export function buildWorld(map: CompiledMap): World {
   }
 
   // Whatever moves by itself: fans, flywheels, swinging lamps, drips, mist.
-  const ambient = new Ambient(map, baker, all.movers!, all.drips!);
+  const ambient = new Ambient(map, baker, all.movers!, all.drips!, all.steams!);
   group.add(ambient.group);
   triangles += ambient.triangles;
 
