@@ -8,14 +8,14 @@ import type { Kit } from './kit';
 // turned any of it off.
 
 /** Bulb colours as light, brighter than any paint. */
-const BULBS: RGB[] = [[1.7, 0.3, 0.2], [1.6, 1.15, 0.3], [0.3, 1.5, 0.45], [0.35, 0.6, 1.7], [1.5, 0.4, 1.1]];
-const WARM: RGB = [1.6, 1.25, 0.7];
+export const BULBS: RGB[] = [[1.7, 0.3, 0.2], [1.6, 1.15, 0.3], [0.3, 1.5, 0.45], [0.35, 0.6, 1.7], [1.5, 0.4, 1.1]];
+export const WARM: RGB = [1.6, 1.25, 0.7];
 const WRAPS = [0xa82c28, 0x2c6a44, 0x2c4c8c, 0xc8a030, 0xd8d4c8, 0x7a3a8a];
 const STRIPES = [0xa83028, 0x2c5a3c, 0x2c4878];
 const CREAM = 0xd8d0b8;
 
 /** One bulb: small enough that five faces are plenty. */
-function bulb(k: Kit, x: number, y: number, z: number, rgb: RGB, size = 0.09): void {
+export function bulb(k: Kit, x: number, y: number, z: number, rgb: RGB, size = 0.09): void {
   k.cube(x, y, z, size, size, size, rgb, { glow: 'on', bottom: true, noTop: true });
 }
 
@@ -93,7 +93,7 @@ export function garland(k: Kit): void {
 }
 
 /** One wrapped box with a ribbon round it. */
-function present(k: Kit, x: number, y: number, z: number, w: number, h: number, d: number, yaw: number, i: number): void {
+export function present(k: Kit, x: number, y: number, z: number, w: number, h: number, d: number, yaw: number, i: number): void {
   const s = k.sub(x, y, z, yaw);
   const paper = k.tone(WRAPS[i % WRAPS.length]!, 0.08);
   const band = WRAPS[(i + 3) % WRAPS.length]!;
@@ -278,4 +278,48 @@ export function washingLine(k: Kit): void {
     k.sub(x + w / 2, y, 0, k.rng.range(-8, 8), 0, k.rng.range(-5, 5)).box(-w / 2, -drop, -0.012, w / 2, 0, 0.012, k.tone(CLOTH[k.rng.int(0, CLOTH.length - 1)]!, 0.08), { bottom: true });
     x += w + k.rng.range(0.25, 0.8);
   }
+}
+
+/** A small tree in a pot, indoors: tinsel wound round it, bulbs, a star, presents at its foot. */
+export function tinselTree(k: Kit): void {
+  k.cyl(0, 0, 0, 0.3, 0.17, 0.22, k.tone(0x8a3028, 0.06), 6);
+  k.cyl(0, 0, 0.3, 0.5, 0.04, 0.04, C.woodDark, 5, { noTop: true });
+  const TIER = [[0.42, 0.44], [0.86, 0.34], [1.28, 0.23]] as const;
+  for (const [ti, [y0, r0]] of TIER.entries()) {
+    const y1 = ti < 2 ? TIER[ti + 1]![0] + 0.2 : 1.82;
+    const r1 = ti < 2 ? TIER[ti + 1]![1] * 0.5 : 0.02;
+    k.sub(0, 0, 0, ti * 30).cyl(0, 0, y0, y1, r0, r1, k.tone(C.pine, 0.08), 6, { bottom: true, noTop: true });
+    // Tinsel, and a bulb at every corner of it.
+    const [ty, tr] = [y0 + (y1 - y0) * 0.3, r0 + (r1 - r0) * 0.3 + 0.015];
+    k.sub(0, 0, 0, ti * 30).cyl(0, 0, ty, ty + 0.05, tr, tr - 0.02, ti % 2 ? 0xc8c8d0 : 0xc8a030, 6, { noTop: true });
+    for (let i = 0; i < 6; i++) {
+      const a = ((i + 0.5) / 6) * Math.PI * 2 + ti;
+      bulb(k, Math.cos(a) * (tr + 0.03), ty - 0.1, Math.sin(a) * (tr + 0.03), BULBS[(i + ti) % BULBS.length]!, 0.06);
+    }
+  }
+  k.cyl(0, 0, 1.8, 1.98, 0.09, 0.01, WARM, 4, { glow: 'on' });
+  for (let i = 0; i < 3 + (k.variant % 3); i++) {
+    const a = k.rng.range(0, Math.PI * 2);
+    present(k, Math.cos(a) * 0.34, 0, Math.sin(a) * 0.34, k.rng.range(0.16, 0.26), k.rng.range(0.1, 0.22), k.rng.range(0.14, 0.24), k.rng.range(0, 90), i + k.variant);
+  }
+}
+
+/** Hung from the ceiling on a wire, down to `y`: a bauble as big as a head (variants 0-2), or a star (3). */
+export function hangingDecor(k: Kit): void {
+  const y = k.inst.y ?? k.ceil - 1.5;
+  k.box(-0.008, y, -0.008, 0.008, k.ceil, 0.008, C.iron, { noTop: true });
+  if (k.variant === 3) {
+    for (const yaw of [0, 90]) {
+      const s = k.sub(0, y - 0.45, 0, yaw);
+      for (const roll of [0, 45]) s.sub(0, 0, 0, 0, 0, roll).box(-0.34, -0.34, -0.02, 0.34, 0.34, 0.02, [1.25, 0.95, 0.5], { glow: 'on', bottom: true });
+    }
+    return;
+  }
+  const paint = k.tone([0xa82c28, 0xc8a030, 0x2c4c8c][k.variant % 3]!, 0.06);
+  const r = 0.3;
+  k.cyl(0, 0, y - 0.08, y, 0.05, 0.05, C.brass, 6);
+  k.cyl(0, 0, y - 0.08 - r * 0.6, y - 0.08, r, r * 0.45, paint, 8, { noTop: true });
+  k.cyl(0, 0, y - 0.08 - r * 1.4, y - 0.08 - r * 0.6, r, r, paint, 8, { noTop: true });
+  k.cyl(0, 0, y - 0.08 - r * 2, y - 0.08 - r * 1.4, r * 0.45, r, paint, 8, { bottom: true, noTop: true });
+  k.cyl(0, 0, y - 0.08 - r * 1.08, y - 0.08 - r * 0.92, r + 0.01, r + 0.01, 0xc8c8d0, 8, { noTop: true });
 }

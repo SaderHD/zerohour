@@ -320,7 +320,7 @@ Props that are ≥0.5 m tall block movement (and bullets if tall); small clutter
 Keep every lane ≥1.5 m wide. Varied ceiling heights, skybox gradient with mountains silhouette and
 aurora for the outdoor zone.
 
-### 4.12 Map — "The Longest Night" (second map; being built: blocked out on all five storeys, the streets dressed)
+### 4.12 Map — "The Longest Night" (second map; being built: blocked out on all five storeys; the streets, Abelard's, the Lyric and the chapel dressed)
 Wexler Square, in the middle of a big, old, fictional American city, Christmas Eve in the early 1990s.
 Deep in the canyons between the towers, snowing, every decoration still lit and nobody left to look
 at them. Chosen by the host in the lobby; Harrow Ridge stays as it is. Same weapons, tonics, Cache,
@@ -444,7 +444,36 @@ off three gratings and a manhole, eight strings of bulbs from wall to wall. Tall
 van that was unloading at Abelard's, dumpsters, bins, crates, a brazier by the hatch, five lines
 of washing overhead and one string of bulbs; its lamps are bulkheads on the wall, not posts. The
 sketch's manhole as a way in was not built (the avenue's four are barricades). Nothing sold yet,
-no signs (M8); the Lyric's, the chapel's and the diner's own fronts are M6 and M7.
+no signs (M8); the diner's own front is M7.
+
+**The halls dressed (M6; `shared/src/map/dressing/nightHalls.ts`).** *Abelard's.* In at the door
+from the square a toy carousel is still turning, shop dummies in winter coats stand each side of
+it and down the west wall, and the atrium is straight ahead: the model railway on a table in the
+middle of its floor (the train goes round its town only while the mains are on), a star, four
+baubles and two strings of bulbs hung over it from the upper floor's ceiling, garlands on the
+gallery's lip. Toys fill the north side - shelves along the wall between its two windows, two
+gondolas and tables of bears down the floor - and the east; glass counters run along the flank of
+each escalator, which has its balustrades now; tables of gifts along the south. The grotto is the
+south-east corner: the front of a log cabin against the east wall with its windows lit, the big
+red chair in front of it with nobody in it, firs, and two lines of rope on brass posts for the
+queue. Crates in the loading bay. Upstairs is coats: rails round the gallery, dummies on the north
+wall, and the gift-wrap counter against the south wall. Nothing is sold and nothing stands in the
+south-west corner of the upper floor, kept for M8.
+*The Lyric.* The lobby has the ticket booth and the popcorn stand in its south-east corner by the
+door, a rope, posters in frames of bulbs and a small tree; outside, a canopy over the door with
+its lettering gone and bulbs under it. The auditorium's screen hangs on the west wall over the
+window the dead come through, eleven metres wide, a white frame on it and nothing in the frame:
+it is what lights the hall. Six rows of tip-up seats face it, two metres apart, in two blocks of
+five metres with an aisle down the middle and one along each wall; the last two rows are under
+the balcony. On the balcony a row stands behind a walk along the rail and another against the
+back wall, with the projector between its halves, reels turning.
+*St Audra's.* Six rows of pews each side of a nave two metres wide from the door to the altar,
+which stands under a rose window on the north wall with its six candles lit; the nativity in the
+north-west corner (the crib has straw in it and nothing else), the organ in the north-east, a
+stand of votive candles in each corner of the nave, lancets of coloured glass down both sides.
+On the avenue: a stone doorway with a gable and a cross, a lantern in it, a lancet each side and
+a rose over it. Seats, pews, counters and tables stop nobody's shot; shelves, the booth, the
+cabin and the organ do.
 
 **The look.** The same 90s horror as the station - dark, grain, hard pools of light, nothing clean
 - with Christmas as the only colour in it. Warm strings of bulbs over grey snow; the tree lit over
@@ -1421,7 +1450,38 @@ Asked for by the owner: a second map chosen in the lobby, a winter city at Chris
   each and there are about 800 of them. Untried in play: whether the rink's boards and the bus
   make the square and the avenue better to fight in or only slower to cross (M9, with things to
   buy).
-- [ ] M6 Dressing II: Abelard's, the Lyric, the chapel.
+- [x] M6 Dressing II: Abelard's, the Lyric, the chapel - done (4.12, "The halls dressed", says
+  where everything is). 28 new props, each a builder in code. *The store kit*
+  (`models/props/store.ts`): shelves of toys, tables of bears and boxes, glass counters, shop
+  dummies, rails of coats, the gift-wrap counter, the model railway, a carousel, the grotto's
+  cabin and chair, rope barriers, an escalator's sides. *The halls kit* (`models/props/halls.ts`):
+  tip-up seats, the screen, the projector, the booth, the popcorn stand, poster cases, the
+  marquee; pews, the altar, the organ, the nativity, candle stands, coloured glass, the porch.
+  The other two are in the Christmas kit (a small indoor tree, things hung from a ceiling). 184 props and
+  19 lights placed (`dressing/nightHalls.ts`); the auditorium's own lamp is nearly out and the
+  chapel's two are halved, so the screen and the candles do the work. Four things move: the
+  train (on the mains), the carousel, the projector's two reels.
+  The game on it: the layout test holds the aisles (straight down the Lyric's to the window
+  under the screen, straight up the nave to the altar), that seats and pews hide nobody and a
+  gondola does, the railway in the atrium, both escalators still climbed, and every door and
+  window still reached; `night.test.ts` (four bots, a full horde, four minutes) and `campaign
+  --god --map=longest_night` (ten rounds, worst idle 3.0 s, no correction) run clean through
+  the furniture. `npm run tour -- --night` takes 95 pictures (18 new).
+  Found on the way: a line of sight whose far end stood exactly on the corner of a cell, reached
+  from the side the cell is not on, never arrived - the trace ran on past it and reported
+  whatever wall came next (`nav/los.ts`; it now stops at the end of its line). It showed from
+  the Lyric's balcony, but it is the station's bug too: a seeded campaign on Harrow Ridge is no
+  longer the same to the shot (it parts from the old one in round 8), and over 32 seeds the
+  team clears 9.7 rounds for 10.0 (median 9 for 10) - inside what 32 seeds can tell apart, but
+  M9 should take its Harrow Ridge baseline from after this commit.
+  Not done: above the street the Lyric and the chapel are still blank brick blocks (M2 left
+  stone and a cinema's blind wall to this session; the porch, the glass and the marquee are
+  props on that brick); Abelard's shop windows are the `shopfront` wall with nothing turning in
+  them, and the only display that turns is the carousel inside; the escalators' treads are the
+  stairs every flight has; the projector throws no beam (the glow material is not see-through);
+  the booth, the cabin and the posters have no names on them (M8); no sound (M8). The world is
+  now 267,000 triangles (it was 234,000) and takes 1.5 s to build and bake in headless Chromium
+  (1.3-1.4): M9 measures and cuts.
 - [ ] M7 Dressing III: the diner, the tenement, the roofs, the subway and its train.
 - [ ] M8 Things to buy, bots, sound. Mounts for every wall gun, tonic and Cache site, the switch,
   the Forge; whatever the bots need to know about a map this size; the city's ambience, the

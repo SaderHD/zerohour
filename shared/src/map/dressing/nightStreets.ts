@@ -16,7 +16,7 @@ const POST_TOP = 4.75;
 /** The square's lamp posts: the strings from the tree come down to them. */
 export const SQUARE_POSTS = [[61, 57], [74, 57], [87, 57], [61, 79], [74, 79], [87, 79]] as const;
 
-const BULB = { red: 0xff6050, green: 0x60ff90, blue: 0x6090ff, gold: 0xffd060, warm: 0xffd9a0 } as const;
+export const BULB = { red: 0xff6050, green: 0x60ff90, blue: 0x6090ff, gold: 0xffd060, warm: 0xffd9a0 } as const;
 const ACCENTS = [BULB.red, BULB.gold, BULB.green, BULB.blue];
 
 /** Snow blown against a wall: `face` is the way the wall looks. */

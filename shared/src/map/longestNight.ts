@@ -1,12 +1,14 @@
 import { rail } from './dressing/helpers';
+import { hallLights, hallProps } from './dressing/nightHalls';
 import { SQUARE_POSTS, streetLights, streetProps } from './dressing/nightStreets';
 import type { BlockDef, LightDef, MapDef, Opening, Room, WallStyle } from './types';
 
 // The Longest Night - Wexler Square on Christmas Eve. See docs/PLAN.md 4.12.
 // This is the blockout (PLAN section 9, M3 and M4): the streets, every floor of every building,
 // the roofs and the subway, with doors and prices and enough light to see by. The square, the
-// avenue and the lane are dressed (M5: `dressing/nightStreets.ts`); indoors, the roofs and the
-// subway are bare, and nothing is sold yet. Run `npm run map -- longest_night` after any edit.
+// avenue and the lane are dressed (M5: `dressing/nightStreets.ts`), and Abelard's, the Lyric and
+// the chapel (M6: `dressing/nightHalls.ts`); the diner, the tenement, the roofs and the subway
+// are bare, and nothing is sold yet. Run `npm run map -- longest_night` after any edit.
 //
 //                  [St Audra's]                              [subway head house]
 //   ===============  DRAY AVENUE  ========================================   (the platform and
@@ -413,6 +415,7 @@ export const longestNight: MapDef = {
     // The balcony's front.
     rail(34.1, 46, 34.1, 62, { level: 1 }),
     ...streetProps,
+    ...hallProps,
   ],
   interactables: [],
   playerSpawns: [
@@ -433,8 +436,8 @@ export const longestNight: MapDef = {
     // Indoors.
     bulb(44, 91.5, 2.9, 9), bulb(52, 91.5, 2.9, 9), bulb(51, 100, 2.5, 8),
     bulb(61.5, 101.5, 2.7, 8),
-    bulb(45.5, 59, 3.2, 10), bulb(30, 54, 6.4, 15, { intensity: 0.8 }), bulb(25, 44.2, 2.5, 5, { fixture: 'cage' }),
-    bulb(47, 14.5, 6.4, 13, { color: 0xffe2b8 }), bulb(47, 24.5, 6.4, 13, { color: 0xffe2b8 }),
+    bulb(45.5, 59, 3.2, 10), bulb(30, 54, 6.4, 13, { intensity: 0.3 }), bulb(25, 44.2, 2.5, 5, { fixture: 'cage' }),
+    bulb(47, 14.5, 6.4, 13, { color: 0xffe2b8, intensity: 0.55 }), bulb(47, 24.5, 6.4, 13, { color: 0xffe2b8, intensity: 0.55 }),
     ...[104, 119].flatMap((x) => [bulb(x, 66, 3.2, 11), bulb(x, 82, 3.2, 11)]), bulb(111.5, 74, 7, 13),
     bulb(116, 88.7, 3.2, 8, { fixture: 'cage' }),
     // Upstairs: the flat and its stairwell, Abelard's gallery, the balcony.
@@ -461,5 +464,6 @@ export const longestNight: MapDef = {
     bulb(73.5, 90.5, 5.6, 7, { level: -1, color: 0xffa040, fixture: 'cage' }),
     bulb(78.2, 90.5, 2.2, 5, { color: 0xffa040, fixture: 'cage' }),
     ...streetLights,
+    ...hallLights,
   ],
 };

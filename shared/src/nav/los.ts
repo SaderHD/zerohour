@@ -46,6 +46,8 @@ function trace(map: CompiledMap, x0: number, y0: number, z0: number, x1: number,
   for (let guard = 0; guard < 4096; guard++) {
     if (cx === ex && cz === ez) break;
     const tIn = Math.min(tMaxX, tMaxZ);
+    // The line is at its end: the target stands on the very edge of its cell, on the side the line comes from.
+    if (tIn >= 1) break;
     if (tMaxX < tMaxZ) {
       cx += stepX;
       tMaxX += tDeltaX;

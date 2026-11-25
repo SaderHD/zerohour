@@ -203,6 +203,64 @@ export const PROPS = {
   park_bench: solid(2, 0.5, 0.9),
   snowman: solid(0.5, 0.5, 1.5),
 
+  /** A small tree in a pot, indoors: tinsel, bulbs, a few presents under it. */
+  tinsel_tree: solid(1, 1, 2),
+  /** Something big hung from the ceiling down to `y`: variants 0-2 a bauble by colour, 3 a star. */
+  hanging_decor: clutter(1, 1, 1),
+
+  // --- The store kit (Abelard's)
+  /** Shelves of boxed toys, open to the front. Variant 1 is half empty. */
+  toy_shelf: solid(2, 0.5, 2, true),
+  /** A table under a cloth heaped with toys: variant 0 bears, 1 boxes and blocks, 2 both. */
+  display_table: solid(2, 1, 1.2),
+  /** A glass counter with a till on it. */
+  shop_counter: solid(2, 1, 1.05),
+  /** Shop dummies in winter coats on a plinth: variant 0 two, 1 two and a child, 2 three. */
+  mannequins: solid(2, 1, 2),
+  /** A rail of coats. */
+  clothes_rack: solid(2, 0.5, 1.6),
+  /** The gift-wrap counter: rolls of paper on a rack behind it. */
+  wrap_counter: solid(3, 1, 1.6),
+  /** A model railway on a table: the train runs when the mains are on. */
+  model_railway: solid(3, 2, 1.3),
+  /** A toy carousel on a stand, still turning. */
+  toy_carousel: solid(1, 1, 1.9),
+  /** The grotto: the front of a log cabin, its windows lit. */
+  grotto_hut: solid(3, 1, 3, true),
+  /** The grotto's chair, empty, a sack beside it. */
+  throne: solid(1, 1, 1.9),
+  /** Two brass posts and a rope between them. */
+  rope_barrier: solid(2, 0.5, 1),
+  /** The sides of an escalator on a flight that climbs towards its front: `s` is the flight's length, `y2` its rise. */
+  escalator: clutter(2, 7, 1),
+
+  // --- The halls kit (the Lyric, St Audra's)
+  /** Five tip-up seats in a row. */
+  cinema_seats: solid(2.5, 0.5, 1),
+  /** The screen, with a white frame thrown on it, between its curtains: `s` wide, its foot at `y`. */
+  cinema_screen: onWall(10, 3.8),
+  /** A film projector on its pedestal, running: the lens to the front. */
+  projector: solid(1, 1, 1.8),
+  ticket_booth: solid(1.5, 1.5, 2.6, true),
+  /** The popcorn stand: a glass case on a striped counter. */
+  popcorn_stand: solid(2, 1, 2.1),
+  /** A poster in a frame of bulbs, its foot at `y`; `variant` picks the picture. */
+  poster_case: onWall(1.2, 1.8),
+  /** A cinema's canopy over the pavement, its foot at `y`; `s` is its length. */
+  marquee: onWall(7, 1.2),
+  pew: solid(2, 0.5, 1),
+  altar: solid(2, 1, 1.5),
+  /** The organ: the console to the front, the pipes over it. */
+  organ: solid(3, 1, 4.5, true),
+  /** A nativity in a stable, the crib empty. */
+  nativity: solid(2, 1, 1.6),
+  /** A stand of votive candles. */
+  candle_stand: solid(0.5, 0.5, 1.3),
+  /** Coloured glass in a wall, its foot at `y`: variant 0 a lancet, 1 a rose. */
+  stained_glass: onWall(1.4, 3),
+  /** A stone doorway: piers, a gable and a cross over a door two metres wide. */
+  porch: onWall(3.2, 5.6),
+
   // --- Mounts: where the things players buy stand (the buying itself is in the server's interactables).
   /** A board a wall weapon hangs on; `text` is the weapon's name. */
   wallbuy: onWall(1.4, 0.8),

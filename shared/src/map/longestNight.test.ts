@@ -353,3 +353,69 @@ describe('the streets dressed (M5)', () => {
   });
 });
 
+
+describe('the halls dressed (M6)', () => {
+  const at = (type: string): { x: number; y: number; z: number }[] => longestNight.props.filter((p) => p.type === type).map((p) => ({ x: p.x, y: (p.level ?? 0) * 4, z: p.z }));
+  const zones = (type: string): string[] => [...new Set(at(type).map((p) => map.zoneAt(p.x, p.y, p.z) ?? map.zoneAt(p.x + 0.3, p.y, p.z + 0.3) ?? ''))].sort();
+  const walk = (x: number, y: number, z: number, dx: number, dz: number, dist: number) => {
+    let p = { x, y, z };
+    for (let d = 0; d < dist; d += 0.1) p = moveCircle(map, 'all', p.x, p.y, p.z, dx * 0.1, dz * 0.1, PLAYER_RADIUS);
+    return p;
+  };
+
+  it('the Lyric: rows of seats each side of the middle aisle, upstairs and down, the screen over the west window, the projector on the balcony', () => {
+    expect(at('cinema_seats')).toHaveLength(32);
+    expect(at('cinema_seats').filter((p) => p.y === 4)).toHaveLength(8);
+    expect(zones('cinema_seats')).toEqual(['lyric']);
+    expect(at('projector')).toEqual([{ x: 38.5, y: 4, z: 53.5 }]);
+    // Down the aisle from the back row to the window under the screen, without a turn.
+    const p = walk(38, 0, 54, -1, 0, 20);
+    expect(p.x).toBeLessThan(21.5);
+    expect(p.z).toBeCloseTo(54);
+    // Seats stop nobody's shot: from the balcony's rail the whole floor is in sight, and from the back of the stalls the screen wall.
+    // (The first of these ends exactly on the corner of a cell: the trace used to run on past it into the wall.)
+    expect(lineOfSight(map, 34.6, 4, 50, 22, 0, 60)).toBe(true);
+    expect(lineOfSight(map, 38, 0, 50, 22, 0, 58)).toBe(true);
+    // Between two rows there is room to run, and to be followed.
+    expect(walkTo(doors(), [27.25, 0, 50], [27.25, 0, 58])).toBeLessThan(12);
+    for (const type of ['cinema_screen', 'ticket_booth', 'popcorn_stand', 'marquee', 'poster_case']) expect(at(type).length, type).toBeGreaterThan(0);
+  });
+
+  it('St Audra\'s: pews each side of the nave, the altar at the north end, the nativity and the organ in its corners', () => {
+    expect(at('pew')).toHaveLength(24);
+    expect(zones('pew')).toEqual(['chapel']);
+    // In at the door and straight up the nave to the altar's step.
+    const p = walk(47, 0, 29, 0, -1, 22);
+    expect(p.x).toBeCloseTo(47);
+    expect(p.z).toBeCloseTo(10.5 + PLAYER_RADIUS, 1);
+    // The organ's pipes are a wall; a pew is not.
+    expect(propDef('organ')!.tall).toBe(true);
+    expect(lineOfSight(map, 41, 0, 20, 53, 0, 20)).toBe(true);
+    for (const type of ['altar', 'nativity', 'organ', 'candle_stand', 'stained_glass', 'porch']) expect(at(type).length, type).toBeGreaterThan(0);
+  });
+
+  it('Abelard\'s: the railway under the atrium, the grotto in its corner, toys downstairs and coats up; both escalators still climb', () => {
+    expect(at('model_railway')).toEqual([{ x: 111.5, y: 0, z: 74 }]);
+    expect(map.walkAt(Math.floor(111.5 / CELL_SIZE), Math.floor(74 / CELL_SIZE), 0)).toBe(-1);
+    expect(zones('toy_shelf')).toEqual(['abelard']);
+    expect(zones('clothes_rack')).toEqual(['abelard_up']);
+    expect(zones('wrap_counter')).toEqual(['abelard_up']);
+    expect(at('throne')).toHaveLength(1);
+    expect(at('escalator')).toHaveLength(2);
+    expect(walk(107.5, 0, 77.5, 0, -1, 10).y).toBeCloseTo(4);
+    expect(walk(115.5, 0, 70.5, 0, 1, 10).y).toBeCloseTo(4);
+    // A gondola of shelves hides whoever is behind it; a table of bears does not. From the gallery the railway is in plain sight.
+    expect(lineOfSight(map, 100, 0, 63.5, 100, 0, 67.5)).toBe(false);
+    expect(lineOfSight(map, 104, 0, 81, 104, 0, 84.5)).toBe(true);
+    expect(lineOfSight(map, 111.5, 4, 68, 111.5, 0, 76.5)).toBe(true);
+    // Round the store on either floor, and up to the throne between the ropes.
+    expect(walkTo(doors('d_square_abelard'), [97.5, 0, 73.5], [123.5, 0, 82.5])).toBeLessThan(45);
+    expect(walkTo(doors('d_square_abelard'), [97.5, 0, 73.5], [111, 4, 84])).toBeLessThan(45);
+  });
+
+  it('nothing dressed indoors blocks a way through', () => {
+    expect(validateMap(map).errors).toEqual([]);
+    for (const w of mapWindows(map)) expect(Number.isFinite(walkTo('all', [w.inX, w.y, w.inZ], DINER)), w.id).toBe(true);
+    for (const p of longestNight.props) expect(propDef(p.type), p.type).toBeDefined();
+  });
+});

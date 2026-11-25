@@ -8,9 +8,10 @@ sessions and the progress checklist (section 9). All 14 sessions are done: the g
 (`README.md` is the player's and host's guide). Later work is maintenance: keep the plan true in
 the same commit as any change to what it describes.
 A second map, "The Longest Night", is being built: PLAN 4.12 is its design, "The second map" in
-section 9 its ten sessions (M1-M10; M1 to M5 are done: all five storeys, from the subway to the roofs, are
-blocked out in `shared/src/map/longestNight.ts`, a hidden map until it is finished, and the square, the avenue
-and the lane are dressed; indoors, the roofs and the subway are still bare).
+section 9 its ten sessions (M1-M10; M1 to M6 are done: all five storeys, from the subway to the roofs, are
+blocked out in `shared/src/map/longestNight.ts`, a hidden map until it is finished, and the square, the avenue,
+the lane, Abelard's, the Lyric and the chapel are dressed; the diner, the tenement, the roofs and the subway are
+still bare).
 
 ## Rules
 - Original content only: reuse genre mechanics, never another game's names, characters, maps,
@@ -117,7 +118,10 @@ and the lane are dressed; indoors, the roofs and the subway are still bare).
   street or the next floor). Only a floor that is itself outdoors may lie over an outdoor one (the bridge).
   Its dressing is `map/dressing/nightStreets.ts` (the square, the avenue, the lane), drawn by two kits:
   `models/props/street.ts` (cars, the bus, kiosk, trestles, gratings) and `models/props/festive.ts` (the tree,
-  bulbs, wreaths, stalls, the rink; what glows there is `glow: 'on'`, never on the mains). A street's wall face is
+  bulbs, wreaths, stalls, the rink; what glows there is `glow: 'on'`, never on the mains). Indoors it is
+  `map/dressing/nightHalls.ts` (Abelard's on both floors, the Lyric, St Audra's), with `models/props/store.ts`
+  (shelves, counters, dummies, the grotto, the railway) and `models/props/halls.ts` (seats, screen, projector,
+  pews, altar, organ, glass); things upstairs go through its `up([...])`. A street's wall face is
   the outer edge of its half-metre strip: stand a solid prop right on it or 1.5 m off. `strung('light_string' |
   'washing_line', x0, z0, y0, x1, z1, y1)` hangs something between two points (`PropInst.y2` is the far end);
   a street lamp is `fixture: 'post'`; `k.steam(x, y, z)` in a builder makes a plume (`render/ambient.ts`). Where

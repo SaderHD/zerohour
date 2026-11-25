@@ -5,11 +5,13 @@ import * as common from './common';
 import * as comms from './comms';
 import * as festive from './festive';
 import * as gen from './gen';
+import * as halls from './halls';
 import type { Kit } from './kit';
 import * as lab from './lab';
 import * as mess from './mess';
 import * as motor from './motor';
 import * as mounts from './mounts';
+import * as store from './store';
 import * as street from './street';
 import * as vault from './vault';
 import * as yard from './yard';
@@ -126,6 +128,34 @@ export const PROP_BUILDERS: Record<PropType, (k: Kit) => void> = {
   bandstand: festive.bandstand,
   park_bench: festive.parkBench,
   snowman: festive.snowman,
+  tinsel_tree: festive.tinselTree,
+  hanging_decor: festive.hangingDecor,
+  toy_shelf: store.toyShelf,
+  display_table: store.displayTable,
+  shop_counter: store.shopCounter,
+  mannequins: store.mannequins,
+  clothes_rack: store.clothesRack,
+  wrap_counter: store.wrapCounter,
+  model_railway: store.modelRailway,
+  toy_carousel: store.toyCarousel,
+  grotto_hut: store.grottoHut,
+  throne: store.throne,
+  rope_barrier: store.ropeBarrier,
+  escalator: store.escalator,
+  cinema_seats: halls.cinemaSeats,
+  cinema_screen: halls.cinemaScreen,
+  projector: halls.projector,
+  ticket_booth: halls.ticketBooth,
+  popcorn_stand: halls.popcornStand,
+  poster_case: halls.posterCase,
+  marquee: halls.marquee,
+  pew: halls.pew,
+  altar: halls.altar,
+  organ: halls.organ,
+  nativity: halls.nativity,
+  candle_stand: halls.candleStand,
+  stained_glass: halls.stainedGlass,
+  porch: halls.porch,
   wallbuy: mounts.wallbuy,
   tonic: mounts.tonic,
   cache_site: mounts.cacheSite,
