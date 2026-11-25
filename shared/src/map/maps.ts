@@ -36,4 +36,5 @@ export function compiledMap(id: string | null | undefined): CompiledMap {
 export const rulesOf = (def: MapDef): Required<MapRules> => ({
   intermission: def.rules?.intermission ?? INTERMISSION_SECONDS,
   forgeCost: def.rules?.forgeCost ?? FORGE_COST,
+  spawnReach: def.rules?.spawnReach ?? Infinity,
 });

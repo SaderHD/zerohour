@@ -316,6 +316,9 @@ const TOURS = { stacks: ['stacks', STACKS_VIEWS], corner: ['corner', CORNER_VIEW
     await page.evaluate(() => window.__zh.rounds(false));
     mkdirSync(path.join(root, 'test-results'), { recursive: true });
     const only = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+    // `--perf`: no pictures; what each view costs to draw, the dearest first.
+    const perf = process.argv.includes('--perf');
+    const measured = [];
     if (stacks) await page.evaluate(() => window.__zh.openAllDoors());
     for (const [name, x, z, yaw, pitch, y] of tour ? TOURS[tour][1] : VIEWS) {
       if (only.length && !only.includes(name)) continue;
@@ -326,7 +329,18 @@ const TOURS = { stacks: ['stacks', STACKS_VIEWS], corner: ['corner', CORNER_VIEW
       if (name.startsWith('air-')) await page.evaluate(([x, z, yaw, pitch, y]) => window.__zh.fly(x, y, z, yaw, pitch), [x, z, yaw, pitch, y]);
       else await page.evaluate(([x, z, yaw, pitch, y]) => { window.__zh.teleport(x, z, yaw, y ?? undefined); window.__zh.look(yaw, pitch); }, [x, z, yaw, pitch, y ?? null]);
       await page.waitForTimeout(900); // server round-trip for the teleport, a few frames, the air settling
-      await page.screenshot({ path: path.join(root, `test-results/tour-${tour ? `${tour}-` : ''}${name}.png`) });
+      if (perf) {
+        await page.waitForTimeout(1300); // two whole half-seconds of the frame counter
+        const st = await page.evaluate(() => window.__zh.state());
+        measured.push({ name, calls: st.drawCalls, triangles: st.triangles, fps: st.fps, meshes: await page.evaluate(() => window.__zh.meshes().filter((m) => m.seen).slice(0, 8)) });
+      } else await page.screenshot({ path: path.join(root, `test-results/tour-${tour ? `${tour}-` : ''}${name}.png`) });
+    }
+    if (perf) {
+      measured.sort((a, b) => b.triangles - a.triangles);
+      for (const m of measured) console.log(`[tour] ${m.name.padEnd(22)} ${String(m.triangles).padStart(7)} tris ${String(m.calls).padStart(4)} calls ${String(m.fps).padStart(4)} fps`);
+      for (const m of measured.slice(0, 3)) console.log(`[tour] ${m.name}: ${m.meshes.map((x) => `${x.name} ${x.triangles}`).join(', ')}`);
+      const worst = (k) => measured.reduce((a, b) => (b[k] > a[k] ? b : a));
+      console.log(`[tour] most triangles ${worst('triangles').triangles} (${worst('triangles').name}), most calls ${worst('calls').calls} (${worst('calls').name}), slowest ${Math.min(...measured.map((m) => m.fps))} fps`);
     }
     console.log('[tour]', JSON.stringify(await page.evaluate(() => window.__zh.state())));
   } finally {

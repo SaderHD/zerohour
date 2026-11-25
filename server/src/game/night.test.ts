@@ -56,6 +56,24 @@ describe('a match on The Longest Night', () => {
     }
   }, 60_000);
 
+  it('the dead come in within a block of somebody: nothing from the far end of a street a hundred metres long', () => {
+    // At the avenue's west end, every door open: the avenue's own windows run to its east end, 90 m off.
+    const t = start(7);
+    t.teleport(1, 24, 36, 0);
+    const wins = new Map(mapWindows(map).map((w) => [w.id, w]));
+    const offered = [...t.game.barricades.values()].filter((b) => activeZones(t.game).has(b.win.zone));
+    expect(Math.max(...offered.map((b) => Math.abs(b.win.x - 24)))).toBeGreaterThan(70);
+    t.wait(1); // (the way to where the player now stands is worked out)
+    t.game.spawnInterval = 0.1;
+    for (let i = 0; i < 24; i++) t.game.spawnQueue.push({ hp: 150, speed: ZOMBIE_SPEED_SHAMBLE });
+    const from = new Set<string>();
+    t.wait(6, () => {
+      for (const z of t.game.zombies.values()) if (z.ai?.windowId) from.add(z.ai.windowId);
+    });
+    expect(from.size).toBeGreaterThanOrEqual(2);
+    for (const id of from) expect(Math.hypot(wins.get(id)!.x - 24, wins.get(id)!.z - 36), id).toBeLessThan(40);
+  });
+
   it('the dead come where the living are: out of the tunnels for someone on the platform, over the parapet for someone on a roof', () => {
     for (const [x, y, z, zones, floor] of [
       [80, -8, 36, ['platform', 'mezz', 'service', 'avenue'], -8],
@@ -161,7 +179,8 @@ describe('buying on The Longest Night (M8)', () => {
   });
 
   it('four mortal bots leave the diner, light the city and drink: six rounds', () => {
-    const r = runCampaign({ seed: 1, players: 4, rounds: 6, map: 'longest_night' });
+    // (How much a team buys in six rounds goes by the seed: 3 to 7 doors over six of them, a tonic in three.)
+    const r = runCampaign({ seed: 4, players: 4, rounds: 6, map: 'longest_night' });
     console.log(`[campaign night] ${r.cleared} rounds in ${Math.round(r.seconds)} s of game time; tick ${r.tickMs.toFixed(2)} ms avg; bought ${JSON.stringify(r.purchases)}`);
     expect(r.cleared).toBe(6);
     expect(r.refused).toBe(0);

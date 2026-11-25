@@ -8,9 +8,10 @@ sessions and the progress checklist (section 9). All 14 sessions are done: the g
 (`README.md` is the player's and host's guide). Later work is maintenance: keep the plan true in
 the same commit as any change to what it describes.
 A second map, "The Longest Night", is being built: PLAN 4.12 is its design, "The second map" in
-section 9 its ten sessions (M1-M10; M1 to M8 are done: all five storeys, from the subway to the roofs, are
-blocked out in `shared/src/map/longestNight.ts`, a hidden map until it is finished, all of it is dressed, and
-everything is on sale, signed and has its sound; M9 is balance and performance, M10 acceptance).
+section 9 its ten sessions (M1-M10; M1 to M9 are done: all five storeys, from the subway to the roofs, are
+blocked out in `shared/src/map/longestNight.ts`, a hidden map until it is finished, all of it is dressed,
+everything is on sale, signed and has its sound, and it is balanced against the station and drawn in budget;
+M10 is acceptance).
 
 ## Rules
 - Original content only: reuse genre mechanics, never another game's names, characters, maps,
@@ -72,6 +73,7 @@ everything is on sale, signed and has its sound; M9 is balance and performance, 
 - `npm run maps` — after a build: two browser players and a bot; the host picks another map in the lobby,
   pages and seats follow, the game runs on it; a server without debug offers one map. Writes `test-results/maps-*.png`.
 - `npm run tour [view...]` — after a build: screenshots of every zone to `test-results/tour-*.png`
+  (`--perf`: no pictures; triangles, draw calls and frame rate of every view, the dearest first)
   (views are listed in `scripts/tour.cjs` with the height of the floor each stands on; add one when you add
   something worth looking at; a name in its `ON` list is taken again with the power on).
 - `npm run site` — after a build: one browser player over Harrow Ridge's heights (the yard's slope and bluff,
@@ -95,7 +97,7 @@ everything is on sale, signed and has its sound; M9 is balance and performance, 
   offers). A room has a map, picked by its host in the lobby; never assume the station: take the map from the
   game (`g.map`), the room, or `compiledMap(id)`. What is the place and not the engine is `MapDef.scene` (sky,
   what the solid is from outside, what stands beyond the map, snow, default fog, the menu's vista) and `ZoneDef.air` (its drone, a name in
-  `audio/ambience.ts`); numbers one map needs different go in `MapDef.rules`, read with `rulesOf(def)`. The
+  `audio/ambience.ts`); numbers one map needs different go in `MapDef.rules`, read with `rulesOf(def)` (the city's `spawnReach`: the dead come in within 40 m of walking of a player). The
   client builds one map per page load (`followMap` in `main.ts` reloads for another).
 - A city's outside (PLAN 6.1; the Corner, `map/corner.ts`, proves it): with `scene.built: 'city'` the solid is
   buildings. `MapDef.blocks` give each its height, face (a wall style) and tint; `massing(map)` (shared) is the
@@ -184,8 +186,14 @@ everything is on sale, signed and has its sound; M9 is balance and performance, 
   rooms lead nowhere). Judge a change to it, or to any balance number, over 32 seeds at least: eight say little. It is driven by
   `server/src/bot.ts` (`BotPlayer`: wire messages, modelled aim), `server/src/game/campaign.ts` (fake
   clock) and `client/src/game/autopilot.ts` (key presses through the real client code).
-- World meshes are one per zone and surface style plus three per zone for props (`worldBuilder.ts`),
-  so three.js culls whole zones; keep new static geometry in those buckets.
+- World meshes are one per zone and surface style plus props and glow per zone (`worldBuilder.ts`; a big
+  one is cut into 40 m tiles), so three.js culls what is out of view; keep new static geometry in those
+  buckets. What is in view but behind walls is left out by zone (PLAN 6.1 "What is drawn"):
+  `shared/src/map/visibility.ts` works out once a map which zones can see each other at all, and each time
+  the eye moves `seenFrom` asks which roofed zones have a doorway or window in sight (and, from indoors,
+  whether any way out to the open air is); `World.view` hides the rest. A mesh named `...|zone` is drawn with that zone, `...|out` with the outside. Anything new that is
+  drawn per zone must go through `addMesh` with such a name, or it is never hidden; after changing the
+  sampling or a map's doors run `VIS_DENSE=1 npx vitest run shared/src/map/visibility.test.ts`.
 - Server: `lobby.ts` (rooms, seats, reconnect, chat; transport-agnostic via `Peer`) and `game/Game.ts`
   (the match; `step(dt)` is pure so tests drive it without timers). Client: `net/net.ts` is the
   connection/lobby state machine, `main.ts` builds everything and runs the frame loop,
@@ -249,7 +257,7 @@ everything is on sale, signed and has its sound; M9 is balance and performance, 
   `__zh.spawnZombies(3, { kind: 'howler' })`,
   `__zh.spawnZombies(8, { interval: 0.3 })`, `__zh.god(true)`, `__zh.killZombies()`, `__zh.setRound(10)`, `__zh.rounds(false)`,
   `__zh.openDoor('d_mess_bunk')`, `__zh.powerOn()`, `__zh.chat('hi')`, `__zh.ping()`,
-  `__zh.auto(true)`, `__zh.pick()` (what mesh is under the crosshair), `__zh.fly(24, 30, 20, 0, -1.2)` (the free camera in the air), `__zh.settings.set({ fov: 90 })`, `__zh.settings.bind('use', 'KeyE')`, `__zh.screens.setPaused(true)`.
+  `__zh.auto(true)`, `__zh.pick()` (what mesh is under the crosshair), `__zh.meshes()` (what the frame is made of, biggest first; `meshes('glow|props')` hides those), `__zh.cull(false)` (draw every zone, seen or not), `__zh.fly(24, 30, 20, 0, -1.2)` (the free camera in the air), `__zh.settings.set({ fov: 90 })`, `__zh.settings.bind('use', 'KeyE')`, `__zh.screens.setPaused(true)`.
 - Sound (`client/src/audio`): `synth.ts` is the engine (a `Voice` of `tone`/`noise` layers; 24 at once,
   by `priority`; `at` places it in the world); the library is `guns.ts`, `sfx.ts`, `music.ts` (tunes as
   note lists) and `ambience.ts` (zone drones, heartbeat). `audio.ts` turns game events and each frame's

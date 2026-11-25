@@ -38,6 +38,30 @@ export class Bucket {
     return this.pos.length / 9;
   }
 
+  /**
+   * The same triangles sorted into buckets by where they are, a square of `tile` metres each: one
+   * mesh for the whole of a long street is in view from anywhere on it, and all of it is drawn.
+   */
+  split(tile: number): Bucket[] {
+    const parts = new Map<number, Bucket>();
+    for (let t = 0; t < this.pos.length; t += 9) {
+      const tx = Math.floor((this.pos[t]! + this.pos[t + 3]! + this.pos[t + 6]!) / 3 / tile);
+      const tz = Math.floor((this.pos[t + 2]! + this.pos[t + 5]! + this.pos[t + 8]!) / 3 / tile);
+      const key = tx * 4096 + tz;
+      const b = parts.get(key) ?? parts.set(key, new Bucket()).get(key)!;
+      const v = t / 3;
+      for (let k = 0; k < 9; k++) {
+        b.pos.push(this.pos[t + k]!);
+        b.col.push(this.col[t + k]!);
+        b.lp.push(this.lp[t + k]!);
+        b.la.push(this.la[t + k]!);
+        b.lb.push(this.lb[t + k]!);
+      }
+      for (let k = 0; k < 6; k++) b.uv.push(this.uv[v * 2 + k]!);
+    }
+    return [...parts.values()];
+  }
+
   toGeometry(): THREE.BufferGeometry {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(this.pos, 3));
@@ -147,9 +171,18 @@ export class Baker {
     return o;
   }
 
+  /** The baked colours of a quad's four corners (twelve numbers each: see `shade`), for whoever wants to look at them before emitting it. */
+  colours(v: readonly Vert[], n: [number, number, number], cell: number, tint: RGB): number[][] {
+    return v.map((q) => Array.from(this.shade(q.p, n, cell, tint, q.ao)));
+  }
+
   /** Emit a lit quad (CCW seen from the front). */
   quad(b: Bucket, v: [Vert, Vert, Vert, Vert], n: [number, number, number], cell: number, tint: RGB): void {
-    const c = v.map((q) => Array.from(this.shade(q.p, n, cell, tint, q.ao)));
+    this.emit(b, v, this.colours(v, n, cell, tint));
+  }
+
+  /** Emit a quad whose corners' colours are already worked out (`colours`). */
+  emit(b: Bucket, v: readonly Vert[], c: readonly number[][]): void {
     for (const k of ORDER) {
       const s = c[k]!;
       b.pos.push(...v[k]!.p);

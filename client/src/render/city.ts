@@ -12,9 +12,10 @@ type V3 = [number, number, number];
 
 /** Where the buckets are: the world's own surfaces (so a block's brick is the street's brick), props, things that glow. */
 export interface CitySinks {
-  surface(kind: 'floor' | 'wall', style: FloorStyle | WallStyle): Bucket;
-  prop: Bucket;
-  glow: Bucket;
+  /** (Each takes the open-air cell the thing is seen from, if it stands over one: it is drawn with that cell's zone, and left out with it.) */
+  surface(kind: 'floor' | 'wall', style: FloorStyle | WallStyle, cell?: number): Bucket;
+  prop(cell?: number): Bucket;
+  glow(cell?: number): Bucket;
 }
 
 const S = CELL_SIZE;
@@ -78,6 +79,8 @@ export function buildCity(map: CompiledMap, baker: Baker, out: CitySinks): void 
   // Walls. Seen from column P, the column Q beside it is wall from where P's own walls stop to Q's top.
   // (P may be a cell outside the map: the buildings on its rim have backs.)
   const from = new Float32Array(plane * 4).fill(NaN);
+  interface Piece { b: Bucket; v: Vert[]; c: number[][] }
+  const rows_ = new Map<string, { wall: Map<number, Piece>; n: V3 }>();
   for (let pz = -1; pz <= rows; pz++) {
     for (let px = -1; px <= cols; px++) {
       const inside = map.inBounds(px, pz);
@@ -99,14 +102,53 @@ export function buildCity(map: CompiledMap, baker: Baker, out: CitySinks): void 
         const ys = [y0];
         for (let y = (Math.floor(y0 / STOREY) + 1) * STOREY; y < y1 - 1e-3; y += STOREY) ys.push(y);
         ys.push(y1);
-        const wall = out.surface('wall', style);
-        for (let k = 0; k + 1 < ys.length; k++) quad(wall, [[ax, ys[k]!, az], [bx, ys[k]!, bz], [bx, ys[k + 1]!, bz], [ax, ys[k + 1]!, az]], u, n, cell, tint);
+        const wall = out.surface('wall', style, cell);
+        for (let k = 0; k + 1 < ys.length; k++) {
+          const v = ([[ax, ys[k]!, az], [bx, ys[k]!, bz], [bx, ys[k + 1]!, bz], [ax, ys[k + 1]!, az]] as V3[]).map((q): Vert => ({ p: q, uv: u(q), ao: dim(q[1]) }));
+          const c = baker.colours(v, n, cell, tint);
+          // The storey next to the street is lit by its lamps, half a metre at a time. Above it a wall is
+          // much the same from one end to the other: those go in rows, to be joined up (below).
+          if (k === 0) baker.emit(wall, v, c);
+          else {
+            const along = side.dx !== 0 ? pz : px;
+            const key = `${si}|${side.dx !== 0 ? px : pz}|${ys[k]}|${ys[k + 1]}|${style}|${ms.block[q]}`;
+            (rows_.get(key) ?? rows_.set(key, { wall: new Map(), n }).get(key)!).wall.set(along, { b: wall, v, c });
+          }
+        }
         if (!inside || style === 'fence') continue;
         from[p * 4 + si] = y0;
         // A string course where the street's wall ends and the building's begins, and a cornice under the roof.
-        if (ms.open[p] && y1 - y0 > 0.6) panel(out.prop, ax, az, bx, bz, y0, y0 + 0.3, n, 0.06, cell, stone);
-        if (y1 - y0 > 1.5) panel(out.prop, ax, az, bx, bz, y1 - 0.4, y1, n, 0.09, cell, stone);
+        if (ms.open[p] && y1 - y0 > 0.6) panel(out.prop(cell), ax, az, bx, bz, y0, y0 + 0.3, n, 0.06, cell, stone);
+        if (y1 - y0 > 1.5) panel(out.prop(cell), ax, az, bx, bz, y1 - 0.4, y1, n, 0.09, cell, stone);
       }
+    }
+  }
+
+  // Join each row's pieces into as few quads as look the same: a run goes on for as long as every
+  // piece is the colour of the first, corner for corner (so nothing a lamp reaches is joined).
+  const NEAR = 0.012;
+  const alike = (a: number[], b: number[]): boolean => {
+    for (let ch = 0; ch < 12; ch++) if (Math.abs(a[ch]! - b[ch]!) > NEAR * Math.max(0.25, a[ch]!)) return false;
+    return true;
+  };
+  for (const row of rows_.values()) {
+    // (In the order a piece's own corners run: 0 and 3 are its near end, 1 and 2 its far one.)
+    const any = row.wall.values().next().value!;
+    const back = any.v[1]!.p[0] + any.v[1]!.p[2] < any.v[0]!.p[0] + any.v[0]!.p[2] ? -1 : 1;
+    const at = [...row.wall.keys()].sort((a, b) => (a - b) * back);
+    for (let i = 0; i < at.length; ) {
+      const first = row.wall.get(at[i]!)!;
+      const flat = alike(first.c[0]!, first.c[1]!) && alike(first.c[3]!, first.c[2]!);
+      let j = i;
+      while (flat && j + 1 < at.length) {
+        const next = row.wall.get(at[j + 1]!)!;
+        if (next.b !== first.b || Math.abs(at[j + 1]! - at[j]!) !== 1) break;
+        if (!alike(first.c[0]!, next.c[0]!) || !alike(first.c[0]!, next.c[1]!) || !alike(first.c[3]!, next.c[3]!) || !alike(first.c[3]!, next.c[2]!)) break;
+        j++;
+      }
+      const last = row.wall.get(at[j]!)!;
+      baker.emit(first.b, [first.v[0]!, last.v[1]!, last.v[2]!, first.v[3]!], [first.c[0]!, last.c[1]!, last.c[2]!, first.c[3]!]);
+      i = j + 1;
     }
   }
 
@@ -151,15 +193,15 @@ export function buildCity(map: CompiledMap, baker: Baker, out: CitySinks): void 
             const [x0, z0, x1, z1] = [mx - tx * (half + grow), mz - tz * (half + grow), mx + tx * (half + grow), mz + tz * (half + grow)];
             if (bucket) return panel(bucket, x0, z0, x1, z1, base + h0, base + h1, n, proud, cell, tint);
             const [ox, oz] = [n[0] * proud, n[2] * proud];
-            baker.glow(out.glow, [[x0 + ox, base + h0, z0 + oz], [x1 + ox, base + h0, z1 + oz], [x1 + ox, base + h1, z1 + oz], [x0 + ox, base + h1, z0 + oz]], glow!, 'on');
+            baker.glow(out.glow(cell), [[x0 + ox, base + h0, z0 + oz], [x1 + ox, base + h0, z1 + oz], [x1 + ox, base + h1, z1 + oz], [x0 + ox, base + h1, z0 + oz]], glow!, 'on');
           };
-          piece(out.prop, WINDOW.sill - 0.14, WINDOW.head + 0.14, 0.12, 0.03, stone);
+          piece(out.prop(cell), WINDOW.sill - 0.14, WINDOW.head + 0.14, 0.12, 0.03, stone);
           // A sash: two panes, one over the other. Lit ones glow; the higher, the dimmer.
           const roll = hash(line, a, storey, si);
           const lamp = roll < share ? LAMPS[Math.floor(hash(a, line, si, storey) * LAMPS.length)]! : null;
           const meet = (WINDOW.sill + WINDOW.head) / 2;
           for (const [h0, h1, upper] of [[WINDOW.sill, meet - 0.04, false], [meet + 0.04, WINDOW.head, true]] as const) {
-            if (!lamp) piece(out.prop, h0, h1, 0, 0.05, glass);
+            if (!lamp) piece(out.prop(cell), h0, h1, 0, 0.05, glass);
             else {
               // (A blind half down, as often as not.)
               const k = lamp[1] * dim(base) * (upper && roll < share * 0.5 ? 0.45 : 1);
@@ -201,7 +243,7 @@ export function buildCity(map: CompiledMap, baker: Baker, out: CitySinks): void 
 
   // What stands on a roof: a water tank on its legs, the hut over a stair head, a huddle of vents.
   const box = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, side: RGB, top: RGB = side): void => {
-    const b = out.prop;
+    const b = out.prop();
     quad(b, [[x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0]], grain, [0, 0, -1], NOWHERE, side);
     quad(b, [[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]], grain, [0, 0, 1], NOWHERE, side);
     quad(b, [[x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1]], grain, [1, 0, 0], NOWHERE, side);
@@ -214,7 +256,7 @@ export function buildCity(map: CompiledMap, baker: Baker, out: CitySinks): void 
       const [a0, a1] = [(i / sides) * Math.PI * 2, ((i + 1) / sides) * Math.PI * 2];
       const am = (a0 + a1) / 2;
       const at = (a: number, r: number, y: number): V3 => [x + Math.cos(a) * r, y, z - Math.sin(a) * r];
-      quad(out.prop, [at(a0, r0, y0), at(a1, r0, y0), at(a1, r1, y1), at(a0, r1, y1)], grain, [Math.cos(am), r1 < r0 ? 0.5 : 0, -Math.sin(am)], NOWHERE, colour);
+      quad(out.prop(), [at(a0, r0, y0), at(a1, r0, y0), at(a1, r1, y1), at(a0, r1, y1)], grain, [Math.cos(am), r1 < r0 ? 0.5 : 0, -Math.sin(am)], NOWHERE, colour);
     }
   };
   const [wood, iron, tar] = [linear(0x4a3a2c), linear(0x2c2c30), linear(0x3a3634)];
@@ -243,7 +285,7 @@ export function buildCity(map: CompiledMap, baker: Baker, out: CitySinks): void 
         drum(x, z, y + 4.4, y + 5.2, 1.4, 0, 10, snow);
       } else if (kind === 'hut') {
         box(x - 1.25, y, z - 1.5, x + 1.25, y + 2.5, z + 1.5, tintOf(Math.round(z / S) * cols + Math.round(x / S)).map((c) => c * 0.45) as RGB, snow);
-        panel(out.prop, x - 0.45, z - 1.5, x + 0.45, z - 1.5, y, y + 2, [0, 0, -1], 0.04, NOWHERE, iron);
+        panel(out.prop(), x - 0.45, z - 1.5, x + 0.45, z - 1.5, y, y + 2, [0, 0, -1], 0.04, NOWHERE, iron);
       } else {
         box(x - 1.2, y, z - 0.6, x - 0.2, y + 0.9, z + 0.4, iron, snow);
         box(x + 0.3, y, z - 0.2, x + 0.7, y + 1.7, z + 0.2, tar, snow);

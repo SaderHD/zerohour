@@ -74,6 +74,12 @@ export interface MapRules {
   intermission?: number;
   /** What the Forge charges. */
   forgeCost?: number;
+  /**
+   * The dead come in no further than this from the nearest player, metres of walking (default: at
+   * any window of a zone a player is in or next to). For a map whose zones are streets a hundred
+   * metres long: without it the far end of the avenue sends them, and a round waits for their walk.
+   */
+  spawnReach?: number;
 }
 
 /**

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CELL_SIZE, Cell, DECK, FLOOR_STYLES, NO_ZONE, WALL_STYLES, WINDOW_SILL, massing, propDef, type CompiledMap, type FloorStyle, type WallStyle } from '@zh/shared';
+import { CELL_SIZE, Cell, DECK, FLOOR_STYLES, WALL_STYLES, WINDOW_SILL, massing, propDef, seenFrom, visibility, type CompiledMap, type FloorStyle, type WallStyle } from '@zh/shared';
 import { PROP_BUILDERS, Kit, fixture } from '../models/props';
 import type { PropOut } from '../models/props/kit';
 import { Ambient } from './ambient';
@@ -18,6 +18,9 @@ import { buildTowers } from './towers';
 
 const S = CELL_SIZE;
 const TEX_METRES = 2; // one texture repeat covers 2 m
+/** A mesh of more triangles than this is cut into square tiles this many metres across, each culled by itself. */
+const SPLIT_OVER = 6000;
+const TILE = 40;
 /** Seconds for the lights to come up when the power is switched on. */
 const POWER_UP_SECONDS = 1.6;
 
@@ -32,6 +35,10 @@ export interface World {
   update(dt: number, time: number): void;
   /** Baked light level at a point, for tinting dynamic models so they sit in the scene. */
   lightAt(x: number, y: number, z: number): [number, number, number];
+  /** Where the eye is: whatever no line from there (or from anywhere in the zones about it) could reach is left undrawn. */
+  view(x: number, y: number, z: number): void;
+  /** Draw everything whatever can be seen (`false`), for telling what the culling costs or hides. */
+  setCull(on: boolean): void;
   triangles: number;
   /** Parts that move by themselves (fans, flywheels, swinging lamps). */
   movers: number;
@@ -56,7 +63,9 @@ export function buildWorld(map: CompiledMap): World {
   const quad = (b: Bucket, v: [Vert, Vert, Vert, Vert], n: [number, number, number], cell: number, tint: RGB) => baker.quad(b, v, n, cell, tint);
 
   /** The zone a cell's surfaces are drawn with (window pockets and the like share one). */
-  const zoneOf = (i: number): string => (map.zone[i] === NO_ZONE ? 'out' : map.zones[map.zone[i]!]!.id);
+  // (Whatever is drawn with a zone is left out when nothing of that zone can be seen: `view`.)
+  const vis = visibility(map);
+  const zoneOf = (i: number): string => vis.regions[vis.label[i]!] ?? 'out';
   /** Is there open space beside a floor at height `y`: something to stand in, or a window to look through? */
   const open = (cx: number, cz: number, y: number): boolean => map.holdAt(cx, cz, y + 0.5) >= 0 || map.holdAt(cx, cz, y + 1.2) >= 0;
   /** Corner AO: darker where a floor/ceiling corner touches solid (or a ledge), or (floors) furniture. */
@@ -199,34 +208,52 @@ export function buildWorld(map: CompiledMap): World {
 
   const group = new THREE.Group();
   group.name = 'world';
+  /** What is drawn with each zone (a mesh named `...|zone`), and with the outside. */
+  const drawnWith = new Map<string, THREE.Object3D[]>();
+  const with_ = (zone: string, o: THREE.Object3D): void => void (drawnWith.get(zone) ?? drawnWith.set(zone, []).get(zone)!).push(o);
   const addMesh = (name: string, b: Bucket, mat: THREE.Material): void => {
     if (!b.pos.length) return;
+    // (A big mesh goes in tiles, so that the part of a street behind the eye is not drawn.)
+    if (b.triangles > SPLIT_OVER) {
+      const parts = b.split(TILE);
+      if (parts.length > 1) return parts.forEach((part) => addMesh(name, part, mat));
+    }
     const mesh = new THREE.Mesh(b.toGeometry(), mat);
     mesh.name = name;
     mesh.matrixAutoUpdate = false;
     group.add(mesh);
     triangles += b.triangles;
+    const zone = name.split('|')[1];
+    if (zone) with_(zone, mesh);
   };
   // Props and lamp fixtures, merged into three meshes a zone.
   const all: PropOut = { baker, prop: new Bucket(), glow: new Bucket(), sign: new Bucket(), movers: [], drips: [], steams: [] };
 
+  const outs = new Map<string, PropOut>();
+  const outFor = (cell: number): PropOut => {
+    const zone = zoneOf(cell);
+    let o = outs.get(zone);
+    if (!o) outs.set(zone, (o = { ...all, prop: new Bucket(), glow: new Bucket() }));
+    return o;
+  };
+
   // What stands outside the walls. A station's huts and pines are a mesh of their own; a city's
-  // buildings go on in the street's own surfaces.
+  // buildings go on in the surfaces of the street they stand over.
   const city = map.def.scene.built === 'city';
   const exterior = city ? new Bucket() : buildExterior(map, baker);
-  if (city) buildCity(map, baker, { surface: (kind, style) => bucket(`${kind}:${style}|out`), prop: exterior, glow: all.glow });
+  const NOWHERE = map.idx(0, 0);
+  if (city) {
+    buildCity(map, baker, {
+      surface: (kind, style, cell = NOWHERE) => bucket(`${kind}:${style}|${zoneOf(cell)}`),
+      prop: (cell = NOWHERE) => (zoneOf(cell) === 'out' ? exterior : outFor(cell).prop),
+      glow: (cell = NOWHERE) => outFor(cell).glow,
+    });
+  }
 
   for (const [key, b] of buckets) {
     const [kind, style] = key.split('|')[0]!.split(':') as ['floor' | 'wall', FloorStyle | WallStyle];
     addMesh(key, b, surfaceMaterial(kind, style));
   }
-  const outs = new Map<string, PropOut>();
-  const outFor = (cell: number): PropOut => {
-    const zone = zoneOf(cell);
-    let o = outs.get(zone);
-    if (!o) outs.set(zone, (o = { ...all, prop: new Bucket() }));
-    return o;
-  };
   for (const p of map.def.props) {
     const layer = Math.max(0, map.layerOf(p.level ?? 0));
     const cellOf = (x: number, z: number): number => map.idx(Math.floor(x / S), Math.floor(z / S), layer);
@@ -249,15 +276,18 @@ export function buildWorld(map: CompiledMap): World {
     const top = map.sky[cell] ? l.y + 0.2 : map.hi[cell]!;
     fixture(Kit.at(outFor(cell), { type: 'light', x: l.x, z: l.z, rot: l.fixture === 'tube' ? Math.round(l.x + l.z) * 90 : 0 }, cell, top - base, base), { ...l, y: l.y - base }, l.rgb, l.mode);
   }
-  for (const [zone, o] of outs) addMesh(`props|${zone}`, o.prop, propMaterial());
-  // Lamps' glow and lettering are little: one mesh each for the whole map costs fewer draw calls than culling saves.
-  addMesh('glow', all.glow, glowMaterial);
+  for (const [zone, o] of outs) {
+    addMesh(`props|${zone}`, o.prop, propMaterial());
+    addMesh(`glow|${zone}`, o.glow, glowMaterial);
+  }
+  // Lettering is little: one mesh for the whole map costs fewer draw calls than culling saves.
   addMesh('signs', all.sign, signMaterial(signTexture()));
 
-  addMesh('exterior', exterior, propMaterial());
+  addMesh('exterior|out', exterior, propMaterial());
   const towers = buildTowers(map);
   if (towers) {
     group.add(towers);
+    with_('out', towers);
     triangles += towers.geometry.getAttribute('position').count / 3;
   }
 
@@ -274,8 +304,47 @@ export function buildWorld(map: CompiledMap): World {
   let powerT = 0;
   setLightLevels(0, 1, 0);
 
+  // Which zones the eye is in or within a metre of, and so what is drawn.
+  let cull = true;
+  let stale = true;
+  const last = { x: NaN, y: NaN, z: NaN, within: '' };
+  const seen = new Uint8Array(vis.regions.length);
+  /** The eye has to move this far before what it sees is worked out again (`seenFrom` allows for more). */
+  const LOOK_AGAIN = 0.2;
+  const view = (x: number, y: number, z: number): void => {
+    const [cx, cz] = [Math.floor(x / S), Math.floor(z / S)];
+    const at = map.holdAt(cx, cz, y);
+    const within = new Set<number>();
+    // (High in the air, or in no room at all: the free camera. It sees what it sees.)
+    if (cull && at >= 0 && y - map.lo[at]! < 3.5) {
+      for (let dz = -2; dz <= 2; dz++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          for (const h of [y, y - 1]) {
+            const i = map.holdAt(cx + dx, cz + dz, h);
+            if (i >= 0 && vis.label[i]! >= 0) within.add(vis.label[i]!);
+          }
+        }
+      }
+    }
+    const key = [...within].sort().join();
+    if (!stale && key === last.within && (!within.size || Math.hypot(x - last.x, y - last.y, z - last.z) < LOOK_AGAIN)) return;
+    Object.assign(last, { x, y, z, within: key });
+    stale = false;
+    const out = within.size === 0 || seenFrom(map, vis, within, x, y, z, seen);
+    for (const [zone, things] of drawnWith) {
+      const r = vis.regions.indexOf(zone);
+      const show = within.size === 0 || (r < 0 ? out : seen[r] === 1);
+      for (const o of things) o.visible = show;
+    }
+  };
+
   return {
     group,
+    view,
+    setCull: (on) => {
+      cull = on;
+      stale = true;
+    },
     triangles,
     movers: ambient.movers,
     drips: all.drips!,

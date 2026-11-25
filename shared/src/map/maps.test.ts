@@ -23,8 +23,10 @@ describe('the maps', () => {
 
   it('gives a map the game\'s numbers except where it has its own', () => {
     const station = mapById(DEFAULT_MAP);
-    expect(rulesOf(station)).toEqual({ intermission: INTERMISSION_SECONDS, forgeCost: FORGE_COST });
-    expect(rulesOf({ ...station, rules: { forgeCost: 2500 } })).toEqual({ intermission: INTERMISSION_SECONDS, forgeCost: 2500 });
+    expect(rulesOf(station)).toEqual({ intermission: INTERMISSION_SECONDS, forgeCost: FORGE_COST, spawnReach: Infinity });
+    expect(rulesOf({ ...station, rules: { forgeCost: 2500 } })).toEqual({ intermission: INTERMISSION_SECONDS, forgeCost: 2500, spawnReach: Infinity });
+    // The city is the one map with a number of its own: how far off the dead may come in.
+    expect(rulesOf(mapById('longest_night'))).toEqual({ intermission: INTERMISSION_SECONDS, forgeCost: FORGE_COST, spawnReach: 40 });
   });
 
   it('every map says where it is: its air, and a vista inside it', () => {

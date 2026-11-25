@@ -125,6 +125,10 @@ export interface ZhDebug {
   look(yaw: number, pitch?: number): void;
   /** What is drawn under the crosshair: the mesh's name (with its parents'), how far off, and where. For finding what a stray surface belongs to. */
   pick(): { name: string; dist: number; at: [number, number, number] } | null;
+  /** Every mesh in the scene, biggest first: its triangles, whether the view's frustum takes it in, and the sphere it is culled by (x, y, z, radius). For finding what a frame is made of: `meshes('glow|props')` also hides the ones whose name matches, until the next call. */
+  meshes(hide?: string): { name: string; triangles: number; seen: boolean; at: number[] }[];
+  /** `cull(false)` draws every zone whether or not it can be seen from here. */
+  cull(on: boolean): void;
   /** Aim the view at a world point. */
   lookAt(x: number, y: number, z: number): void;
   /** `give('pike')` hands over a weapon (`give('pike', true)` its Forge upgrade), `give('ironhide')` a tonic, `give('siren')` decoys, `give(500)` points (debug servers only). */
@@ -201,12 +205,16 @@ export interface DebugWiring {
   ping(): void;
   autopilot: { on: boolean };
   pick: ZhDebug['pick'];
+  meshes: ZhDebug['meshes'];
+  cull: ZhDebug['cull'];
 }
 
 /** Install window.__zh. Anything that changes the game is a debug message to the server. */
-export function wireDebug({ map, player, input, socket: s, playing, renderer, resize, audio, settings, screens, chat, ping, autopilot, pick }: DebugWiring): void {
+export function wireDebug({ map, player, input, socket: s, playing, renderer, resize, audio, settings, screens, chat, ping, autopilot, pick, meshes, cull }: DebugWiring): void {
   const api: Omit<ZhDebug, 'state'> = {
     pick,
+    meshes,
+    cull,
   audio, settings, screens, chat, ping,
   teleport: (x, z, yaw, y) => {
     const floor = map.nearestFloor(x, y ?? player.y, z, 'all');

@@ -4,6 +4,7 @@ export * from './validate';
 export * from './ascii';
 export * from './windows';
 export * from './massing';
+export * from './visibility';
 export { harrowRidge } from './harrowRidge';
 export { GALLERY_Y, TERRACE_N, TERRACE_S, VAULT_Y } from './terraces';
 export { stacks } from './stacks';

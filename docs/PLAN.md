@@ -320,7 +320,7 @@ Props that are ≥0.5 m tall block movement (and bullets if tall); small clutter
 Keep every lane ≥1.5 m wide. Varied ceiling heights, skybox gradient with mountains silhouette and
 aurora for the outdoor zone.
 
-### 4.12 Map — "The Longest Night" (second map; being built: blocked out, dressed, and everything on sale; hidden until M10)
+### 4.12 Map — "The Longest Night" (second map; being built: blocked out, dressed, everything on sale, balanced; hidden until M10)
 Wexler Square, in the middle of a big, old, fictional American city, Christmas Eve in the early 1990s.
 Deep in the canyons between the towers, snowing, every decoration still lit and nobody left to look
 at them. Chosen by the host in the lobby; Harrow Ridge stays as it is. Same weapons, tonics, Cache,
@@ -559,6 +559,14 @@ corners with arrows down the cut and the passage, SUBWAY over both ways down, th
 name and EXIT arrows below, what each floor of the store sells, and - in yellow, as on the
 station - POWER with an arrow at the foot of each stair that leads to a roof.
 
+**Its own numbers (M9; `MapDef.rules`).** One: `spawnReach: 40`. The dead come in at the windows
+of the zones the living are in or next to, and here a zone is a street a hundred metres long: from
+round 6 a third of them came in more than 40 m of walking from the nearest player and one in six
+more than 60, some over 100 (on the station nine in ten are within 30 m and the furthest seen in
+four games was 63). Now a window is only used if somebody is within 40 m of walking of it - the nearest
+window when there is none - and a window with one of them still standing at it waits its turn.
+Everything else (round tables, prices, the Forge's cost, the time between rounds) is the game's.
+
 **The look.** The same 90s horror as the station - dark, grain, hard pools of light, nothing clean
 - with Christmas as the only colour in it. Warm strings of bulbs over grey snow; the tree lit over
 a square of wrecked stalls; shop windows with their displays still turning; presents nobody will
@@ -752,6 +760,29 @@ passes over a kiosk, a bus or a market stall, and the tree stops it for fourteen
 buildings, what hangs in the air is not there: a column is open from its *lowest* floor under the
 sky, so the lane under a bridge is still street, a ledge over a lower roof leaves that roof as it
 was (the validator refuses one sunk into it), and a gap in a parapet is part of the parapet.
+
+**What is drawn** (`map/visibility.ts`, M9). The renderer leaves out what is outside the view; on
+a map this size most of the world is inside the view from anywhere, and behind a wall. So every
+open cell belongs to a region - its zone, or for the roofed cells no zone owns (a doorway, the
+dark behind a window) the zone it is reached from; yards and ledges under the sky are "the
+outside", with whatever stands beyond the walls - and each mesh of the world is one region's
+(`...|zone`; a city's façades go with the street they stand over). Two things say which regions
+are drawn. Once a map, a table of which pairs can see each other at all: a line from one region
+into another leaves through the first's boundary and comes in through the second's, so the
+boundaries are sampled (every half metre along and up; under the sky, up the air over each lower
+roof beside it as well) and a pair see each other if any two samples have a clear line between
+them - doors open, furniture not there. Regions under the sky are taken to see each other. And as
+the eye moves (every 20 cm) it is asked again from where the eye is (`seenFrom`): for each
+*roofed* region the table allows, is any sample of its doorways and windows in sight from
+outside it? and for an eye indoors, is any way out - a sample where a roofed region it sees
+meets a street, a roof or a yard - in sight from inside? If none is, nothing under the sky is
+drawn. The eye is taken to be anywhere within 35 cm of where it is, and the samples sit hard by
+every jamb, sill and lintel, because a room seen through a slit is still seen. A free camera in
+the air draws everything. `visibility.test.ts` marches rays from eyes all over each
+map and fails if one ever enters a cell whose region would not have been drawn
+(`VIS_DENSE=1` looks four times as hard: run it after touching the sampling or a map's doors);
+`__zh.cull(false)` draws everything, `__zh.meshes()` lists what a frame is made of and
+`npm run tour -- --night --perf` measures every view.
 
 `validate.ts` runs in tests and fails the build if: a block is off the grid or off the map; a prop blocks the floor inside a window; any zone is unreachable with all doors open;
 any window/spawn can't path to the player spawn; a prop seals a lane (<1.5 m); interactables are
@@ -1657,16 +1688,92 @@ Asked for by the owner: a second map chosen in the lobby, a winter city at Chris
   out in the square; the air's level outdoors (rms 0.033) is twice the station's mess hall's
   and untried by ear; README says nothing of the map (M10). The world is 299,500 triangles (it
   was 296,000) and builds and bakes in 1.4-1.7 s.
-- [ ] M9 Balance and performance. `campaign --runs=32` against the station's numbers; frame time
-  and draw calls from the worst view (a roof, looking across the square); snapshot and tick
-  budgets with the horde spread over a block.
+- [x] M9 Balance and performance - done. Measured first, then cut; what is below is against the
+  last commit on the same machine with nothing else running.
+  **Performance.** `npm run tour -- --night --perf` stands at every one of the tour's 158 views
+  and reports triangles, draw calls and frame rate. Before: 245,000-299,000 triangles from 150 of
+  the 151 walked views, whichever way they looked - the frustum takes in most of a city from
+  anywhere, and the renderer knew nothing of walls. In headless software rendering a frame is
+  about 30 ms plus 0.2 ms for each thousand triangles, so that is what was cut:
+  - *Zones behind walls are not drawn* (6.1, "What is drawn"; `shared/src/map/visibility.ts`). A
+    table, once a map, of which zones can see each other at all (0.4 s for the city, 0.05 s for
+    the station), and as the eye moves a look from where it is: at each roofed zone's doorways
+    and windows, and from indoors at the ways out. The world's meshes are by region: window
+    pockets that are roofed go with their room, a city's façades with the street they stand
+    over, lamps' glow is per zone (it was one mesh a map). From the square the store is drawn
+    only while its door or a window is in sight; from the platform the streets are drawn only
+    from the foot of a flight that climbs to one.
+  - *Façades are joined up* (`render/city.ts`). Above the storey next to the street a wall was a
+    quad every half metre to each storey; a run of them that is one colour from end to end
+    (nothing a lamp reaches) is one quad now: 24,000 triangles fewer in the world, 275,800 for
+    299,500.
+  - *Big meshes are in 40 m tiles* (over 6,000 triangles), so the half of a street behind the
+    eye goes.
+  After, over the same 151 walked views: triangles 84,000 at the median (it was 198,000) and
+  195,000 at the worst (299,000: the Lyric's lobby, looking out at the square); frame rate 35 at
+  the median (19), 19 at the tenth (12) and 16 at the worst (10); draw calls 52 at the median and
+  127 at the worst (47 and 94; the budget is 150). The plan's worst view, Abelard's roof across
+  the square: 297,000 triangles at 11 fps became 147,000 at 19. The platform: 246,000 at 12 fps
+  became 34,000 at 52. The free camera in the air draws everything, by design: 264,000-274,000
+  triangles in up to 166 calls. The world takes about 1.9 s to build and bake (1.5-1.9 as M8
+  measured it; 0.3 s of it is the table).
+  That it hides nothing that is seen: `visibility.test.ts` marches rays every way from eyes all
+  over each of the four maps and fails if one enters a cell that would not have been drawn (and
+  holds the table to what walls plainly hide: the subway from the street, the vault from the
+  mess); and of the tour's 242 pictures of both maps, taken before and after, the only ones
+  that differ by more than snow and the frame counter are of things that move (failing tubes,
+  the carousel, a plume of steam).
+  Harrow Ridge gains by it too: over its 84 views 33,000 triangles at the median (53,000) and
+  54,500 at the worst (86,000), 60 draw calls at the worst (75), 35 fps at the slowest (22).
+  **Server.** Thirty-two mortal games on the city: tick 0.11-0.56 ms on average (budget 5), 331
+  of 1,128,817 ticks over the budget (the bar is one in a hundred), largest snapshot 1,550 bytes
+  with the full 32 of them alive (budget 4,096), events 2.6 kB/s, worst idle 3.0 s, no bot
+  message refused. In god mode ten rounds run clean (no stuck zombie, worst idle 3.0 s, no
+  correction, tick 0.52 ms, 13 of 31,931 over the budget).
+  **Balance.** `campaign --runs=32`, four mortal bots, both maps the same way. The station
+  (after M6's sight fix): 7 to 13 rounds, 9.7 on average, median 9, a round every 1.63 minutes.
+  The city as M8 left it: 5 to 15, 10.9, median 11, a round every 2.16 minutes - a round kinder
+  and a third slower. Rounds 1 to 7 last the same on both maps to within a tenth; from round 8
+  the city's are half as long again (156 s for 97 at round 10). Two things were looked at:
+  - *Where the dead come in.* Far away (4.12, "Its own numbers"): a third of them more than 40 m
+    of walking from anybody, where the station cannot do that. `MapRules.spawnReach` is new and
+    the city has it at 40 m. With it: 5 to 15 rounds, 9.6 on average, median 9 - the station's
+    numbers - and fewer bots go down with nothing left in any gun (57 of 240 downs, from 71 of
+    266; on Abelard's roof, where the switch is and no gun hangs, 23 from 35). It does *not*
+    make rounds shorter (2.04 minutes): see the next.
+  - *Why late rounds are long.* The bots' errands, not the dead's walk: in rounds 8 to 11 a
+    bot is on its way to ammunition a quarter of the time, to a gun or a tonic another quarter,
+    and a quarter of the time five or fewer of the dead are up. That is the size of the map
+    doing what 4.12 asked of it ("a team splits up without meaning to"), and no number was
+    changed for it: round tables, prices and the Forge are the game's on both maps.
+  Nobody goes down for the furniture: of 240 downs 11 are in the square and 2 on the avenue, and
+  no zombie idled over 3 s round the rink, the stalls or the bus in any of 64 games - which
+  answers M5's question as far as bots can (they cross the square; they do not fight in it).
+  Harrow Ridge is as it was: all 32 of its games are the same to the shot (it has no reach and
+  the spawner asks for none), and its pictures do not change.
+  New tools: `tour --perf`, `__zh.meshes()`, `__zh.cull(false)`.
+  Found on the way: the six-round city campaign in `night.test.ts` held seed 1 to four doors and
+  a tonic, which goes by the seed (3 to 7 doors over six of them); it runs seed 4 now. `npm run
+  horde` and `e2e` each failed once (a body shot scored as a limb; nine of ten remote shots
+  seen) while two campaigns and a tour were running beside them, and pass alone, as they do on
+  the last commit.
+  Not done: outdoors is still everything outdoors - streets and roofs are taken to see each
+  other, so the square draws the lane and both roofs' floors, and half the frame there is
+  floor and furniture at half a metre a quad (37,000 and 46,000 triangles); floors could be
+  joined as the façades were, at the price of seams where a joined quad meets cut ones. The
+  look from the eye is by sample: a room seen only through a slit under 25 cm wide that touches
+  no jamb, from every one of five eye positions 35 cm apart, would be left out (the test has
+  not found one). The strings of bulbs are still five faces a bulb. Nothing was judged by ear
+  or by hand: how the city plays for people, the air's level outdoors (M8) and whether rounds
+  of three minutes are too long are M10's, with players. README says nothing of the map (M10).
 - [ ] M10 Acceptance. The tour, a browser walk over every height (as `npm run site` is for the
   station), the existing browser scripts on both maps where they are about the map, `ship` on
   each. README and CLAUDE.md say what there is.
 
 M2 was the session thought most likely to become two (the engine had only ever hidden the
-outside); it took one. Next most likely is
-M9 (the station's rebuild took a whole step to balance, and errands here are longer still).
+outside); it took one. Next most likely was
+M9 (the station's rebuild took a whole step to balance, and errands here are longer still); it
+took one as well, most of it on what is drawn and little on balance.
 
 ## 10. Risks to watch
 - **Map authoring by hand in code** is the biggest schedule risk → mitigated by the carved-rect

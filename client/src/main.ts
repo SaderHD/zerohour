@@ -3,7 +3,7 @@ import {
   BLEEDOUT_SECONDS, CLIENT_MOVE_SEND_HZ, MARK_RANGE, MoveState, PLAYER_EYE_HEIGHT, aimDir, compileMap, isMapId, mapById, maxHpWith, rayWorld, validateMap,
 } from '@zh/shared';
 import { GameAudio } from './audio/audio';
-import { debugState, wireDebug } from './debug';
+import { debugState, wireDebug, type ZhDebug } from './debug';
 import { Autopilot } from './game/autopilot';
 import { Barricades } from './game/barricades';
 import { CacheView } from './game/cacheView';
@@ -294,7 +294,27 @@ const pick = (): { name: string; dist: number; at: [number, number, number] } | 
   for (let o: THREE.Object3D | null = hit.object; o && o !== scene; o = o.parent) names.unshift(o.name || o.type);
   return { name: names.join('/'), dist: hit.distance, at: [hit.point.x, hit.point.y, hit.point.z] };
 };
-wireDebug({ map, player, input, socket: s, playing, renderer, resize, audio, settings, screens, chat: (text) => net.chat(text), ping, autopilot, pick });
+const hidden = new Set<THREE.Object3D>();
+const meshes = (hide?: string): ReturnType<ZhDebug['meshes']> => {
+  for (const o of hidden) o.visible = true;
+  hidden.clear();
+  camera.updateMatrixWorld();
+  const frustum = new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+  const list: ReturnType<ZhDebug['meshes']> = [];
+  scene.traverseVisible((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    const g = m.geometry;
+    const one = (g.index ? g.index.count : (g.getAttribute('position')?.count ?? 0)) / 3;
+    const names: string[] = [];
+    for (let q: THREE.Object3D | null = m; q && q !== scene; q = q.parent) names.unshift(q.name || q.type);
+    if (hide && new RegExp(hide).test(names.join('/'))) return void hidden.add(m);
+    list.push({ name: names.join('/'), triangles: Math.round(one * ((m as THREE.InstancedMesh).isInstancedMesh ? (m as THREE.InstancedMesh).count : 1)), seen: !m.frustumCulled || frustum.intersectsObject(m), at: g.boundingSphere ? [g.boundingSphere.center.x, g.boundingSphere.center.y, g.boundingSphere.center.z, g.boundingSphere.radius].map((v) => Math.round(v)) : [] });
+  });
+  for (const o of hidden) o.visible = false;
+  return list.sort((a, b) => b.triangles - a.triangles);
+};
+wireDebug({ map, player, input, socket: s, playing, renderer, resize, audio, settings, screens, chat: (text) => net.chat(text), ping, autopilot, pick, meshes, cull: (on) => world.setCull(on) });
 
 const MAX_FRAME = 0.2;
 const SPECTATE_BACK = 2.4;
@@ -377,6 +397,7 @@ renderer.gl.setAnimationLoop((now) => {
   pickups.update(dt, gameTime);
   hud.setEffects(live() ? [...match.effects].map(([kind, until]) => ({ kind, left: until - gameTime })) : []);
   world.update(dt, now / 1000);
+  world.view(camera.position.x, camera.position.y, camera.position.z);
   atmosphere.update(dt, camera.position.x, camera.position.y - PLAYER_EYE_HEIGHT, camera.position.z);
   sky.position.set(camera.position.x, 0, camera.position.z);
   snow?.update(now / 1000, camera.position);
