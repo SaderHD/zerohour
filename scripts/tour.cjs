@@ -1,7 +1,8 @@
 // Screenshot tour: boots the built server and saves one or more views per zone to
 // test-results/tour-*.png so visual changes can be reviewed. Usage: npm run build && npm run tour
 // `npm run tour -- --stacks [view...]` tours the Stacks (the height proving ground) instead, with its
-// doors open, to test-results/tour-stacks-*.png; `--corner` the Corner (one block of a city) likewise.
+// doors open, to test-results/tour-stacks-*.png; `--corner` the Corner (one block of a city) likewise;
+// `--night` The Longest Night (to tour-night-*.png; a view called `air-*` is the free camera at that height).
 const { spawn } = require('node:child_process');
 const { mkdirSync } = require('node:fs');
 const path = require('node:path');
@@ -126,8 +127,53 @@ const CORNER_VIEWS = [
   ['under', 8, 35.5, -1.57, 0, -4],
 ];
 
+// The Longest Night: the streets, the ground floors, the mezzanine (-4) and the platform (-8).
+const NIGHT_VIEWS = [
+  ['diner', 54.5, 95.5, 0.95, -0.03, 0],
+  ['diner-kitchen', 55, 102, 1.0, -0.03, 0],
+  ['tenement', 65.5, 103.8, 1.0, -0.03, 0],
+  ['square', 54, 84, -0.9, 0.1, 0],
+  ['square-south', 94, 52, 2.3, 0.1, 0],
+  ['square-up', 74, 68, 0, 0.7, 0],
+  ['square-east', 60, 72, -1.57, 0.15, 0],
+  ['square-subway', 90, 53, -1.57, 0.05, 0],
+  ['cut', 74, 49.5, 0, 0.1, 0],
+  ['pass', 83.5, 86.5, 3.14, 0, 0],
+  ['avenue', 21.5, 36, -1.57, 0.1, 0],
+  ['avenue-west', 118.5, 36, 1.57, 0.1, 0],
+  ['avenue-mid', 74, 38, -1.3, 0.3, 0],
+  ['avenue-up', 60, 36, 1.57, 0.8, 0],
+  ['avenue-pavement', 90, 31.2, 1.5, 0, 0.15],
+  ['lane', 59.5, 95, -1.57, 0.08, 0],
+  ['lane-west', 120.5, 95, 1.57, 0.08, 0],
+  ['lane-hatch', 78.5, 96, 0, 0, 0],
+  ['lyric-lobby', 50.5, 63, 0.9, -0.03, 0],
+  ['lyric-hall', 38, 61, 0.85, 0.1, 0],
+  ['lyric-exit', 25, 47, 0, 0, 0],
+  ['chapel', 47, 28.5, 0, 0.15, 0],
+  ['abelard', 98, 84.5, -0.85, -0.03, 0],
+  ['abelard-bay', 116, 90.5, 0, 0, 0],
+  ['mezz-stairs', 97.5, 53, -1.57, -0.45, -0.3],
+  ['mezz', 105, 65.5, 1.05, -0.03, -4],
+  ['turnstiles', 88.5, 54, 0, 0, -4],
+  ['platform-stairs', 88.5, 46, 0, -0.45, -4.3],
+  ['platform-west', 93, 38.5, 1.45, 0, -8],
+  ['platform-east', 99, 38.5, -1.45, 0, -8],
+  ['train', 71, 30, -1.57, 0, -8],
+  ['avenue-stairs', 113, 31, 0, 0.45, -8],
+  ['avenue-landing', 113.5, 21.2, 1.57, 0, -4],
+  ['service', 68, 41.5, 3.14, 0, -8],
+  ['signal-room', 64.5, 63, 1.0, 0, -8],
+  ['service-landing', 68, 84, 3.14, 0, -4],
+  ['air-square', 74, 100, 0, -0.75, 40],
+  ['air-avenue', 20, 36, -1.57, -0.35, 30],
+  ['air-plan', 75, 66, 0, -1.5, 60],
+];
+const TOURS = { stacks: ['stacks', STACKS_VIEWS], corner: ['corner', CORNER_VIEWS], night: ['longest_night', NIGHT_VIEWS] };
+
 (async () => {
-  const which = ['stacks', 'corner'].find((id) => process.argv.includes(`--${id}`));
+  const tour = Object.keys(TOURS).find((id) => process.argv.includes(`--${id}`));
+  const which = tour && TOURS[tour][0];
   const stacks = !!which;
   const server = spawn('node', ['server/dist/index.js'], { cwd: root, env: { ...process.env, PORT: String(port), ZH_DEBUG: '1', ...(which ? { ZH_MAP: which } : {}) }, stdio: 'ignore' });
   let browser;
@@ -147,15 +193,16 @@ const CORNER_VIEWS = [
     mkdirSync(path.join(root, 'test-results'), { recursive: true });
     const only = process.argv.slice(2).filter((a) => !a.startsWith('--'));
     if (stacks) await page.evaluate(() => window.__zh.openAllDoors());
-    for (const [name, x, z, yaw, pitch, y] of which === 'corner' ? CORNER_VIEWS : stacks ? STACKS_VIEWS : VIEWS) {
+    for (const [name, x, z, yaw, pitch, y] of tour ? TOURS[tour][1] : VIEWS) {
       if (only.length && !only.includes(name)) continue;
       if (name.endsWith('-on') && !(await page.evaluate(() => window.__zh.state().power))) {
         await page.evaluate(() => window.__zh.powerOn());
         await page.waitForTimeout(2200); // the lights stutter up
       }
-      await page.evaluate(([x, z, yaw, pitch, y]) => { window.__zh.teleport(x, z, yaw, y ?? undefined); window.__zh.look(yaw, pitch); }, [x, z, yaw, pitch, y ?? null]);
+      if (name.startsWith('air-')) await page.evaluate(([x, z, yaw, pitch, y]) => window.__zh.fly(x, y, z, yaw, pitch), [x, z, yaw, pitch, y]);
+      else await page.evaluate(([x, z, yaw, pitch, y]) => { window.__zh.teleport(x, z, yaw, y ?? undefined); window.__zh.look(yaw, pitch); }, [x, z, yaw, pitch, y ?? null]);
       await page.waitForTimeout(900); // server round-trip for the teleport, a few frames, the air settling
-      await page.screenshot({ path: path.join(root, `test-results/tour-${which ? `${which}-` : ''}${name}.png`) });
+      await page.screenshot({ path: path.join(root, `test-results/tour-${tour ? `${tour}-` : ''}${name}.png`) });
     }
     console.log('[tour]', JSON.stringify(await page.evaluate(() => window.__zh.state())));
   } finally {

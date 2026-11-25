@@ -320,7 +320,7 @@ Props that are ≥0.5 m tall block movement (and bullets if tall); small clutter
 Keep every lane ≥1.5 m wide. Varied ceiling heights, skybox gradient with mountains silhouette and
 aurora for the outdoor zone.
 
-### 4.12 Map — "The Longest Night" (second map; planned, not built)
+### 4.12 Map — "The Longest Night" (second map; being built: streets and subway blocked out)
 Wexler Square, in the middle of a big, old, fictional American city, Christmas Eve in the early 1990s.
 Deep in the canyons between the towers, snowing, every decoration still lit and nobody left to look
 at them. Chosen by the host in the lobby; Harrow Ridge stays as it is. Same weapons, tonics, Cache,
@@ -390,6 +390,24 @@ Harrow Ridge keeps that - but both ways to it wait for the power.
 
 About 36 windows for Harrow Ridge's 18. On a street a "window" is a barricade the dead tear down;
 on a roof they come over the parapet; in the subway out of the dark of the track tunnel.
+
+**As blocked out (M3; `shared/src/map/longestNight.ts`, `npm run map -- longest_night`).** The
+streets, every ground floor and the subway stand, undressed, with the doors and prices above and 24
+of the windows (the street barricades, and every ground-floor window; nothing comes out of a
+tunnel yet). Where the sketch left room, it was decided so: the avenue runs along the north
+(z 30-42), a cut joins it to the square (z 50-86) and a passage joins the square to the lane
+(z 92-98), each with its heap of wreckage in a wall across the middle; the Lyric is the block
+between avenue and square on the west, its fire exit a corridor out of the auditorium; the diner is
+at the square's south-west corner with the kitchen behind it, and the tenement's hall opens off the
+kitchen. The subway's stairs go down from a door in the square's *east* side to the mezzanine,
+which lies under the square's north-east corner and Abelard's front; a passage and the turnstiles
+lead north to a flight down onto the platform's west half. The platform is in two halves under the
+avenue with the roof down between them, and the train stands alongside both: the way from one half
+to the other is through it. From the east half two flights climb in a head house on the avenue's
+north side. The service tunnel runs south from the west half under the square, the signal room off
+it, and comes up two flights to a door in the lane's north wall (the "hatch"). A flight that
+reaches the street always stands inside a building: its head room runs up past street level, and
+the compiler lets nothing lie over open sky.
 
 **The look.** The same 90s horror as the station - dark, grain, hard pools of light, nothing clean
 - with Christmas as the only colour in it. Warm strings of bulbs over grey snow; the tree lit over
@@ -591,7 +609,9 @@ further up or down than stairs could have taken the player over that distance.
 ### 6.3 Navigation
 `flowfield.ts`: Dijkstra over walkable cells, along `CompiledMap.links` (so across storeys by their
 stairs), from each living player's cell (cells touching a wall or a ledge
-cost more, so paths keep to the middle of lanes), recomputed every 250 ms (staggered across ticks)
+cost more, so paths keep to the middle of lanes; a step costs a small whole number, so the queue is
+a ring of buckets, one a distance, and a field costs what the map has of floor, not the size of its
+grid: about 0.5 ms on the station, 1.3 ms on The Longest Night), recomputed every 250 ms (staggered across ticks)
 and, when a door opens, one field a tick over the next few ticks. Each zombie samples the field of its target player a few cells
 ahead, adds separation from neighbours (a plain pair loop — 32 bodies need no spatial hash) and a
 little per-zombie lateral noise so hordes don't single-file. Within 3 m and in sight it runs
@@ -1232,10 +1252,44 @@ Asked for by the owner: a second map chosen in the lobby, a winter city at Chris
   façade is brick with one kind of window (stone, a church, a cinema's blind wall are M5-M6's);
   the whole city's façades are one mesh a wall style, never culled (M9 measures); the Corner has
   no browser walk of its own beyond the tour.
-- [ ] M3 Blockout I: street and subway. The square, avenue, lane and every ground floor, the
-  mezzanine and platform, doors and prices, undressed. Engine work this needs, measured first: a
-  flow field on six times the cells (the heap is sized by the whole grid today), bake time, the
-  camera's reach and the fog on a 100 m street.
+- [x] M3 Blockout I: street and subway - done (4.12, "As blocked out", says where everything is).
+  `map/longestNight.ts`, hidden until M10: 150 x 120 m, three storeys so far (street, mezzanine
+  -4, platform -8), eleven zones, 13 doors at the plan's prices (two of them heaps of wreckage, two
+  waiting for the power), 24 windows, 27 blocks from 3.5 to 30 m, about 6,000 m2 of floor (the
+  station has 1,900). Undressed: lamps enough to see by, no props, nothing to buy.
+  The engine, measured on it first:
+  - *Flow field.* The grid is 216,000 cells (the station's 58,800; five storeys will make it
+    360,000) with 24,000 of them floor. The old field kept a heap of sixteen numbers for every cell
+    of the grid and asked every cell whether it was walkable on each recompute: 14.7 MB a field and
+    2.75 ms a recompute here (4 MB and 0.89 ms on the station), against a 5 ms tick. Now the queue
+    is a ring of buckets and the unchanging part (floor, wall costs, which cells are doorways) is
+    worked out once a map: 2.8 MB and 1.3 ms here, 0.8 MB and 0.45 ms on the station. The
+    distances are the same number for number (checked against the old field from 1,083 goals over
+    the four maps, and in a test against a search with no queue at all), so Harrow Ridge is as it
+    was: a seeded ten-round campaign is the same to the shot, in 4 s of real time instead of 7.
+  - *Bake.* The world builds and bakes in 0.78 s in headless Chromium (the station, dressed, 0.50 s;
+    the Corner 0.22 s): 163,000 triangles. Nothing to do yet; dressing will add to it (M9).
+  - *The camera's reach, the fog.* The far plane is 400 m and stays. The map's fog runs 10-110 m
+    (the Corner's 8-85): from one end of the avenue the other end is there, as a dark shape under
+    the towers; each subway zone has thicker air of its own.
+  - *Frame.* 27-55 draw calls, but 135,000-160,000 triangles from anywhere outdoors: the city's
+    façades are one mesh a wall style and none of it is culled (M2 said so; M9 measures and cuts).
+  The game on it: `server/src/game/night.test.ts` sends a zombie from the far end of the map to a
+  player in the signal room, the chapel, the platform and the avenue's end, and soaks four roaming
+  bots and a full horde for four minutes with every door open (ten zones walked, zombies on all
+  three storeys, worst idle 2.1 s, tick 0.8 ms on average); `shared/src/map/longestNight.test.ts`
+  holds the layout to the plan (prices, the circuit through the train, the power at both ends of the
+  service tunnel, every flight walked). `npm run tour -- --night` takes 39 pictures
+  (`tour-night-*.png`; a view named `air-*` is the free camera).
+  Found on the way: a door cut through solid that no block covers stands under 14 m of default
+  brick, so the wreckage in the cut had a tower's worth of wall over it (the two walls have blocks
+  of their own now, 4 m, the sky over them).
+  Not done: nothing is sold, so the campaign's bots never leave the diner (`campaign --god
+  --map=longest_night` runs clean, eight rounds, but proves only the diner: the soak above is what
+  covers the map until M8); the subway has no windows (M4: a pocket there needs something other
+  than sky over it), so whoever is down there is come for from the street; the tenement is a hall
+  with no stairs; the walls round a barricade are the building behind it with boards at its foot
+  (M5's street kit).
 - [ ] M4 Blockout II: upstairs and roofs. The tenement, Abelard's three floors, the Lyric's
   balcony, the bridge, the fire escape; windows on roofs and in tunnels (a pocket has always had
   solid ground behind it: here it has air or track); sight and shots over a roof lower than the

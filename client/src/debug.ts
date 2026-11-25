@@ -34,6 +34,8 @@ export interface DebugState {
   sprinting: boolean;
   freeCam: boolean;
   drawCalls: number;
+  /** How long the world took to build and bake when the page loaded, ms. */
+  worldBuildMs: number;
   triangles: number;
   worldTriangles: number;
   /** World parts that move by themselves (fans, flywheels, swinging lamps). */
@@ -177,7 +179,7 @@ declare global {
 export const debugState: DebugState = {
   phase: 'connecting', connected: false, playerId: null, room: null, isHost: false, pingMs: null, frames: 0, fps: 0,
   x: 0, y: 0, eyeY: 0, z: 0, yaw: 0, pitch: 0, zone: null, map: '', stamina: 0, sprinting: false, freeCam: false,
-  drawCalls: 0, triangles: 0, worldTriangles: 0, movers: 0, resolution: [0, 0], openDoors: [], power: false, mapErrors: [],
+  drawCalls: 0, worldBuildMs: 0, triangles: 0, worldTriangles: 0, movers: 0, resolution: [0, 0], openDoors: [], power: false, mapErrors: [],
   remotes: [], corrections: 0,
   weapon: null, weapons: [], upgraded: [], perks: [], maxHp: 100, forge: 'idle', slot: 0, mag: 0, reserve: 0, grenades: 0, reloading: false, aim: 0, shots: 0,
   entities: [], hp: 100, hurts: 0, round: 0, roundPhase: 'intermission', zombiesLeft: 0, points: 0, life: 'alive', roster: [], over: false, barricades: [], prompt: '', hits: [], kills: 0, explosions: 0, tacticals: 0, powerups: [], effects: [], powerupsTaken: [], cache: { home: '', boxes: [] }, chains: [], strikes: 0, lastStrike: null, audio: null, shake: 0, damageArcs: [], fx: { particles: 0, tracers: 0, projectiles: 0, bolts: 0, kinds: [] },

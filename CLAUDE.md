@@ -8,7 +8,8 @@ sessions and the progress checklist (section 9). All 14 sessions are done: the g
 (`README.md` is the player's and host's guide). Later work is maintenance: keep the plan true in
 the same commit as any change to what it describes.
 A second map, "The Longest Night", is being built: PLAN 4.12 is its design, "The second map" in
-section 9 its ten sessions (M1-M10; M1 and M2 are done).
+section 9 its ten sessions (M1-M10; M1 to M3 are done: its streets, ground floors and subway are blocked
+out in `shared/src/map/longestNight.ts`, a hidden map until it is finished).
 
 ## Rules
 - Original content only: reuse genre mechanics, never another game's names, characters, maps,
@@ -63,7 +64,7 @@ section 9 its ten sessions (M1-M10; M1 and M2 are done).
 - URL flags for quick testing: `?autostart=1` (straight into a solo game), `?room=ABCD&autostart=1`
   (shared room across tabs), `?name=X`, `?debug=1`, `?auto=1` (the autopilot plays for you).
 - `npm run map` — validate the map and rewrite the ASCII dump `docs/MAP.txt` (`npm run map -- <id>`
-  checks and prints another map, e.g. `stacks`, the three-storey proving ground, or `corner`, one block of a city, without writing anything).
+  checks and prints another map, e.g. `longest_night`, `stacks`, the three-storey proving ground, or `corner`, one block of a city, without writing anything).
 - `npm run maps` — after a build: two browser players and a bot; the host picks another map in the lobby,
   pages and seats follow, the game runs on it; a server without debug offers one map. Writes `test-results/maps-*.png`.
 - `npm run tour [view...]` — after a build: screenshots of every zone to `test-results/tour-*.png`
@@ -75,7 +76,8 @@ section 9 its ten sessions (M1-M10; M1 and M2 are done).
 - `npm run heights` — after a build: one browser player on the Stacks (server started with `ZH_MAP=stacks`,
   the map its rooms start on; the client follows its room's map, or takes `?map=stacks`): up the ramp and the stairs, the ledge, shots
   and prompts by floor, a zombie climbing three storeys. Writes `test-results/heights-*.png`.
-  `npm run tour -- --stacks` photographs every part of it (`tour-stacks-*.png`); `npm run tour -- --corner` the Corner (`tour-corner-*.png`).
+  `npm run tour -- --stacks` photographs every part of it (`tour-stacks-*.png`); `npm run tour -- --corner` the Corner (`tour-corner-*.png`), `npm run tour -- --night` The Longest Night
+  (`tour-night-*.png`; a view named `air-*` is the free camera at that height).
 - `npm run smoke` — after a build: boots the server, drives headless Chromium, checks handshake
   and rendering, writes `test-results/smoke.png`. Uses the globally installed `playwright`; do not
   add it as a dependency in the cloud environment.
@@ -99,6 +101,12 @@ section 9 its ten sessions (M1-M10; M1 and M2 are done).
   an outdoor room a storey up in a block with `parapet: 0`: its edge over a street or a lower roof is open (put a
   `rail`), against a taller block it is that block's wall. `render/towers.ts` is the ring beyond the map,
   `paintCity` in `render/sky.ts` the sky. Sight and shots do not know the heights yet (M4).
+- The Longest Night (`map/longestNight.ts`; PLAN 4.12 "As blocked out"): streets are a room plus half-metre
+  strips (`alongX`/`alongZ`: each stretch gives its wall a face and a tint; match the block behind). The subway
+  is levels -1 (-4 m) and -2 (-8 m) under open street. A flight that reaches the street must stand inside a
+  building (its room is tall: `FLIGHT`), one that climbs to a pavement rises `STOREY + KERB`. A door or a
+  barricade cut through solid needs a block over it or it stands under 14 m of default brick. Tests:
+  `shared/src/map/longestNight.test.ts` (layout), `server/src/game/night.test.ts` (soak across it).
 - Height (PLAN 6.1-6.3): the grid is a stack of layers, one per storey (`Room.level`, floor height
   `Room.y`, ramps and stairs as `Room.rise`). Cells join where their floors are within `STEP_HEIGHT`
   (`CompiledMap.links`); anything taller is a ledge nobody crosses. Whatever stands somewhere has a

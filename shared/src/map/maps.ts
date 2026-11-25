@@ -2,11 +2,15 @@ import { FORGE_COST, INTERMISSION_SECONDS } from '../constants';
 import { CompiledMap, compileMap } from './compile';
 import { corner } from './corner';
 import { harrowRidge } from './harrowRidge';
+import { longestNight } from './longestNight';
 import { stacks } from './stacks';
 import type { MapDef, MapRules } from './types';
 
-/** Every map there is, by id, in the order a lobby lists them. The Stacks is the proving ground for height, the Corner for a city's outside. */
-export const MAPS: Readonly<Record<string, MapDef>> = { [harrowRidge.id]: harrowRidge, [stacks.id]: stacks, [corner.id]: corner };
+/**
+ * Every map there is, by id, in the order a lobby lists them. The Longest Night is hidden while it is being built (PLAN section 9, M3-M10);
+ * the Stacks is the proving ground for height, the Corner for a city's outside.
+ */
+export const MAPS: Readonly<Record<string, MapDef>> = { [harrowRidge.id]: harrowRidge, [longestNight.id]: longestNight, [stacks.id]: stacks, [corner.id]: corner };
 
 /** The map a room is on until its host says otherwise. */
 export const DEFAULT_MAP = harrowRidge.id;
