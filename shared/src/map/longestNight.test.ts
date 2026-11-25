@@ -4,9 +4,11 @@ import { circleFits, moveCircle } from '../nav/collide';
 import { FlowField, UNREACHABLE } from '../nav/flowfield';
 import { lineOfSight } from '../nav/los';
 import { rayWorld } from '../nav/ray';
-import { Cell, DECK, compileMap, type DoorSet } from './compile';
+import { Cell, DECK, DIR_VEC, compileMap, type DoorSet } from './compile';
 import { FLOOR_STYLES, WALL_STYLES } from './types';
 import { propDef } from '../data/props';
+import { WEAPONS } from '../data/weapons';
+import { TONICS } from './dressing/mounts';
 import { TREE } from './dressing/nightStreets';
 import { longestNight } from './longestNight';
 import { massing } from './massing';
@@ -14,7 +16,7 @@ import { validateMap } from './validate';
 import { mapWindows } from './windows';
 
 // The Longest Night's blockout (PLAN 4.12; section 9, M3 and M4): the streets, every floor, the roofs, the subway;
-// and the streets as dressed (M5), the halls (M6), the diner, the tenement, the roofs and the subway (M7).
+// and the streets as dressed (M5), the halls (M6), the diner, the tenement, the roofs and the subway (M7); what is sold (M8).
 
 const map = compileMap(longestNight);
 const doors = (...ids: string[]): DoorSet => new Set(ids);
@@ -521,13 +523,67 @@ describe('the rest dressed (M7)', () => {
     for (const p of sides) expect(p.x - p.s! / 2 >= 70 && p.x + p.s! / 2 <= 106, `${p.x}`).toBe(true);
   });
 
-  it('the signal room keeps its west wall for the Forge; nothing dressed blocks a way through', () => {
+  it('the signal room has its frame and its relays; nothing dressed blocks a way through', () => {
     expect(zones('lever_frame')).toEqual(['service']);
     expect(zones('relay_cabinet')).toEqual(['service']);
-    for (let z = 59.25; z < 63; z += 0.5) for (let x = 57.75; x < 59.5; x += 0.5) expect(map.walkAt(Math.floor(x / CELL_SIZE), Math.floor(z / CELL_SIZE), -8), `${x}, ${z}`).toBeGreaterThanOrEqual(0);
     expect(validateMap(map).errors).toEqual([]);
     for (const w of mapWindows(map)) expect(Number.isFinite(walkTo('all', [w.inX, w.y, w.inZ], DINER)), w.id).toBe(true);
     for (const p of longestNight.props) expect(propDef(p.type), p.type).toBeDefined();
-    expect(longestNight.interactables).toEqual([]);
+  });
+});
+
+describe('things to buy (M8)', () => {
+  const things = longestNight.interactables;
+  const zoneOf = (id: string): string | null => {
+    const it = things.find((t) => t.id === id)!;
+    const v = DIR_VEC[it.facing];
+    return map.zoneAt(it.x + v.x * 0.75, map.mountHeight(it), it.z + v.z * 0.75);
+  };
+
+  it('every wall gun, tonic and Cache site stands in the zone the plan gives it', () => {
+    expect(Object.fromEntries(things.map((t) => [t.id, zoneOf(t.id)]))).toEqual({
+      cache_square: 'square', wb_farrow: 'diner', wb_pike: 'diner', tonic_second_wind: 'diner',
+      wb_coachman: 'avenue', tonic_quickhands: 'lane', wb_stitch: 'tenement', tonic_marathon: 'tenement', cache_ten_roof: 'ten_roof',
+      wb_kestrel: 'abelard', tonic_hair_trigger: 'abelard_up', cache_abelard_up: 'abelard_up',
+      wb_brakeman: 'lyric', cache_lyric: 'lyric', tonic_packmule: 'lyric', tonic_ironhide: 'chapel',
+      cache_mezz: 'mezz', wb_stitch_platform: 'platform', power: 'abelard_roof', forge: 'service',
+    });
+    // Every tonic there is, every gun a wall sells, and the Cache starts in the square.
+    expect(things.filter((t) => t.kind === 'tonic').map((t) => t.ref).sort()).toEqual(TONICS.map((t) => t.id).sort());
+    expect([...new Set(things.filter((t) => t.kind === 'wallbuy').map((t) => t.ref))].sort()).toEqual([...WEAPONS.values()].filter((w) => w.cost !== undefined).map((w) => w.id).sort());
+    expect(things.find((t) => t.kind === 'cacheSite')!.id).toBe('cache_square');
+  });
+
+  it('each is on its own storey, with floor to stand on in front of it and a prop to look at', () => {
+    const heights = Object.fromEntries(things.map((t) => [t.id, map.mountHeight(t)]));
+    expect(heights).toMatchObject({ wb_farrow: 0, tonic_marathon: 4, tonic_packmule: 4, tonic_hair_trigger: 4, cache_abelard_up: 4, cache_ten_roof: 8, power: 8, cache_mezz: -4, wb_stitch_platform: -8, forge: -8 });
+    for (const t of things) {
+      const v = DIR_VEC[t.facing];
+      const y = map.mountHeight(t);
+      expect(circleFits(map, 'all', t.x + v.x * 0.75, y, t.z + v.z * 0.75, PLAYER_RADIUS), t.id).toBe(true);
+      expect(Number.isFinite(walkTo('all', DINER, [t.x + v.x * 0.75, y, t.z + v.z * 0.75])), t.id).toBe(true);
+    }
+    const count = (type: string): number => longestNight.props.filter((p) => p.type === type).length;
+    expect([count('wallbuy'), count('tonic'), count('cache_site'), count('forge'), count('breaker_box')]).toEqual([7, 6, 5, 1, 1]);
+  });
+
+  it('the first guns are bought without opening a door; the power is three doors away by either roof and the Forge waits for it', () => {
+    const none = doors();
+    for (const id of ['wb_farrow', 'wb_pike', 'tonic_second_wind']) {
+      const t = things.find((v) => v.id === id)!;
+      const v = DIR_VEC[t.facing];
+      expect(Number.isFinite(walkTo(none, DINER, [t.x + v.x * 0.75, 0, t.z + v.z * 0.75])), id).toBe(true);
+    }
+    const sw: [number, number, number] = [100.75, 8, 65.75];
+    // By the tenement: the hall, its roof, the bridge. By the store: the square, Abelard's, its roof stairs.
+    expect(Number.isFinite(walkTo(doors('d_diner_tenement', 'd_tenement_roof', 'd_bridge'), DINER, sw))).toBe(true);
+    expect(Number.isFinite(walkTo(doors('d_diner_square', 'd_square_abelard', 'd_abelard_roof'), DINER, sw))).toBe(true);
+    expect(walkTo(doors('d_diner_tenement', 'd_tenement_roof'), DINER, sw)).toBeNaN();
+    const forge: [number, number, number] = [59.75, -8, 61.5];
+    const street = doors(...longestNight.openings.filter((o) => o.kind === 'door' && !o.needsPower).map((o) => o.id));
+    expect(walkTo(street, DINER, forge)).toBeNaN();
+    expect(Number.isFinite(walkTo('all', DINER, forge))).toBe(true);
+    // The Forge is opposite the signal room's door, with the room to stand at it.
+    expect(lineOfSight(map, 66.5, -8, 61, 59.75, -8, 61.5)).toBe(true);
   });
 });

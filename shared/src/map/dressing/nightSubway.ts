@@ -26,7 +26,7 @@ const platform: PropInst[] = onLevel(-2, [
   prop('stripes', 80, 32.4, 'n', { s: 28 }), prop('stripes', 107, 32.4, 'n', { s: 18 }),
   ...[72.25, 79.25, 86.25, 91.25, 103.25, 109.25].map((x) => prop('tiled_pillar', x, 35.75)),
   ...[73, 81, 93, 101, 109].map((x) => prop('platform_bench', x, 39.75)),
-  prop('transit_poster', 77, 40, 'n', { variant: 1 }), prop('transit_poster', 84.5, 40, 'n'), prop('transit_poster', 105, 40, 'n', { variant: 2 }), prop('transit_poster', 113, 40, 'n'),
+  prop('transit_poster', 77, 40, 'n', { variant: 1 }), prop('transit_poster', 84.5, 40, 'n'), prop('transit_poster', 106.5, 40, 'n', { variant: 2 }), prop('transit_poster', 113, 40, 'n'),
   prop('station_clock', 83, 34.5, 'n', { y: 2.5 }), prop('station_clock', 106, 34.5, 'n', { y: 2.5 }),
   prop('bin', 70.25, 39.75), prop('bin', 115.75, 39.75),
   // Where the roof came down between the halves.
@@ -45,7 +45,7 @@ const train: PropInst[] = onLevel(-2, [
 ]);
 
 // --- The service tunnel: cable down both walls, relays in cabinets; the signal room off it,
-// its west wall kept clear for what will stand there (M8).
+// the Forge against its west wall (`nightMounts.ts`).
 const service: PropInst[] = [
   ...onLevel(-2, [
     prop('cable_bundle', 66, 50, 'e', { s: 18, y: 2.3 }), prop('cable_bundle', 70, 56.5, 'w', { s: 17, y: 2 }), prop('cable_bundle', 70, 72, 'w', { s: 7, y: 2 }),
@@ -55,7 +55,7 @@ const service: PropInst[] = [
     prop('papers', 68, 50), prop('cable', 67.6, 64.5, 'n', { rot: 80, s: 5 }),
     // The signal room.
     prop('lever_frame', 61.5, 58.5, 's'), prop('track_diagram', 61.5, 58, 's', { y: 1.6 }),
-    prop('transformer', 58, 58.5), prop('capacitor', 58, 63.5), ...row('relay_cabinet', 59, 63.75, 3, 1, 0), prop('teleprinter', 65, 63.75),
+    prop('transformer', 58, 58.5), prop('capacitor', 65, 58.5), ...row('relay_cabinet', 60, 63.75, 3, 1, 0), prop('teleprinter', 65, 63.75),
     prop('chair_tipped', 63.4, 61.6, 'n', { rot: 200 }), prop('papers', 62.5, 60.5), prop('cable', 61.5, 62.9, 'n', { s: 5 }),
     prop('cable_bundle', 65.5, 63, 'w', { s: 2, y: 2.3 }),
   ]),

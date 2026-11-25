@@ -208,6 +208,7 @@ export const PROP_BUILDERS: Record<PropType, (k: Kit) => void> = {
   wallbuy: mounts.wallbuy,
   tonic: mounts.tonic,
   cache_site: mounts.cacheSite,
+  breaker_box: mounts.breakerBox,
 };
 
 export { Kit } from './kit';

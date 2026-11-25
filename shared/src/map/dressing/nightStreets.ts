@@ -64,7 +64,7 @@ const square: PropInst[] = [
   // Wire on the boards across each side street.
   prop('wire_top', 59, 50, 's', { s: 4, y: 3.5 }), prop('wire_top', 61, 86, 'n', { s: 4, y: 3.5 }),
   prop('wire_top', 52, 75, 'e', { s: 4, y: 3.5 }), prop('wire_top', 96, 57, 'w', { s: 4, y: 3.5 }),
-  ...drifts('s', 50.6, [55, 66, 80, 91]), ...drifts('n', 85.4, [58, 68, 76, 90]),
+  ...drifts('s', 50.6, [55, 66, 80, 91]), ...drifts('n', 85.4, [58, 71, 76, 90]),
   ...drifts('e', 52.6, [54, 64, 70, 82]), ...drifts('w', 95.4, [61, 68, 78, 83]),
   // The cut and the passage.
   prop('sawhorse', 73, 43.25, 's'), prop('papers', 74.5, 47.5), prop('rubble', 75, 44.6), prop('planks', 73.2, 48.6, 'n', { rot: 70 }),
@@ -133,7 +133,7 @@ export const streetLights: LightDef[] = [
   // The avenue: under every other string; the lamps of two cars; the bus; the kiosk and the booth.
   ...[26, 50, 74, 98].map((x, i) => glow(x, 36, 3.6, ACCENTS[i]!, 7, { intensity: 0.45 })),
   glow(61.2, 34, 0.7, 0xfff0d0, 6, { intensity: 0.7 }), glow(106.8, 38, 0.7, 0xfff0d0, 6, { intensity: 0.7 }),
-  glow(87.2, 36, 2, 0xffe6b0, 6, { intensity: 0.7, flicker: true }), glow(91.3, 38, 2, 0xffe6b0, 6, { intensity: 0.7, flicker: true }),
+  glow(87.2, 36, 2, 0xffe6b0, 6, { intensity: 0.7, flicker: true, silent: true }), glow(91.3, 38, 2, 0xffe6b0, 6, { intensity: 0.7, flicker: true, silent: true }),
   lamp(69, 39.9, 2.2, LIGHT.lab, 4.5, { fixture: 'none' }), lamp(56.5, 31.5, 2.2, LIGHT.lab, 3.5, { fixture: 'none' }),
   // The lane: the brazier, and the one string.
   glow(76.25, 96.9, 1.2, LIGHT.flame, 6.5, { flicker: true }), glow(84, 95, 3.2, BULB.red, 6, { intensity: 0.45 }),

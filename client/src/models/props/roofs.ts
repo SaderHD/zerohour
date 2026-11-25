@@ -1,5 +1,6 @@
 import type { RGB } from '../../render/bake';
 import { BULBS, bulb } from './festive';
+import { letterTile } from '../../render/signs';
 import { C } from './palette';
 import { fanBlades, snowCap, strut } from './parts';
 import type { Kit } from './kit';
@@ -181,12 +182,19 @@ export function signBack(k: Kit): void {
   }
   for (const y of [0.9, 2.0, 3.1]) k.box(-3.95, y, -0.03, 3.95, y + 0.06, 0.03, IRON, { bottom: true });
   for (let x = -3.9; x < 3.8; x += 1.3) strut(k, [x, 0.95, 0], [x + 1.3, 2.0, 0], 0.025, IRON);
-  // Nine letters, each a can with the light spilling past it.
+  // Nine letters, each a can with the light spilling past it; to the street its face is the letter.
+  // (Seen from the street the first letter is at this side's right: the sign reads from +x to -x.)
+  const name = (k.inst.text ?? "ABELARD'S").slice(0, 9);
   for (let i = 0; i < 9; i++) {
     const x = -3.5 + i * 0.875;
-    const w = i === 7 ? 0.2 : 0.62;
+    const ch = name[8 - i] ?? ' ';
+    const w = ch === "'" ? 0.2 : 0.62;
     k.box(x - w / 2 - 0.05, 1.0, -0.2, x + w / 2 + 0.05, 2.95, -0.16, SIGN_RED, { glow: i === 4 ? 'fire' : 'on', bottom: true });
     k.box(x - w / 2, 1.05, -0.16, x + w / 2, 2.9, -0.06, k.tone(0x2a2c30, 0.05), { bottom: true });
+    if (ch !== ' ') {
+      const letter = letterTile(ch, true);
+      k.picture(x, ch === "'" ? 2.45 : 1.98, -0.204, (ch === "'" ? 0.9 : 1.75) * letter.aspect * 0.52, ch === "'" ? 0.9 : 1.75, letter.uv);
+    }
   }
   k.box(-3.95, 0.86, 0.02, 3.95, 0.9, 0.1, C.steelDark, { bottom: true });
   snowCap(k, -3.95, -0.03, 3.95, 0.03, 3.16, 0.05);

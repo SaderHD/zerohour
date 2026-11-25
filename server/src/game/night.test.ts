@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_ALIVE_CAP, Rng, TICK_DT, ZOMBIE_SPEED_RUN, ZOMBIE_SPEED_SHAMBLE, ZOMBIE_SPEED_WALK, ZombieState, compileMap, longestNight, mapWindows } from '@zh/shared';
+import { MAX_ALIVE_CAP, Rng, TICK_BUDGET_MS, TICK_DT, ZOMBIE_SPEED_RUN, ZOMBIE_SPEED_SHAMBLE, ZOMBIE_SPEED_WALK, ZombieState, compileMap, longestNight, mapWindows, wallFor, type Interactable } from '@zh/shared';
 import { BotBrain } from '../botBrain';
+import { runCampaign } from './campaign';
 import { killZombie } from './entities';
 import { activeZones, zombieCount } from './spawner';
 import { makeGame } from './testkit';
 import { idleFor, spawnZombie } from './zombies';
 
 // The game on The Longest Night's blockout (PLAN section 9, M3 and M4): a map four times the
-// station's size, the subway two storeys under its streets and the roofs two storeys over them.
+// station's size, the subway two storeys under its streets and the roofs two storeys over them;
+// and (M8) what is bought on it.
 
 const map = compileMap(longestNight);
 const start = (seed = 3) => {
@@ -84,6 +86,93 @@ describe('a match on The Longest Night', () => {
     expect(t.game.map.zoneAt(zb.x, zb.y, zb.z)).toBe('ten_roof');
     expect(Math.hypot(zb.x - t.p.x, zb.z - t.p.z)).toBeLessThan(2);
   });
+});
+
+describe('buying on The Longest Night (M8)', () => {
+  const press = (t: ReturnType<typeof start>, id: string) => t.send(1, { t: 'interact', id, hold: true });
+  const shop = () => {
+    const t = makeGame(4, { map });
+    const p = t.game.addPlayer(1, 'Ada');
+    p.pub.points = 20_000;
+    return { ...t, p };
+  };
+
+  it('sells a gun in the diner, and the Stitch off either of its two boards, each from its own floor', () => {
+    const t = shop();
+    t.teleport(1, 53.5, 95.6, 0);
+    press(t, 'wb_farrow');
+    expect(t.p.pub.weapons.map((w) => w.id)).toEqual(['warden', 'farrow']);
+    // The platform's board from the street over it: out of reach.
+    t.teleport(1, 104, 39.6, 0);
+    press(t, 'wb_stitch_platform');
+    expect(t.denied.at(-1)).toEqual({ id: 1, reason: 'range' });
+    t.teleport(1, 104, 39.2, -8);
+    press(t, 'wb_stitch_platform');
+    expect(t.p.pub.weapons.map((w) => w.id)).toEqual(['warden', 'stitch']);
+    // And ammunition for it off the other, in the tenement.
+    t.p.pub.weapons[1]!.reserve = 0;
+    t.teleport(1, 58.5, 103.7, 0);
+    press(t, 'wb_stitch');
+    t.wait(0.1);
+    expect(t.of('purchase').at(-1)).toEqual({ e: 'purchase', id: 1, what: 'ammo', ref: 'stitch' });
+  });
+
+  it('the switch on Abelard\'s roof opens both ends of the service tunnel, wakes the tonics, and the Forge works two storeys under the square', () => {
+    const t = shop();
+    t.teleport(1, 41.4, 27.5, 0);
+    press(t, 'tonic_ironhide');
+    expect(t.denied.at(-1)).toEqual({ id: 1, reason: 'power' });
+    t.teleport(1, 59.8, 61.5, -8);
+    press(t, 'forge');
+    expect(t.denied.at(-1)).toEqual({ id: 1, reason: 'power' });
+    t.teleport(1, 100.75, 65.8, 8);
+    press(t, 'power');
+    expect(t.game.power).toBe(true);
+    expect(t.game.openDoors.has('d_service') && t.game.openDoors.has('d_hatch')).toBe(true);
+    t.teleport(1, 41.4, 27.5, 0);
+    press(t, 'tonic_ironhide');
+    t.teleport(1, 36.5, 47.4, 4);
+    press(t, 'tonic_packmule');
+    expect(t.p.pub.perks).toEqual(['ironhide', 'packmule']);
+    t.teleport(1, 59.8, 61.5, -8);
+    press(t, 'forge');
+    t.wait(0.1);
+    expect(t.of('purchase').at(-1)).toMatchObject({ what: 'forge', ref: 'warden' });
+  });
+
+  it('the Cache starts in the square and has four other places to go, on four storeys', () => {
+    const t = shop();
+    expect(t.game.cache.home).toBe('cache_square');
+    const sites = map.def.interactables.filter((i) => i.kind === 'cacheSite');
+    expect(sites.map((s) => map.mountHeight(s)).sort((a, b) => a - b)).toEqual([-4, 0, 0, 4, 8]);
+    t.teleport(1, 67, 84.4, 0);
+    press(t, 'cache_square');
+    t.wait(0.1);
+    expect(t.of('purchase').at(-1)).toMatchObject({ what: 'cache' });
+  });
+
+  it('a bot after a Stitch goes to the board nearer it: the tenement\'s from the diner, the platform\'s from the platform', () => {
+    const things = new Map(map.def.interactables.map((i) => [i.id, i]));
+    const h = (it: Interactable): number => map.mountHeight(it);
+    expect(wallFor(things, 'stitch', { x: 47, y: 0, z: 92 }, h)?.id).toBe('wb_stitch');
+    expect(wallFor(things, 'stitch', { x: 100, y: -8, z: 36 }, h)?.id).toBe('wb_stitch_platform');
+    // (Standing on the avenue right over it, the one a floor away is still the tenement's.)
+    expect(wallFor(things, 'kestrel', { x: 47, y: 0, z: 92 }, h)?.id).toBe('wb_kestrel');
+  });
+
+  it('four mortal bots leave the diner, light the city and drink: six rounds', () => {
+    const r = runCampaign({ seed: 1, players: 4, rounds: 6, map: 'longest_night' });
+    console.log(`[campaign night] ${r.cleared} rounds in ${Math.round(r.seconds)} s of game time; tick ${r.tickMs.toFixed(2)} ms avg; bought ${JSON.stringify(r.purchases)}`);
+    expect(r.cleared).toBe(6);
+    expect(r.refused).toBe(0);
+    expect(r.purchases.weapon).toBeGreaterThanOrEqual(4);
+    expect(r.purchases.door).toBeGreaterThanOrEqual(4);
+    expect(r.purchases.power).toBe(1);
+    expect(r.purchases.perk).toBeGreaterThanOrEqual(1);
+    expect(r.worstIdle, r.worstIdleWhat).toBeLessThan(10);
+    expect(r.tickMs).toBeLessThan(TICK_BUDGET_MS);
+    expect(r.corrections).toBeLessThan(20);
+  }, 120_000);
 });
 
 const SPEEDS = [ZOMBIE_SPEED_SHAMBLE, ZOMBIE_SPEED_WALK, ZOMBIE_SPEED_RUN];

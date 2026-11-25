@@ -1,4 +1,5 @@
 import type { RGB } from '../../render/bake';
+import { textTile } from '../../render/signs';
 import { C } from './palette';
 import { drumX, snowCap, strut, wheel } from './parts';
 import type { Kit } from './kit';
@@ -116,6 +117,8 @@ export function kiosk(k: Kit): void {
   }
   for (let i = 0; i < 5; i++) k.plate(-0.8 + i * 0.33, 1.62, -0.56 + i * 0.33, 1.94, -0.454, k.tone(COVERS[(i * 5 + 1) % COVERS.length]!, 0.1));
   k.box(-1.1, 2.3, -1.0, 1.1, 2.4, 0.8, k.tone(0x1e3428, 0.05), { bottom: true });
+  const label = textTile('NEWS', 'stencil');
+  k.picture(0, 2.12, -0.454, 0.22 * label.aspect, 0.22, label.uv);
   k.box(-0.8, 2.24, -0.92, 0.8, 2.3, -0.84, [0.8, 1.05, 0.95], { glow: 'power', bottom: true });
   snowCap(k, -1.05, -0.95, 1.05, 0.75, 2.4, 0.1);
   // Yesterday's bundles, still tied.

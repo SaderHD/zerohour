@@ -1,6 +1,8 @@
 import { prop, rail } from './dressing/helpers';
 import { hallLights, hallProps } from './dressing/nightHalls';
 import { homeLights, homeProps } from './dressing/nightHomes';
+import { mountInteractables, mountLights, mountProps } from './dressing/nightMounts';
+import { signProps } from './dressing/nightSigns';
 import { SQUARE_POSTS, streetLights, streetProps } from './dressing/nightStreets';
 import { subwayLights, subwayProps } from './dressing/nightSubway';
 import type { BlockDef, LightDef, MapDef, Opening, PropInst, Room, WallStyle } from './types';
@@ -10,8 +12,9 @@ import type { BlockDef, LightDef, MapDef, Opening, PropInst, Room, WallStyle } f
 // the roofs and the subway, with doors and prices and enough light to see by. All of it is
 // dressed: the square, the avenue and the lane (M5: `dressing/nightStreets.ts`); Abelard's, the
 // Lyric and the chapel (M6: `dressing/nightHalls.ts`); the diner, the tenement and the roofs
-// (M7: `dressing/nightHomes.ts`) and the subway (M7: `dressing/nightSubway.ts`). Nothing is sold
-// yet. Run `npm run map -- longest_night` after any edit.
+// (M7: `dressing/nightHomes.ts`) and the subway (M7: `dressing/nightSubway.ts`). What is sold is
+// `dressing/nightMounts.ts`, what is written on the walls `dressing/nightSigns.ts` (M8). Run
+// `npm run map -- longest_night` after any edit.
 //
 //                  [St Audra's]                              [subway head house]
 //   ===============  DRAY AVENUE  ========================================   (the platform and
@@ -148,20 +151,20 @@ export const longestNight: MapDef = {
     vista: { x: 74, y: 2.6, z: 68 },
   },
   zones: [
-    { id: 'diner', air: 'mess', name: 'Starlight Diner', letter: 'd', ambient: 0x2a241e },
-    { id: 'square', air: 'yard', name: 'Wexler Square', letter: 'q', ambient: 0x241d1a },
-    { id: 'avenue', air: 'yard', name: 'Dray Avenue', letter: 'a', ambient: 0x221c1a },
-    { id: 'lane', air: 'yard', name: 'Tallow Lane', letter: 't', ambient: 0x1c1816 },
-    { id: 'tenement', air: 'bunk', name: 'The Tenement', letter: 'n', ambient: 0x221c18 },
-    { id: 'abelard', air: 'mess', name: "Abelard's", letter: 'b', ambient: 0x24221c },
-    { id: 'lyric', air: 'bunk', name: 'The Lyric', letter: 'l', ambient: 0x201818 },
-    { id: 'chapel', air: 'comms', name: "St Audra's", letter: 'c', ambient: 0x1a1c22 },
-    { id: 'ten_roof', air: 'yard', name: 'Tenement Roof', letter: 'r', ambient: 0x201a1a },
-    { id: 'abelard_up', air: 'mess', name: "Abelard's, Upstairs", letter: 'u', ambient: 0x24221c },
-    { id: 'abelard_roof', air: 'yard', name: "Abelard's Roof", letter: 'o', ambient: 0x201a1a },
-    { id: 'mezz', air: 'vault', name: 'Subway Mezzanine', letter: 'm', ambient: 0x161a1c, fog: { color: 0x10100e, near: 4, far: 40 } },
-    { id: 'platform', air: 'vault', name: 'The Platform', letter: 'p', ambient: 0x14181a, fog: { color: 0x0c0c0c, near: 4, far: 48 } },
-    { id: 'service', air: 'gen', name: 'Service Tunnel', letter: 's', ambient: 0x1a1612, fog: { color: 0x0c0a08, near: 3, far: 36 } },
+    { id: 'diner', air: 'diner', name: 'Starlight Diner', letter: 'd', ambient: 0x2a241e, fog: { color: 0x1a1410, near: 6, far: 60 } },
+    { id: 'square', air: 'street', name: 'Wexler Square', letter: 'q', ambient: 0x241d1a },
+    { id: 'avenue', air: 'street', name: 'Dray Avenue', letter: 'a', ambient: 0x221c1a },
+    { id: 'lane', air: 'alley', name: 'Tallow Lane', letter: 't', ambient: 0x1c1816, fog: { color: 0x16110f, near: 6, far: 70 } },
+    { id: 'tenement', air: 'home', name: 'The Tenement', letter: 'n', ambient: 0x221c18, fog: { color: 0x17120e, near: 5, far: 50 } },
+    { id: 'abelard', air: 'store', name: "Abelard's", letter: 'b', ambient: 0x24221c, fog: { color: 0x1a1712, near: 8, far: 70 } },
+    { id: 'lyric', air: 'cinema', name: 'The Lyric', letter: 'l', ambient: 0x201818, fog: { color: 0x181212, near: 4, far: 42 } },
+    { id: 'chapel', air: 'chapel', name: "St Audra's", letter: 'c', ambient: 0x1a1c22, fog: { color: 0x12141a, near: 4, far: 44 } },
+    { id: 'ten_roof', air: 'roof', name: 'Tenement Roof', letter: 'r', ambient: 0x201a1a, fog: { color: 0x1c1512, near: 14, far: 135 } },
+    { id: 'abelard_up', air: 'store', name: "Abelard's, Upstairs", letter: 'u', ambient: 0x24221c, fog: { color: 0x1a1712, near: 8, far: 70 } },
+    { id: 'abelard_roof', air: 'roof', name: "Abelard's Roof", letter: 'o', ambient: 0x201a1a, fog: { color: 0x1c1512, near: 14, far: 135 } },
+    { id: 'mezz', air: 'subway', name: 'Subway Mezzanine', letter: 'm', ambient: 0x161a1c, fog: { color: 0x10100e, near: 4, far: 40 } },
+    { id: 'platform', air: 'subway', name: 'The Platform', letter: 'p', ambient: 0x14181a, fog: { color: 0x0c0c0c, near: 4, far: 48 } },
+    { id: 'service', air: 'relays', name: 'Service Tunnel', letter: 's', ambient: 0x1a1612, fog: { color: 0x0c0a08, near: 3, far: 36 } },
   ],
   levels: [
     { level: -2, name: 'Platform', y: -2 * STOREY },
@@ -339,7 +342,7 @@ export const longestNight: MapDef = {
     room('ave_flight_2', 108, 22.5, 2, 7, { ...PLATFORM, ...FLIGHT, level: -1, rise: { to: 's', by: STOREY + KERB, stairs: true } }),
 
     // The service tunnel, behind the power: south from the platform under the square, the signal
-    // room off it (the Forge will stand there), and up two flights to a door in Tallow Lane.
+    // room off it (the Forge stands there), and up two flights to a door in Tallow Lane.
     room('service', 66, 40.5, 4, 35.5, SERVICE),
     room('signal_room', 57.5, 58, 8, 6, { ...SERVICE, floor: 'metal', tint: 0xb8a8d0 }),
     room('service_flight_1', 67, 76, 2, 7, { ...SERVICE, ...FLIGHT, rise: { to: 's', by: STOREY, stairs: true } }),
@@ -436,8 +439,10 @@ export const longestNight: MapDef = {
     ...hallProps,
     ...homeProps,
     ...subwayProps,
+    ...mountProps,
+    ...signProps,
   ],
-  interactables: [],
+  interactables: mountInteractables,
   playerSpawns: [
     { x: 46, z: 90.5, yaw: 0 },
     { x: 49, z: 90.5, yaw: 0 },
@@ -471,7 +476,7 @@ export const longestNight: MapDef = {
     tube(91, 60.5, 2.8, -1), tube(101, 60.5, 2.8, -1), tube(88.5, 51, 2.8, -1),
     tube(100, 53, 5.6, -1, { fixture: 'cage', radius: 7 }),
     // The platform: the tubes over the west half are the ones that fail.
-    tube(71, 36, 3.3, -2, { flicker: true }), tube(80, 36, 3.3, -2), tube(89, 36, 3.3, -2, { flicker: true }),
+    tube(71, 36, 3.3, -2, { flicker: true, silent: true }), tube(80, 36, 3.3, -2), tube(89, 36, 3.3, -2, { flicker: true, silent: true }),
     tube(102.5, 36, 3.3, -2), tube(111.5, 36, 3.3, -2),
     tube(76, 30, 2.2, -2, { radius: 6 }), tube(88, 30, 2.2, -2, { radius: 6 }), tube(100, 30, 2.2, -2, { radius: 6 }),
     tube(88.5, 43.5, 5.6, -2, { fixture: 'cage', radius: 7 }),
@@ -487,5 +492,6 @@ export const longestNight: MapDef = {
     ...hallLights,
     ...homeLights,
     ...subwayLights,
+    ...mountLights,
   ],
 };

@@ -8,9 +8,9 @@ sessions and the progress checklist (section 9). All 14 sessions are done: the g
 (`README.md` is the player's and host's guide). Later work is maintenance: keep the plan true in
 the same commit as any change to what it describes.
 A second map, "The Longest Night", is being built: PLAN 4.12 is its design, "The second map" in
-section 9 its ten sessions (M1-M10; M1 to M7 are done: all five storeys, from the subway to the roofs, are
-blocked out in `shared/src/map/longestNight.ts`, a hidden map until it is finished, and all of it is dressed;
-nothing is sold on it yet: mounts, bots, sound and signs are M8).
+section 9 its ten sessions (M1-M10; M1 to M8 are done: all five storeys, from the subway to the roofs, are
+blocked out in `shared/src/map/longestNight.ts`, a hidden map until it is finished, all of it is dressed, and
+everything is on sale, signed and has its sound; M9 is balance and performance, M10 acceptance).
 
 ## Rules
 - Original content only: reuse genre mechanics, never another game's names, characters, maps,
@@ -57,7 +57,8 @@ nothing is sold on it yet: mounts, bots, sound and signs are M8).
   a howler round). Writes `test-results/wonders-*.png`.
 - `npm run audio` — after a build: renders every sound offline to `test-results/audio/*.wav`, checks the
   volume sliders by measuring the output, then records a solo session through everything that makes a
-  noise to `test-results/audio-session.webm` (voice limit, shake and damage arcs checked on the way).
+  noise to `test-results/audio-session.webm` (voice limit, shake and damage arcs checked on the way), then
+  on a second server listens to five places of The Longest Night (`test-results/audio-city-*.webm`).
 - `npm run ux` — after a build: four browser players through session 13 (menu, how to play, settings and
   a rebound key surviving a reload, invite link, lobby chat, pause, in-game chat, ping marker; one
   client killed and restarted mid-round while raw sockets throw junk at the server; the server
@@ -66,6 +67,8 @@ nothing is sold on it yet: mounts, bots, sound and signs are M8).
   (shared room across tabs), `?name=X`, `?debug=1`, `?auto=1` (the autopilot plays for you).
 - `npm run map` — validate the map and rewrite the ASCII dump `docs/MAP.txt` (`npm run map -- <id>`
   checks and prints another map, e.g. `longest_night`, `stacks`, the three-storey proving ground, or `corner`, one block of a city, without writing anything).
+  `npx tsx scripts/region.ts <map> <level> <x0> <z0> <x1> <z1>` prints part of one storey a character a cell
+  (0.5 m both ways, with a ruler; `$` is something to buy): for finding where a thing fits.
 - `npm run maps` — after a build: two browser players and a bot; the host picks another map in the lobby,
   pages and seats follow, the game runs on it; a server without debug offers one map. Writes `test-results/maps-*.png`.
 - `npm run tour [view...]` — after a build: screenshots of every zone to `test-results/tour-*.png`
@@ -131,8 +134,11 @@ nothing is sold on it yet: mounts, bots, sound and signs are M8).
   'washing_line', x0, z0, y0, x1, z1, y1)` hangs something between two points (`PropInst.y2` is the far end);
   a street lamp is `fixture: 'post'`; `k.steam(x, y, z)` in a builder makes a plume (`render/ambient.ts`). Where
   solid has a top, so has a tall prop under the sky (`map.shutAt(i, y)`: ask that, not `shut`, when you have a
-  height). Tests:
-  `shared/src/map/longestNight.test.ts` (layout), `server/src/game/night.test.ts` (soak across it).
+  height). What is sold is `map/dressing/nightMounts.ts` (the master switch is the prop `breaker_box` on the
+  plant room; the Forge is in the signal room; a second board for a gun takes a `tag`: `wb_stitch_platform`),
+  what is written on walls `map/dressing/nightSigns.ts` (`sign`, `arrow`); the big names are the `text` of
+  `diner_sign`, `sign_back` and `marquee`. Tests:
+  `shared/src/map/longestNight.test.ts` (layout), `server/src/game/night.test.ts` (buying, a campaign, a soak).
 - Height (PLAN 6.1-6.3): the grid is a stack of layers, one per storey (`Room.level`, floor height
   `Room.y`, ramps and stairs as `Room.rise`). Cells join where their floors are within `STEP_HEIGHT`
   (`CompiledMap.links`); anything taller is a ledge nobody crosses. Whatever stands somewhere has a
@@ -159,11 +165,16 @@ nothing is sold on it yet: mounts, bots, sound and signs are M8).
   leave gaps of nothing or at least 1.5 m, then run `npm run map`. Lamps are drawn from
   `LightDef.fixture`. Door shutters and debris live in `render/doors.ts`.
 - Things players buy: one line in `shared/src/map/dressing/mounts.ts` makes both the prop
-  (`wallbuy`, `tonic`, `cache_site`) and the `Interactable`. The yard's walls take their look from
+  (`wallbuy`, `tonic`, `cache_site`) and the `Interactable`; another map gets its own list from `mountKit()`
+  (`{ level, floor }` for a storey other than the street; `cacheSite(..., { start: true })` is where the Cache begins).
+  Never look a board up as `wb_<gun>`: a map may hang a gun twice (`wallFor` in `bot/wants.ts` finds the nearer). The yard's walls take their look from
   the half-metre strip rooms round its edge (`yard_n_mess`...), not from the buildings behind.
 - Outside the walls (never walkable): `render/exterior.ts` builds roofs, stacks and pines from the
   room list (a building's shell is worked out a column at a time, so rooms that abut share walls); `render/snow.ts` drops snow wherever a cell is open to the sky. Signs: `arrow()` in
-  the dressing helpers paints `< TEXT` / `TEXT >`; tiles live in the atlas in `render/signs.ts`.
+  the dressing helpers paints `< TEXT` / `TEXT >`; tiles live in the atlas in `render/signs.ts` (`textTile` styles:
+  plate, stencil, hazard, chalk, and `ink` for dark letters on a lit board; `letterTile` is one big letter). A
+  picture is lit like any surface: for a name that glows, put ink on a `glow` box. Seen from in front, a
+  prop's own +x is on the reader's left.
 - Ambient motion: a builder draws a turning part through `k.mover(x, y, z, axis, motion)` (spin or
   swing; `powered` spins wait for the mains) and marks a roof leak with `k.drip(...)`;
   `render/ambient.ts` animates them and the floor mist of rooms with `mist: true`. Keep movers
@@ -243,7 +254,10 @@ nothing is sold on it yet: mounts, bots, sound and signs are M8).
   by `priority`; `at` places it in the world); the library is `guns.ts`, `sfx.ts`, `music.ts` (tunes as
   note lists) and `ambience.ts` (zone drones, heartbeat). `audio.ts` turns game events and each frame's
   state into calls on those — a new event's sound goes in its `event()` switch, which runs before the
-  game applies the event. Every sound also gets a line in `catalogue.ts` so `npm run audio` checks it;
+  game applies the event. A zone's air is `ZoneDef.air`, a name in `AIR` (`ambience.ts`; `open` ones hear the
+  far siren, `hz` is the mains' note); the carols are `CAROLS` in `music.ts`, played a phrase at a time by
+  `Ambience` from the props in its `PLAYERS` (the jukebox, the grotto's chair); a light that flickers and is no
+  flame takes `silent: true` or it crackles. Every sound also gets a line in `catalogue.ts` so `npm run audio` checks it;
   hear one with `__zh.audio.play('shot-pike')` (`__zh.audio.names()` lists them). No audio files, ever.
 - Feel: `game/feel.ts` (`Shake.add`/`blast`, `recoilFor`), `ui/damage.ts` (direction arcs); the viewmodel
   takes `hitStop`, `flinch`, `dryFire`.

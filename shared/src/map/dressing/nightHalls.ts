@@ -70,7 +70,7 @@ const lyric: PropInst[] = [
   prop('poster_case', 39.5, 58.5, 'e', { variant: 3 }), prop('garland', 44.75, 64, 'n', { s: 4, y: 3 }),
   prop('papers', 46, 59.5), prop('papers', 41.5, 57.5, 'n', { rot: 40 }),
   // Its front on the square.
-  prop('marquee', 52, 59, 'e', { s: 7, y: 3.3 }), prop('poster_case', 52, 55.5, 'e', { variant: 2 }), prop('poster_case', 52, 62.5, 'e'),
+  prop('marquee', 52, 59, 'e', { s: 7, y: 3.3, text: 'THE LYRIC' }), prop('poster_case', 52, 55.5, 'e', { variant: 2 }), prop('poster_case', 52, 62.5, 'e'),
   // The auditorium: the screen over the west wall's window, four rows in the open, two under the balcony.
   prop('cinema_screen', 21, 54, 'e', { s: 11, y: 2.5 }),
   ...[26.25, 28.25, 30.25, 32.25, 34.25, 36.25].flatMap((x) => seats(x)),
@@ -104,7 +104,7 @@ export const hallLights: LightDef[] = [
   glow(97.8, 85, 1.2, BULB.green, 3.5, { intensity: 0.5 }), glow(125.2, 78.4, 1.2, BULB.red, 3.5, { intensity: 0.5, level: 1 }),
   // The Lyric: under the marquee, the popcorn's lamp, the booth; the screen, and the projector's lens.
   glow(53.6, 59, 3, BULB.warm, 9), glow(49, 62.4, 1.8, BULB.gold, 5, { intensity: 0.8 }), glow(40.8, 62.6, 1.2, BULB.blue, 3.5, { intensity: 0.5 }),
-  glow(23.5, 54, 4.4, WHITE, 17, { flicker: true }), glow(37.6, 53.5, 1.3, WHITE, 4, { intensity: 0.6, level: 1 }),
+  glow(23.5, 54, 4.4, WHITE, 17, { flicker: true, silent: true }), glow(37.6, 53.5, 1.3, WHITE, 4, { intensity: 0.6, level: 1 }),
   // St Audra's: the altar's candles, the four stands, the lantern in the porch.
   glow(47, 11, 1.5, LIGHT.flame, 7.5, { flicker: true }),
   ...[[40.8, 13.25], [53.2, 13.25], [44.25, 28.6], [49.75, 28.6]].map(([x, z]) => glow(x!, z!, 1.3, LIGHT.flame, 4.5, { flicker: true, intensity: 0.8 })),

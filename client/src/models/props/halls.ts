@@ -1,5 +1,6 @@
 import type { RGB } from '../../render/bake';
 import { BULBS, WARM, bulb } from './festive';
+import { textTile } from '../../render/signs';
 import { C } from './palette';
 import { drumX, snowCap } from './parts';
 import type { Kit } from './kit';
@@ -85,6 +86,8 @@ export function ticketBooth(k: Kit): void {
   k.box(-0.75, 1.1, 0.69, 0.75, 2.2, 0.75, paint);
   k.plate(-0.14, 1.12, 0.14, 1.3, -0.725, 0x08080a);
   k.plate(-0.3, 1.9, 0.3, 2.12, -0.725, [1.3, 0.95, 0.45], 'on');
+  const label = textTile('TICKETS', 'ink');
+  k.picture(0, 2.01, -0.729, 0.17 * label.aspect * 0.8, 0.17, label.uv);
   k.box(-0.85, 2.2, -0.85, 0.85, 2.5, 0.85, paint, { bottom: true });
   for (let i = 0; i < 6; i++) {
     for (const yaw of [0, 90, 270]) bulb(k.sub(0, 0, 0, yaw), -0.7 + i * 0.28, 2.35, -0.87, i % 2 ? WARM : BULBS[1]!, 0.07);
@@ -110,6 +113,9 @@ export function popcornStand(k: Kit): void {
   }
 }
 
+/** What the Lyric was showing, and what was coming: nothing anybody has heard of. */
+const FILMS = ['THE LONG FROST', 'MIDNIGHT TRAM', 'SNOWBLIND', 'A STAR FOR ELSIE'];
+
 /** A poster in its case: nobody's name on it, a border of bulbs. */
 export function posterCase(k: Kit): void {
   const y = k.inst.y ?? 0.9;
@@ -121,13 +127,16 @@ export function posterCase(k: Kit): void {
   k.sub(k.rng.range(-0.15, 0.15), y + 1.15, 0, 0, 0, k.rng.range(-20, 20)).plate(-0.22, -0.3, 0.22, 0.3, -0.064, k.tone(a, 0.05));
   k.plate(-0.52, y + 0.62, 0.52, y + 0.68, -0.064, b);
   k.plate(-0.42, y + 0.36, 0.42, y + 0.52, -0.064, b);
+  // What was showing: its name on the band.
+  const title = textTile(FILMS[k.variant % FILMS.length]!, k.variant % ART.length === 1 ? 'stencil' : 'ink');
+  k.picture(0, y + 0.44, -0.066, Math.min(0.8, 0.13 * title.aspect), 0.13, title.uv);
   k.plate(-0.3, y + 0.18, 0.3, y + 0.25, -0.064, a);
   for (let i = 0; i < 4; i++) {
     for (const x of [-0.56, 0.56]) bulb(k, x, y + 0.2 + i * 0.47, -0.08, WARM, 0.05);
   }
 }
 
-/** The canopy over the Lyric's doors: three faces of lettering with the letters gone, bulbs under it. */
+/** The canopy over the Lyric's doors: three lit faces, the house's name (`text`) on the long one and what is left of the bill on the ends, bulbs under it. */
 export function marquee(k: Kit): void {
   const [len, y] = [k.inst.s ?? 7, k.inst.y ?? 3.2];
   const D = 2;
@@ -135,9 +144,14 @@ export function marquee(k: Kit): void {
   snowCap(k, -len / 2, -D, len / 2, 0, y + 1.1, 0.12);
   const board: RGB = [1.05, 0.9, 0.6];
   /** A lit board `w` wide in the plane z = `z` of kit `s`, rails for letters across it, a few letters left. */
+  const name = k.inst.text ? textTile(k.inst.text, 'ink') : null;
   const face = (s: Kit, w: number, z: number): void => {
     s.plate(-w / 2 + 0.12, y + 0.18, w / 2 - 0.12, y + 0.92, z, board, 'on');
+    // The house's name across the long face; on the ends, what is left of the bill.
+    const named = name && w > 3;
+    if (named) s.picture(0, y + 0.55, z - 0.004, Math.min(w - 0.8, 0.56 * name.aspect), 0.56, name.uv);
     for (const [j, yy] of [0.3, 0.6].entries()) {
+      if (named) continue;
       for (let x = -w / 2 + 0.4; x < w / 2 - 0.5; x += 0.34) if (s.rng.chance(j ? 0.3 : 0.45)) s.plate(x, y + yy, x + 0.2, y + yy + 0.22, z - 0.004, 0x141014);
     }
     for (let x = -w / 2 + 0.15; x < w / 2; x += 0.3) {

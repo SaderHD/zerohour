@@ -1,5 +1,6 @@
 import type { RGB } from '../../render/bake';
 import { BULBS, WARM, bulb, present } from './festive';
+import { textTile } from '../../render/signs';
 import { C } from './palette';
 import { drumX, strut } from './parts';
 import type { Kit } from './kit';
@@ -229,6 +230,10 @@ export function grottoHut(k: Kit): void {
     k.box(x - 0.3, 1.19, -0.25, x + 0.3, 1.21, -0.236, 0x4a3020);
   }
   for (let i = 0; i < 10; i++) bulb(k, -1.35 + i * 0.3, 1.66, -0.5, BULBS[i % BULBS.length]!, 0.07);
+  // A board over the door, hung from the eave.
+  const label = textTile('THE GROTTO', 'plate');
+  k.box(-0.62, 1.74, -0.47, 0.62, 1.98, -0.45, 0x4a3020, { bottom: true });
+  k.picture(0, 1.86, -0.474, 0.2 * label.aspect, 0.2, label.uv);
   // A striped post at each corner of the porch.
   for (const x of [-1.42, 1.42]) {
     for (let j = 0; j < 9; j++) k.cyl(x, -0.42, j * 0.2, j * 0.2 + 0.2, 0.05, 0.05, j % 2 ? 0xd8d4c8 : C.ribbon, 6, { noTop: j < 8 });

@@ -99,8 +99,24 @@ const AMMO_HANDY = 0.1;
 /** A gun off the nearest wall has to be at least this good to be worth taking in a hurry. */
 const RESUPPLY_RANK = 3;
 
+/** The board a gun hangs on: the nearest, where a map has it on two walls (a storey counts as a long way). */
+export function wallFor(things: ReadonlyMap<string, Interactable>, id: string, v: { x: number; y: number; z: number }, heightOf: (it: Interactable) => number): Interactable | undefined {
+  const first = things.get(`wb_${id}`);
+  let best = first;
+  let bestD = Infinity;
+  for (const it of things.values()) {
+    if (it.kind !== 'wallbuy' || it.ref !== id) continue;
+    const d = Math.hypot(it.x - v.x, it.z - v.z) + 6 * Math.abs(heightOf(it) - v.y);
+    if (d < bestD) {
+      bestD = d;
+      best = it;
+    }
+  }
+  return best;
+}
+
 /** `guns`: the wall guns this bot is after, worst first. `about`: zombies it knows of. `handy`: is this a short walk away? `after`: what it is on its way to now. */
-export function listWants(v: BotView, things: ReadonlyMap<string, Interactable>, guns: readonly string[], about: number, handy: (it: Interactable) => boolean = () => false, after = '', forgeCost = FORGE_COST): Want[] {
+export function listWants(v: BotView, things: ReadonlyMap<string, Interactable>, guns: readonly string[], about: number, handy: (it: Interactable) => boolean = () => false, after = '', forgeCost = FORGE_COST, heightOf: (it: Interactable) => number = () => 0): Want[] {
     const list: Want[] = [];
     const thing = (id: string): Interactable | undefined => things.get(id);
     const slots = weaponSlotsWith(v.perks);
@@ -109,14 +125,14 @@ export function listWants(v: BotView, things: ReadonlyMap<string, Interactable>,
     // Ammunition for what we carry.
     for (const w of v.weapons) {
       const def = weaponDef(w.id);
-      const it = thing(`wb_${w.id}`);
+      const it = wallFor(things, w.id, v, heightOf);
       const stats = weaponStats(w.id, w.upgraded);
       if (def && stats && it && def.cost !== undefined && w.reserve < stats.reserve * (handy(it) ? AMMO_HANDY : AMMO_LOW)) list.push({ key: `ammo:${w.id}`, it, cost: ammoCost(def, w.upgraded) });
     }
     // The next gun worth having.
     let later: Want | null = null;
     for (const id of guns) {
-      const it = thing(`wb_${id}`);
+      const it = wallFor(things, id, v, heightOf);
       const def = weaponDef(id);
       if (!it || !def || v.weapons.some((w) => w.id === id) || v.forge.weapon === id) continue;
       const full = v.weapons.length >= slots;

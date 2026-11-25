@@ -83,7 +83,7 @@ export class GameAudio {
     this.guns = new GunSounds(this.synth);
     this.sfx = new Sfx(this.synth);
     this.music = new Music(this.synth);
-    this.ambience = new Ambience(this.synth, this.sfx, w.map, w.drips);
+    this.ambience = new Ambience(this.synth, this.sfx, this.music, w.map, w.drips);
     let lx = 0;
     let ly = 0;
     let lz = 0;
@@ -275,7 +275,7 @@ export class GameAudio {
     const { sfx, guns } = this;
     this.synth.setListener(f.x, f.z, f.yaw, f.y);
     this.listenerAt(f.x, f.y, f.z);
-    this.ambience.update(f.dt, f.zone, f.power, f.x, f.z, f.playing ? f.hp : 1, f.playing && f.downed);
+    this.ambience.update(f.dt, f.zone, f.power, f.x, f.z, f.playing ? f.hp : 1, f.playing && f.downed, f.y);
     if (!f.playing) return;
     this.hp = f.hpNow;
 

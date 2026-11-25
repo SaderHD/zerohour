@@ -57,13 +57,13 @@ export function signTile(key: string, w: number, h: number, draw: (c: CanvasRend
   return uv;
 }
 
-export type SignStyle = 'plate' | 'stencil' | 'hazard' | 'chalk';
+export type SignStyle = 'plate' | 'stencil' | 'hazard' | 'chalk' | 'ink';
 
 const ARROW_W = 26;
 
 /**
- * Lettering: a painted plate, a wall stencil (transparent around the letters), a hazard plate or
- * chalk. A text that starts with "< " or ends with " >" gets an arrow painted at that end.
+ * Lettering: a painted plate, a wall stencil (transparent around the letters), a hazard plate,
+ * chalk, or ink (dark letters with nothing round them, for a board that is lit from behind). A text that starts with "< " or ends with " >" gets an arrow painted at that end.
  */
 export function textTile(text: string, style: SignStyle): { uv: UVRect; aspect: number } {
   const left = text.startsWith('< ');
@@ -80,7 +80,7 @@ export function textTile(text: string, style: SignStyle): { uv: UVRect; aspect: 
       c.lineWidth = 2;
       c.strokeRect(2, 2, w - 4, h - 4);
     }
-    c.fillStyle = style === 'stencil' ? '#e8e2d0' : style === 'chalk' ? '#e4ecdc' : '#2a2620';
+    c.fillStyle = style === 'stencil' ? '#e8e2d0' : style === 'chalk' ? '#e4ecdc' : style === 'ink' ? '#14100e' : '#2a2620';
     c.font = 'bold 22px "Courier New", monospace';
     c.textAlign = 'center';
     c.textBaseline = 'middle';
@@ -102,6 +102,22 @@ export function textTile(text: string, style: SignStyle): { uv: UVRect; aspect: 
     };
     if (left) head(7, 1);
     if (right) head(w - 7, -1);
+  });
+  return { uv, aspect: w / h };
+}
+
+/**
+ * One big letter, for a name spelt out a letter to a tube or a can (a diner's neon, the sign on a
+ * store's roof): dark for the face of a lit box, light for a painted one. Nothing round it.
+ */
+export function letterTile(ch: string, ink: boolean): { uv: UVRect; aspect: number } {
+  const [w, h] = [40, 52];
+  const uv = signTile(`letter:${ink ? 'ink' : 'light'}:${ch}`, w, h, (c) => {
+    c.fillStyle = ink ? '#14100e' : '#f0e8d0';
+    c.font = 'bold 50px "Courier New", monospace';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText(ch, w / 2, h / 2 + 3, w - 2);
   });
   return { uv, aspect: w / h };
 }

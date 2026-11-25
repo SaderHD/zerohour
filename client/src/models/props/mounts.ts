@@ -64,3 +64,24 @@ export function cacheSite(k: Kit): void {
   const label = textTile(k.inst.text ?? 'SITE', 'stencil');
   k.sub(0, 0.145, 0, 0, 90).picture(0, 0, 0, 0.3 * label.aspect, 0.3, label.uv, [0.8, 0.8, 0.75]);
 }
+
+/** The master switch on a wall: a grey steel box, a lever on its side, a lamp that comes on with the mains. Its foot is at `y`. */
+export function breakerBox(k: Kit): void {
+  const y = k.inst.y ?? 0.9;
+  const c = k.tone(0x5c6a70, 0.06);
+  k.box(-0.32, y, -0.2, 0.32, y + 0.95, 0, c, { bottom: true });
+  k.plate(-0.27, y + 0.06, 0.27, y + 0.89, -0.203, [c[0] * 0.8, c[1] * 0.8, c[2] * 0.8]);
+  k.box(-0.3, y + 0.95, -0.22, 0.3, y + 0.98, 0, C.iron, { bottom: true });
+  // The lever, down until somebody throws it.
+  k.box(0.32, y + 0.4, -0.14, 0.38, y + 0.62, -0.06, C.iron, { bottom: true });
+  const arm = k.sub(0.38, y + 0.5, -0.1, 0, 0, -125);
+  arm.box(-0.025, 0, -0.025, 0.025, 0.36, 0.025, C.steel);
+  arm.box(-0.05, 0.32, -0.05, 0.05, 0.44, 0.05, C.red, { bottom: true });
+  const label = textTile('MAINS', 'hazard');
+  k.picture(0, y + 0.66, -0.206, 0.15 * label.aspect, 0.15, label.uv);
+  k.plate(-0.2, y + 0.3, 0.2, y + 0.46, -0.206, C.iron);
+  k.plate(-0.16, y + 0.14, -0.08, y + 0.22, -0.206, [1.5, 0.3, 0.2], 'on');
+  k.plate(0.08, y + 0.14, 0.16, y + 0.22, -0.206, [0.4, 1.4, 0.5], 'power');
+  // Conduit down to the roof and away.
+  k.box(-0.04, 0, -0.1, 0.04, y, -0.02, C.steelDark, { noTop: true });
+}

@@ -25,7 +25,7 @@ const diner: PropInst[] = [
   ...row('shelf', 46.25, 99.5, 3, 0, 1, 'e'), prop('counter', 47.5, 102.5), ...row('shelf', 54.5, 102.75, 2, 1, 0),
   prop('bin', 55.75, 97.25), prop('papers', 52, 100.5), prop('pipes', 51, 97.3, 'n', { s: 8, y: 2.6 }),
   // Its front on the square.
-  prop('diner_sign', 54, 86, 'n', { y: 2.6 }), prop('wreath', 52.6, 86, 'n', { y: 1.9 }), prop('wreath', 55.5, 86, 'n', { y: 1.9 }),
+  prop('diner_sign', 54, 86, 'n', { y: 2.6, text: 'STARLIGHT' }), prop('wreath', 52.6, 86, 'n', { y: 1.9 }), prop('wreath', 55.5, 86, 'n', { y: 1.9 }),
 ];
 
 // --- The tenement. The hall: letter boxes, a radiator, somebody's bicycle.
@@ -41,7 +41,7 @@ const flat: PropInst[] = onLevel(1, [
   prop('television', 61, 109.75), prop('armchair', 61, 107, 's'), prop('sofa', 57.5, 106, 'e'), prop('rug', 61, 108.3),
   prop('tinsel_tree', 57.5, 109.5), prop('presents', 58.5, 109.4, 'n', { variant: 1 }), prop('presents', 57.6, 108.5, 'n', { variant: 2 }),
   prop('bed', 65.5, 103.25, 'w'), prop('wardrobe', 66.25, 104.75, 'w'),
-  prop('radiator', 57, 103, 'e'), prop('picture_frame', 57, 106, 'e', { variant: 1, y: 1.5 }), prop('picture_frame', 64, 110, 'n', { y: 1.4 }),
+  prop('radiator', 57, 103, 'e'), prop('picture_frame', 57, 106, 'e', { variant: 1, y: 1.5 }), prop('picture_frame', 62.75, 110, 'n', { y: 1.4 }),
   prop('picture_frame', 66.5, 100.5, 'w', { variant: 2, y: 1.4 }),
   strung('paper_chain', 57.1, 101.5, 2.8, 66.4, 100.5, 2.8), strung('paper_chain', 57.1, 108, 2.8, 66.4, 106.6, 2.8),
   prop('garland', 59.25, 98.5, 's', { s: 2.5, y: 2.4 }), prop('papers', 63.5, 105.5), prop('chair_tipped', 59.6, 103.6, 'n', { rot: 110 }),
@@ -53,14 +53,14 @@ const tenRoof: PropInst[] = onLevel(2, [
   prop('pigeon_coop', 68.5, 104, 'w'), prop('aerial', 56.75, 110.75), prop('aerial', 64.75, 98.75),
   prop('reindeer', 62.5, 98.75), strung('light_string', 57.2, 98.6, 1.15, 67.3, 98.6, 1.15, 1),
   prop('crate', 72, 110.5), prop('planks', 70.4, 109.2, 'n', { rot: 20 }), prop('tyre', 69.8, 110.4),
-  prop('snow_drift', 68.4, 101.6, 'w'), prop('snow_drift', 58, 104.6, 'e', { variant: 1 }), prop('snow_drift', 63, 110.4, 'n'),
+  prop('snow_drift', 68.4, 106.6, 'w'), prop('snow_drift', 58, 104.6, 'e', { variant: 1 }), prop('snow_drift', 63, 110.4, 'n'),
 ]);
 
 // --- Abelard's roof: the plant, the lantern over the atrium, the back of the sign that faces the square.
 const abelardRoof: PropInst[] = onLevel(2, [
   prop('skylight', 111.5, 74), prop('plant_room', 102, 63.5, 's'), prop('ac_unit', 109, 62), prop('ac_unit', 112.5, 62),
   prop('roof_vent', 119.5, 67.5), prop('roof_vent', 119.5, 80.5), prop('roof_vent', 104.5, 84.5), prop('roof_vent', 100.5, 79.5, 'n', { variant: 2 }),
-  prop('sign_back', 96.75, 66, 'w'), prop('aerial', 126.75, 59.75),
+  prop('sign_back', 96.75, 66, 'w', { text: "ABELARD'S" }), prop('aerial', 126.75, 59.75),
   strung('light_string', 96.7, 77, 1.15, 96.7, 86.3, 1.15, 1),
   prop('snow_drift', 123.4, 68, 'w'), prop('snow_drift', 110, 91, 'n', { variant: 1 }), prop('snow_drift', 118, 60.1, 's'), prop('snow_drift', 104.6, 63.5, 'e', { variant: 1 }),
   // The walk along the lane.
@@ -75,7 +75,7 @@ export const homeLights: LightDef[] = [
   glow(55, 95.4, 1.2, BULB.green, 3.5, { intensity: 0.5 }),
   glow(54, 85.2, 3, 0xff5040, 8, { intensity: 0.9 }), glow(54, 85, 5, BULB.gold, 7, { intensity: 0.6 }),
   // The flat: the television, the candles on the table, the tree.
-  glow(61, 109.2, 0.9, 0xc8d8ff, 5.5, { flicker: true, intensity: 0.8, level: 1 }),
+  glow(61, 109.2, 0.9, 0xc8d8ff, 5.5, { flicker: true, silent: true, intensity: 0.8, level: 1 }),
   glow(62, 102, 1.1, LIGHT.flame, 4, { flicker: true, intensity: 0.7, level: 1 }), glow(58.1, 109, 1.2, BULB.red, 3.5, { intensity: 0.5, level: 1 }),
   // The roofs: the reindeer; the sign's red and the store's light up through the glass.
   glow(62.5, 99.4, 0.9, 0xffe0b0, 4.5, { intensity: 0.7, level: 2 }),

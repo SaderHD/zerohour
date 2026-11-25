@@ -61,7 +61,7 @@ export const onLevel = <T extends { level?: number }>(level: number, things: T[]
 /** Lights written as heights over a floor that is not at 0: lift them all by `dy`. */
 export const lift = (dy: number, lights: LightDef[]): LightDef[] => lights.map((l) => ({ ...l, y: l.y + dy }));
 
-type LightOpts = Partial<Pick<LightDef, 'intensity' | 'needsPower' | 'flicker' | 'fixture' | 'level'>>;
+type LightOpts = Partial<Pick<LightDef, 'intensity' | 'needsPower' | 'flicker' | 'silent' | 'fixture' | 'level'>>;
 
 /** A mains lamp: dim until the power is on. */
 export const lamp = (x: number, z: number, y: number, color: number, radius: number, o: LightOpts = {}): LightDef => ({

@@ -4,7 +4,9 @@
 //  2. the three volume sliders are moved and what comes out is measured;
 //  3. a solo debug game is played through everything that makes a noise while the output is
 //     recorded to test-results/audio-session.webm, with the voice limit and the feel hooks
-//     (shake, damage direction) checked on the way.
+//     (shake, damage direction) checked on the way;
+//  4. on a second server, The Longest Night: the air of five places is measured, the diner's
+//     jukebox and the grotto's music box are heard, and each is recorded to test-results/audio-city-*.webm.
 // Usage: npm run build && npm run audio
 const { spawn } = require('node:child_process');
 const { mkdirSync, writeFileSync } = require('node:fs');
@@ -32,6 +34,7 @@ function writeWav(file, b64, rate) {
   const env = { ...process.env, PORT: String(port), ZH_DEBUG: '1' };
   const server = spawn('node', ['server/dist/index.js'], { cwd: root, env, stdio: 'inherit' });
   let browser;
+  let city;
   try {
     for (let i = 0; i < 50; i++) {
       try { if ((await fetch(`http://localhost:${port}/healthz`)).ok) break; } catch {}
@@ -103,7 +106,7 @@ function writeWav(file, b64, rate) {
       if (r.peak > loudest[1]) loudest = [name, r.peak];
     }
     console.log(`[audio] ${names.length} sounds rendered to test-results/audio/*.wav; peaks from ${quietest[1].toFixed(2)} (${quietest[0]}) to ${loudest[1].toFixed(2)} (${loudest[0]})`);
-    for (const need of [...GUNS.map((g) => `shot-${g}`), ...POWERUPS.map((p) => `powerup-${p}`), 'tonic-ironhide', 'tonic-packmule', 'step-snow', 'step-metal', 'cache-roll', 'round-start', 'round-end', 'heartbeat', 'groan']) {
+    for (const need of [...GUNS.map((g) => `shot-${g}`), ...POWERUPS.map((p) => `powerup-${p}`), 'tonic-ironhide', 'tonic-packmule', 'step-snow', 'step-metal', 'cache-roll', 'round-start', 'round-end', 'heartbeat', 'groan', 'far-siren', 'carol-gentlemen', 'carol-emmanuel-box']) {
       assert(names.includes(need), `the catalogue lacks ${need}`);
     }
 
@@ -313,10 +316,43 @@ function writeWav(file, b64, rate) {
     assert(session.rms > 0.01, 'the session should be audible');
     assert(session.peak <= 1.05, `the session should not clip (peak ${session.peak.toFixed(2)})`);
     assert(errors.length === 0, `page errors: ${errors.join('; ')}`);
+
+    // ---------------------------------------------------------------- 4. the city (The Longest Night)
+    // A second server whose rooms start there: the diner's jukebox, a street, the chapel, the subway.
+    city = spawn('node', ['server/dist/index.js'], { cwd: root, env: { ...env, PORT: String(port + 1), ZH_MAP: 'longest_night' }, stdio: 'inherit' });
+    for (let i = 0; i < 50; i++) {
+      try { if ((await fetch(`http://localhost:${port + 1}/healthz`)).ok) break; } catch {}
+      await sleep(100);
+    }
+    await page.goto(`http://localhost:${port + 1}/?name=Ada&debug=1&autostart=1&map=longest_night`);
+    await page.waitForFunction(() => window.__zh?.state().phase === 'playing', null, { timeout: 20000 });
+    await zh(() => { window.__zh.rounds(false); window.__zh.god(true); window.__zh.openAllDoors(); window.__zh.audio.unlock(); });
+    await until('the audio context in the city', async () => (await state()).audio?.state === 'running', 5000);
+    assert((await state()).map === 'longest_night', 'the second server should start on The Longest Night');
+    const hear = async (name, x, z, y, ms) => {
+      await zh(([x, z, y]) => window.__zh.teleport(x, z, 0, y), [x, z, y]);
+      await sleep(2500); // the air of the last place fades out, this one's in
+      const before = (await state()).audio.played;
+      const r = await listen(ms, async () => {}, path.join(out, `audio-city-${name}.webm`));
+      return { ...r, zone: (await state()).zone, sounds: (await state()).audio.played - before };
+    };
+    const diner = await hear('diner', 44, 90, 0, 14000);
+    const square = await hear('square', 74, 58, 0, 6000);
+    const chapel = await hear('chapel', 47, 20, 0, 6000);
+    const platform = await hear('platform', 80, 36, -8, 6000);
+    const grotto = await hear('grotto', 122, 82.5, 0, 14000);
+    for (const [name, r] of Object.entries({ diner, square, chapel, platform, grotto })) console.log(`[audio] the city, ${name} (${r.zone}): rms ${r.rms.toFixed(4)}, peak ${r.peak.toFixed(2)}, ${r.sounds} sound(s) started`);
+    assert(diner.zone === 'diner' && square.zone === 'square' && chapel.zone === 'chapel' && platform.zone === 'platform' && grotto.zone === 'abelard', 'each place should be where the script thinks it is');
+    for (const r of [diner, square, chapel, platform, grotto]) assert(r.rms > 0.002 && r.rms < 0.08, `a place's air should be there and stay under everything else (rms ${r.rms.toFixed(4)})`);
+    assert(diner.sounds >= 1 && diner.rms > chapel.rms * 1.2, 'the jukebox should be playing in the diner, and be heard over its air');
+    assert(grotto.sounds >= 1, 'the music box should be playing in the grotto');
+    assert(platform.sounds === 0, 'a failing tube is not a fire: nothing crackles on the platform');
+    assert(errors.length === 0, `page errors in the city: ${errors.join('; ')}`);
     console.log('[audio] ok');
   } finally {
     await browser?.close();
     server.kill();
+    city?.kill();
   }
 })().catch((e) => {
   console.error(`[audio] FAILED: ${e.message}`);

@@ -1,4 +1,5 @@
 import type { RGB } from '../../render/bake';
+import { letterTile } from '../../render/signs';
 import { C } from './palette';
 import { snowCap, strut } from './parts';
 import type { Kit } from './kit';
@@ -125,8 +126,17 @@ export function dinerSign(k: Kit): void {
   snowCap(k, -1.5, -0.3, 1.5, 0, y + 0.9, 0.1);
   k.box(-1.44, y + 0.68, -0.33, 1.44, y + 0.76, -0.3, NEON_RED, { glow: 'on', bottom: true });
   k.box(-1.44, y + 0.14, -0.33, 1.44, y + 0.22, -0.3, NEON_BLUE, { glow: 'on', bottom: true });
-  // Where the name is: tubes with one gone dark, till the signwriter comes (M8).
-  for (let i = 0; i < 9; i++) if (i !== 6) k.box(-1.28 + i * 0.3, y + 0.3, -0.33, -1.12 + i * 0.3, y + 0.6, -0.3, NEON_GOLD, { glow: i === 2 ? 'fire' : 'on', bottom: true });
+  // The name, a letter to a box of light: one has gone dark, one is going.
+  const name = (k.inst.text ?? 'STARLIGHT').slice(0, 9);
+  for (let i = 0; i < name.length; i++) {
+    // (Read from the street, a sign's left is its own +x.)
+    const x = 1.2 - i * 0.3;
+    const dead = i === 6;
+    if (dead) k.box(x - 0.12, y + 0.28, -0.33, x + 0.12, y + 0.62, -0.3, 0x2a2418, { bottom: true });
+    else k.box(x - 0.12, y + 0.28, -0.33, x + 0.12, y + 0.62, -0.3, NEON_GOLD, { glow: i === 2 ? 'fire' : 'on', bottom: true });
+    const letter = letterTile(name[i]!, !dead);
+    k.picture(x, y + 0.45, -0.334, 0.3 * letter.aspect, 0.3, letter.uv, dead ? [0.5, 0.45, 0.3] : 0xffffff);
+  }
   // The mast and the star.
   k.box(-0.05, y + 0.9, -0.2, 0.05, y + 2.3, -0.1, C.steelDark);
   strut(k, [-0.7, y + 0.9, -0.15], [0, y + 1.9, -0.15], 0.03, C.steelDark);

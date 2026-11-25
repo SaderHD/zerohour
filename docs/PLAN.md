@@ -320,7 +320,7 @@ Props that are ≥0.5 m tall block movement (and bullets if tall); small clutter
 Keep every lane ≥1.5 m wide. Varied ceiling heights, skybox gradient with mountains silhouette and
 aurora for the outdoor zone.
 
-### 4.12 Map — "The Longest Night" (second map; being built: blocked out and dressed on all five storeys; nothing sold yet)
+### 4.12 Map — "The Longest Night" (second map; being built: blocked out, dressed, and everything on sale; hidden until M10)
 Wexler Square, in the middle of a big, old, fictional American city, Christmas Eve in the early 1990s.
 Deep in the canyons between the towers, snowing, every decoration still lit and nobody left to look
 at them. Chosen by the host in the lobby; Harrow Ridge stays as it is. Same weapons, tonics, Cache,
@@ -443,8 +443,7 @@ wide, and it is the avenue's one narrow place. Three more cars, a kiosk, a telep
 off three gratings and a manhole, eight strings of bulbs from wall to wall. Tallow Lane has the
 van that was unloading at Abelard's, dumpsters, bins, crates, a brazier by the hatch, five lines
 of washing overhead and one string of bulbs; its lamps are bulkheads on the wall, not posts. The
-sketch's manhole as a way in was not built (the avenue's four are barricades). Nothing sold yet,
-no signs (M8); the diner's own front is M7.
+sketch's manhole as a way in was not built (the avenue's four are barricades).
 
 **The halls dressed (M6; `shared/src/map/dressing/nightHalls.ts`).** *Abelard's.* In at the door
 from the square a toy carousel is still turning, shop dummies in winter coats stand each side of
@@ -457,11 +456,11 @@ each escalator, which has its balustrades now; tables of gifts along the south. 
 south-east corner: the front of a log cabin against the east wall with its windows lit, the big
 red chair in front of it with nobody in it, firs, and two lines of rope on brass posts for the
 queue. Crates in the loading bay. Upstairs is coats: rails round the gallery, dummies on the north
-wall, and the gift-wrap counter against the south wall. Nothing is sold and nothing stands in the
-south-west corner of the upper floor, kept for M8.
+wall, and the gift-wrap counter against the south wall. The south-west corner of the upper floor
+is one of the Cache's places.
 *The Lyric.* The lobby has the ticket booth and the popcorn stand in its south-east corner by the
 door, a rope, posters in frames of bulbs and a small tree; outside, a canopy over the door with
-its lettering gone and bulbs under it. The auditorium's screen hangs on the west wall over the
+the house's name on it and bulbs under it. The auditorium's screen hangs on the west wall over the
 window the dead come through, eleven metres wide, a white frame on it and nothing in the frame:
 it is what lights the hall. Six rows of tip-up seats face it, two metres apart, in two blocks of
 five metres with an aisle down the middle and one along each wall; the last two rows are under
@@ -482,8 +481,8 @@ the urn, then the pie case with its lamp on), a metre and a half behind it and a
 west end; the jukebox lit on the west wall, a tree in the south-east corner, paper chains from
 wall to wall. The middle of the floor is clear: it is where everyone starts. The kitchen has its
 range, sink, refrigerator and shelves down two walls. Outside, over the door on the square: three
-bands of neon and a star on a mast above the roof (the name's tubes are there, with no name in
-them: M8).
+bands of neon and a star on a mast above the roof, the name between them a letter to a box of
+light (one of the nine is dark).
 *The tenement.* The hall has letter boxes, a radiator and somebody's bicycle. The flat is one
 room: the table laid for six in the north half with the bird on it and the candles lit, a
 sideboard with the wireless on; in the south half an armchair and a sofa turned to a television
@@ -509,9 +508,56 @@ train's side - steel to the sill, a band of windows (lit a little without the ma
 with them), the dark over its roof. Inside, the train is three carriages: a bench down each side
 wherever there is no door, two metres between them, a frame across at each carriage end, poles.
 The service tunnel has cable down both walls, pipes overhead and relay cabinets; the signal room
-a lever frame under a lit diagram of the line on its north wall, relays along the south, and its
-west wall left clear for the Forge (M8). Pillars, the tank, the plant room, the booth, cabinets
+a lever frame under a lit diagram of the line on its north wall, relays along the south, and the
+Forge against its west wall, straight ahead of whoever comes in. Pillars, the tank, the plant room, the booth, cabinets
 and the wardrobe block sight; booths, counters, benches, seats and the lantern do not.
+
+**What is sold, heard and written (M8; `dressing/nightMounts.ts`, `nightSigns.ts`).** Everything
+in the table above stands where the table says. *The Starlight* sells the Farrow (south wall, by
+the kitchen arch), the Pike (west wall) and Second Wind (east wall, at the end of the booths): a
+team is armed before it buys a door. *The square* has the Cache to begin with, under the south
+wall in sight of the diner's door; its other four places are the tenement's roof (by the hut),
+the south-west corner of Abelard's upper floor, the corner under the Lyric's screen and the
+mezzanine's north wall - one on each storey but the platform's. *The avenue* has the Coachman on
+its south wall just east of the cut; *the lane* Quickhands, between the passage and the hatch.
+*The tenement* has the Stitch in the hall and Marathon in the flat; *Abelard's* the Kestrel on
+the far (east) wall of the ground floor and Hair Trigger in the north-west corner upstairs;
+*the Lyric* the Brakeman on the auditorium's north wall by the fire exit and Packmule at the
+back of the balcony (the dead end); *St Audra's* Ironhide by the door. The second Stitch is on
+the far half of the platform. **The master switch** is a breaker box on the front of the plant
+room on Abelard's roof, a red lamp over it that burns without the mains: three doors and 3000
+points from the diner either way, by the square and up through the store or by the tenement,
+its roof and the plank bridge. **The Forge** is in the signal room; both ways to it open with the
+power. A map's second board for a gun has an id of its own (`wb_stitch_platform`), and whoever
+wants that gun or its ammunition goes to the nearer.
+
+*Sound.* Every zone has an air of its own and none is the station's (`audio/ambience.ts`): wind
+down a canyon of towers in the square and the avenue, the same wind squeezed and whistling in
+the lane, more of it and nothing round it on the roofs; a refrigerator and (on the mains) neon
+in the diner; a big soft room in the store; the projector's clatter in the Lyric; stone in the
+chapel; a radiator in the tenement; a rumble from further down the line in the subway; relays in
+the service tunnel. The city's mains hum at 60, the station's at 50. Outdoors a siren wails a
+long way off every minute or so, from a different quarter each time, and is never nearer. The
+carols are four tunes some centuries old (the one called "God rest ye merry", the Coventry
+Carol, Greensleeves, the plainsong of "O come, O come, Emmanuel"), written out a phrase at a
+time as note lists (`CAROLS` in `audio/music.ts`): the diner's jukebox plays them as a worn
+record does - a reedy lead, a bass under it, the needle's crackle - and the music box by the
+grotto's chair an octave up on a steel comb, both a little slow and a third of a semitone flat,
+each from where it stands and only while someone is near enough to hear. A lamp that wavers and
+is no flame (`LightDef.silent`: the platform's failing tubes, the screen, the television, the
+bus) no longer crackles like a fire.
+
+*Fog.* The streets keep the map's air (10-110 m); the roofs see further (14-135), the lane a
+little less (6-70); indoors it closes in - the store 8-70, the diner 6-60, the tenement 5-50,
+the chapel 4-44, the Lyric 4-42 - and the subway is as it was (36-48).
+
+*Signs.* The Starlight's name is nine boxes of light over its door; ABELARD'S stands in red
+letters two metres tall on the store's roof, facing the square; THE LYRIC is on the canopy. A
+booth says TICKETS or TOKENS, the kiosk NEWS, the cabin THE GROTTO, and the Lyric's four
+posters have titles nobody has heard of. On the walls (`nightSigns.ts`): street names at the
+corners with arrows down the cut and the passage, SUBWAY over both ways down, the station's
+name and EXIT arrows below, what each floor of the store sells, and - in yellow, as on the
+station - POWER with an arrow at the foot of each stair that leads to a roof.
 
 **The look.** The same 90s horror as the station - dark, grain, hard pools of light, nothing clean
 - with Christmas as the only colour in it. Warm strings of bulbs over grey snow; the tree lit over
@@ -1558,9 +1604,59 @@ Asked for by the owner: a second map chosen in the lobby, a winter city at Chris
   looked into: M8 gives the bots something to buy and M9 measures). The world is now 296,000
   triangles (it was 267,000) and takes 1.85 s to build and bake in headless Chromium (1.5): M9
   measures and cuts.
-- [ ] M8 Things to buy, bots, sound. Mounts for every wall gun, tonic and Cache site, the switch,
-  the Forge; whatever the bots need to know about a map this size; the city's ambience, the
-  carols, zone fog; signs.
+- [x] M8 Things to buy, bots, sound, signs - done (4.12, "What is sold, heard and written", says
+  where everything is and what it sounds like). Twenty things to press F at: seven boards for
+  the six wall guns (the Stitch twice), the six tonics, five places for the Cache, the master
+  switch (a new prop, `breaker_box`, on the plant room on Abelard's roof) and the Forge in the
+  signal room (which was rearranged round it). 35 signs on the walls; the Starlight, Abelard's
+  and the Lyric have their names; booths, the kiosk, the grotto and the posters are lettered.
+  The engine:
+  - *Mounts are a kit.* `mountKit()` (`dressing/mounts.ts`) makes a map's list a line at a time,
+    on any storey; the station's list is built with it and is the same to the byte.
+  - *A gun on two walls.* A second board has a tag (`wb_stitch_platform`). Nothing looked a
+    board up by `wb_<gun>` but the bots: `wallFor` (`bot/wants.ts`) now gives them the nearer
+    (a storey counts as a long way), for the gun, its ammunition and the wall they go home to.
+    That is all the bots needed to be told about a map this size: doors, the power, tonics, the
+    Cache and the Forge they already found by zone and by route.
+  - *Airs.* Ten new ones (`AIR` in `audio/ambience.ts`), none shared with the station; an air
+    can say what note its mains hum at and whether it is open to the city (the far siren).
+    `Ambience` plays the carols from whatever prop plays them, a phrase at a time so each phrase
+    is placed and muffled from where the listener is now, and moves on through the tune while
+    nobody is near.
+  - *`LightDef.silent`* for a light that wavers and is no flame.
+  - *Lettering.* `textTile` has an `ink` style (dark, nothing round it, for a lit board);
+    `letterTile` is one big letter, for a name spelt a letter to a box.
+  The game on it: the layout test holds every mount to the zone and the storey the plan gives
+  it, floor to stand on in front of each and a way to it from the diner; that the first guns
+  need no door, the switch is three doors from the diner by either roof and not two, and the
+  Forge is shut in until the power. `night.test.ts` buys on four storeys (a board is out of
+  reach from the floor above it), throws the switch and sees both ends of the service tunnel
+  open, forges two storeys under the square, opens the Cache, and plays a mortal six-round
+  campaign in which the team leaves the diner, turns the power on and drinks. A client test
+  holds every zone of every map to an air there is. `npm run audio` has a fourth part: on a
+  second server it stands in the diner (the jukebox heard over the room), the square, the
+  chapel, the platform (no tube crackles now) and by the grotto (the music box), measures each
+  and records it; 120 sounds in the catalogue (9 new: the siren and each carol on each player).
+  `npm run tour -- --night` takes 158 pictures (37 new: every mount, the switch and the Forge
+  off and on, every name and a sign in every zone). In a browser every prompt reads right and
+  every purchase goes through, on all five storeys, with nothing in the console.
+  How the bots do, which is M9's to judge: `campaign --map=longest_night --runs=32`, four
+  mortal bots, clears 5 to 15 rounds, 10.9 on average, median 11 (the station's last figure,
+  in M6, was 9.7 and 9; M9 measures both the same way); over eight of those runs they buy 9 to
+  13 of the fifteen doors that are sold, the power every time, 10 to 23 tonics, and use the
+  Forge in every run and the Cache in half. A lone bot clears 5 to 8. God mode: ten rounds, no stuck zombie
+  (worst idle 3.0 s), no correction, tick 0.5 ms. Harrow Ridge is as it was: a seeded ten-round
+  campaign is the same to the shot.
+  Found on the way: on this map every flickering lamp that did not wait for the mains was
+  taken for a fire by the ambience, so the platform's tubes, the cinema screen and the
+  television all spat embers; a drift of snow lay on the roof's Cache site.
+  Not done: the master switch's lever does not move when thrown (nor does the station's);
+  nothing shows a newcomer where the Forge is but STAFF ONLY and SIGNAL ROOM in yellow; the
+  marquee's name is on its long face only; the transit posters and the store's shop windows
+  still say nothing; the carols are heard only near their two players, and there is no music
+  out in the square; the air's level outdoors (rms 0.033) is twice the station's mess hall's
+  and untried by ear; README says nothing of the map (M10). The world is 299,500 triangles (it
+  was 296,000) and builds and bakes in 1.4-1.7 s.
 - [ ] M9 Balance and performance. `campaign --runs=32` against the station's numbers; frame time
   and draw calls from the worst view (a roof, looking across the square); snapshot and tick
   budgets with the horde spread over a block.

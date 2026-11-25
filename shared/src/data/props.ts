@@ -353,6 +353,8 @@ export const PROPS = {
   wallbuy: onWall(1.4, 0.8),
   /** A tonic dispenser; `variant` picks its colour, `text` its name. */
   tonic: solid(1, 1, 2.1, true),
+  /** The master switch where there is no switchgear to carry it: a breaker box on a wall, its foot at `y`, the lever on its side. */
+  breaker_box: onWall(0.7, 1),
   /** A pallet the Cache can stand on; `text` is its site number. */
   cache_site: solid(2, 1, 0.3),
 } satisfies Record<string, PropDef>;

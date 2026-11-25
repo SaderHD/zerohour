@@ -221,6 +221,8 @@ export interface LightDef {
   /** Glows weakly until the power is on. */
   needsPower?: boolean;
   flicker?: boolean;
+  /** It wavers and is no flame (a screen, a lamp on its way out): nothing crackles there. */
+  silent?: boolean;
   /**
    * The lamp drawn at the light: default 'shade'. 'swing' is a caged lamp swaying on its chain,
    * 'none' when a prop is the source (a stove, a tank). 'post' is a street lamp on an iron post,

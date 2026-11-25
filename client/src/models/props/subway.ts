@@ -1,5 +1,6 @@
 import type { RGB } from '../../render/bake';
 import { BULBS, bulb } from './festive';
+import { textTile } from '../../render/signs';
 import { C } from './palette';
 import { strut } from './parts';
 import type { Kit } from './kit';
@@ -26,6 +27,8 @@ export function tokenBooth(k: Kit): void {
   k.box(-1, 1.1, 0.69, 1, 2.3, 0.75, k.tone(TILE, 0.04));
   k.plate(-0.16, 1.12, 0.16, 1.32, -0.725, 0x08080a);
   k.plate(-0.5, 1.95, 0.5, 2.2, -0.725, [0.55, 1.2, 0.75], 'power');
+  const label = textTile('TOKENS', 'ink');
+  k.picture(0, 2.075, -0.729, 0.2 * label.aspect * 0.8, 0.2, label.uv);
   k.box(-1.06, 2.3, -0.81, 1.06, 2.6, 0.81, C.steelDark, { bottom: true });
   // Tinsel across the glass, a bulb where each swag is taped up.
   for (let i = 0; i < 4; i++) {
