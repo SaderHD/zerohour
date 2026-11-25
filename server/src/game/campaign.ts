@@ -1,4 +1,4 @@
-import { MoveState, TICK_BUDGET_MS, ZombieState, TICK_DT, decodeClient, encode, type ClientMsg, type GameEvent, type ServerMsg } from '@zh/shared';
+import { MoveState, TICK_BUDGET_MS, ZombieState, TICK_DT, compiledMap, decodeClient, encode, type ClientMsg, type GameEvent, type ServerMsg } from '@zh/shared';
 import { BotPlayer, type BotSkill } from '../bot';
 import { Game } from './Game';
 import { zombieCount } from './spawner';
@@ -14,6 +14,8 @@ export interface CampaignOpts {
   rounds: number;
   /** Nothing hurts the bots: for going far (performance, stuck zombies) rather than for balance. */
   god?: boolean;
+  /** The map to play (default: the station, or what `ZH_MAP` names). */
+  map?: string;
   skill?: BotSkill;
   /** Give up after this much game time. */
   maxSeconds?: number;
@@ -137,7 +139,7 @@ export function runCampaign(opts: CampaignOpts): CampaignResult {
         for (const b of bots.values()) b.onMessage(m);
       },
     },
-    { debug: false, seed: opts.seed, now: () => now },
+    { debug: false, seed: opts.seed, now: () => now, map: opts.map ? compiledMap(opts.map) : undefined },
   );
   res.game = game;
   for (let id = 1; id <= opts.players; id++) {

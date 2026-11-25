@@ -7,8 +7,8 @@ all assets generated in code. TypeScript + Three.js client, Node + `ws` authorit
 sessions and the progress checklist (section 9). All 14 sessions are done: the game is shipped
 (`README.md` is the player's and host's guide). Later work is maintenance: keep the plan true in
 the same commit as any change to what it describes.
-A second map, "The Longest Night", is planned and not started: PLAN 4.12 is its design, "The second map" in
-section 9 its ten sessions (M1-M10).
+A second map, "The Longest Night", is being built: PLAN 4.12 is its design, "The second map" in
+section 9 its ten sessions (M1-M10; M1 is done).
 
 ## Rules
 - Original content only: reuse genre mechanics, never another game's names, characters, maps,
@@ -34,7 +34,7 @@ section 9 its ten sessions (M1-M10).
 - `npm run soak -- [seconds] [--shut]` — in-process server + 4 WebSocket bots + 32 zombies; fails if
   a zombie stops making progress for 10 s or the tick goes over budget. (`npm test` runs the same
   soak on a fake clock.)
-- `npm run campaign -- [rounds=25] [--god] [--runs=n] [--seed=n] [--players=n] [--accuracy=0.75] [--downs] [--trace] [--ledger]` — a whole
+- `npm run campaign -- [rounds=25] [--god] [--runs=n] [--seed=n] [--players=n] [--accuracy=0.75] [--map=id] [--downs] [--trace] [--ledger]` — a whole
   game played by bots on a fake clock (an hour of play in about a minute). `--god`: the endurance
   run, fails on a stuck zombie, slow tick or fat snapshot. Without it the bots are mortal and it
   reports how far a team gets: run it with `--runs=32` before and after any balance change (eight seeds can be off by rounds)
@@ -62,16 +62,18 @@ section 9 its ten sessions (M1-M10).
   killed and restarted). Writes `test-results/ux-*.png`.
 - URL flags for quick testing: `?autostart=1` (straight into a solo game), `?room=ABCD&autostart=1`
   (shared room across tabs), `?name=X`, `?debug=1`, `?auto=1` (the autopilot plays for you).
-- `npm run map` — validate the map and rewrite the ASCII dump `docs/MAP.txt` (`npm run map -- stacks`
-  checks and prints the Stacks, the three-storey proving ground, without writing anything).
+- `npm run map` — validate the map and rewrite the ASCII dump `docs/MAP.txt` (`npm run map -- <id>`
+  checks and prints another map, e.g. `stacks`, the three-storey proving ground, without writing anything).
+- `npm run maps` — after a build: two browser players and a bot; the host picks another map in the lobby,
+  pages and seats follow, the game runs on it; a server without debug offers one map. Writes `test-results/maps-*.png`.
 - `npm run tour [view...]` — after a build: screenshots of every zone to `test-results/tour-*.png`
   (views are listed in `scripts/tour.cjs` with the height of the floor each stands on; add one when you add
   something worth looking at; a name in its `ON` list is taken again with the power on).
 - `npm run site` — after a build: one browser player over Harrow Ridge's heights (the yard's slope and bluff,
   the lab stairs, the tunnel's ramps, the gallery, the dock, the vault's two flights; shots and prompts by floor;
   zombies following up and down). Writes `test-results/site-*.png`.
-- `npm run heights` — after a build: one browser player on the Stacks (server started with `ZH_MAP=stacks`;
-  the client follows its server's map, or takes `?map=stacks`): up the ramp and the stairs, the ledge, shots
+- `npm run heights` — after a build: one browser player on the Stacks (server started with `ZH_MAP=stacks`,
+  the map its rooms start on; the client follows its room's map, or takes `?map=stacks`): up the ramp and the stairs, the ledge, shots
   and prompts by floor, a zombie climbing three storeys. Writes `test-results/heights-*.png`.
   `npm run tour -- --stacks` photographs every part of it (`tour-stacks-*.png`).
 - `npm run smoke` — after a build: boots the server, drives headless Chromium, checks handshake
@@ -83,6 +85,12 @@ section 9 its ten sessions (M1-M10).
   (`vite.config.ts`) cannot import it.
 - Coordinates: metres, x east, z south, y up, 0.5 m cells. Yaw 0 looks north (−z), positive turns
   left.
+- Maps: `shared/src/map/maps.ts` lists them (`MAPS`; `hidden` ones are proving grounds only a debug server
+  offers). A room has a map, picked by its host in the lobby; never assume the station: take the map from the
+  game (`g.map`), the room, or `compiledMap(id)`. What is the place and not the engine is `MapDef.scene` (sky,
+  what stands beyond the walls, snow, default fog, the menu's vista) and `ZoneDef.air` (its drone, a name in
+  `audio/ambience.ts`); numbers one map needs different go in `MapDef.rules`, read with `rulesOf(def)`. The
+  client builds one map per page load (`followMap` in `main.ts` reloads for another).
 - Height (PLAN 6.1-6.3): the grid is a stack of layers, one per storey (`Room.level`, floor height
   `Room.y`, ramps and stairs as `Room.rise`). Cells join where their floors are within `STEP_HEIGHT`
   (`CompiledMap.links`); anything taller is a ledge nobody crosses. Whatever stands somewhere has a

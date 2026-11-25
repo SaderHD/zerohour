@@ -6,6 +6,7 @@ import { FLOOR_GAP, INTERACT_RANGE, PLAYER_RADIUS } from '../constants';
 import { weaponSlotsWith } from '../data/perks';
 import { weaponStats } from '../data/weapons';
 import { DIR_VEC, type CompiledMap } from '../map/compile';
+import { rulesOf } from '../map/maps';
 import type { Interactable, Opening } from '../map/types';
 import { openingDistance } from '../map/windows';
 import type { Rng } from '../math/rng';
@@ -248,7 +249,7 @@ export class BotMind {
       };
       // Points spoken for by something wanted more that has to wait for a quieter moment.
       let held = 0;
-      for (const w of listWants(v, this.things, this.guns, this.all.length, handy, this.goal?.key)) {
+      for (const w of listWants(v, this.things, this.guns, this.all.length, handy, this.goal?.key, rulesOf(this.map.def).forgeCost)) {
         if ((this.blocked.get(w.key) ?? 0) > v.time) continue;
         const s = this.spot(w.it);
         const way = this.doorsTo(zone, this.map.zoneAt(s.x, s.y, s.z) ?? '', v);

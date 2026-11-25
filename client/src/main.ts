@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  BLEEDOUT_SECONDS, CLIENT_MOVE_SEND_HZ, MARK_RANGE, MoveState, PLAYER_EYE_HEIGHT, aimDir, compileMap, mapById, maxHpWith, rayWorld, validateMap,
+  BLEEDOUT_SECONDS, CLIENT_MOVE_SEND_HZ, MARK_RANGE, MoveState, PLAYER_EYE_HEIGHT, aimDir, compileMap, isMapId, mapById, maxHpWith, rayWorld, validateMap,
 } from '@zh/shared';
 import { GameAudio } from './audio/audio';
 import { debugState, wireDebug } from './debug';
@@ -24,7 +24,6 @@ import { Input } from './input/input';
 import { ServerClock } from './net/interp';
 import { Net } from './net/net';
 import { Atmosphere } from './render/atmosphere';
-import { PALETTE } from './render/materials';
 import { RetroRenderer } from './render/renderer';
 import { buildSky } from './render/sky';
 import { Snow } from './render/snow';
@@ -49,27 +48,36 @@ const canvas = document.getElementById('game') as HTMLCanvasElement;
 const statusEl = document.getElementById('status') as HTMLDivElement;
 
 // --- World
-// The station, unless the address asks for another map (`?map=stacks`); a server playing a
-// different one sends us back here with its own (events.ts).
+// The station, unless the address asks for another map (`?map=stacks`). The world is built once,
+// for one map: when the room we are in is on another, the page is loaded again for that one
+// (`followMap`), and the seat is kept by its token.
 const map = compileMap(mapById(params.get('map')));
+/** Load the page again on the map the room is on. False when there is nothing to do, or no such map here. */
+function followMap(id: string): boolean {
+  if (id === map.def.id || !isMapId(id) || params.get('map') === id) return false;
+  const url = new URL(location.href);
+  url.searchParams.set('map', id);
+  location.replace(url);
+  return true;
+}
 const validation = validateMap(map);
 for (const e of validation.errors) console.error(`[map] ${e}`);
 debugState.mapErrors = validation.errors;
 
 const renderer = new RetroRenderer(canvas);
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(PALETTE.skyTop);
+scene.background = new THREE.Color(map.def.scene.skyTop);
 const atmosphere = new Atmosphere(map);
 scene.fog = atmosphere.fog;
 // World surfaces carry baked lighting in vertex colours; this ambient passes it through 1:1
 // (Lambert divides by pi). Realtime lights added later (muzzle flashes...) stack on top.
 scene.add(new THREE.AmbientLight(0xffffff, Math.PI));
-const sky = buildSky();
+const sky = buildSky(map.def.scene);
 scene.add(sky);
 const world = buildWorld(map);
 scene.add(world.group);
-const snow = new Snow(map);
-scene.add(snow.points);
+const snow = map.def.scene.snow ? new Snow(map) : null;
+if (snow) scene.add(snow.points);
 debugState.worldTriangles = world.triangles;
 debugState.movers = world.movers;
 
@@ -220,6 +228,7 @@ let joinedByLink = false;
 /** The roster as last seen, to say who came, went, dropped and returned. */
 let roster = new Map<number, { name: string; connected: boolean }>();
 net.onRoom = (room) => {
+  if (room && followMap(room.map)) return;
   menu.setRoom(room);
   debugState.room = room?.code ?? null;
   debugState.isHost = net.isHost;
@@ -256,7 +265,7 @@ s.on('chat', (m) => {
   chat.add(m.name, m.text, m.from === net.id);
   if (m.from !== net.id) audio.sfx.chat();
 });
-wireEvents({ net, match, map, world, player, remotes, entities, barricades, scores, hud, audio, arcs, cacheView, pickups, forgeView, fx, weapons, vm, shake, interact, clock, marks });
+wireEvents({ net, match, map, followMap, world, player, remotes, entities, barricades, scores, hud, audio, arcs, cacheView, pickups, forgeView, fx, weapons, vm, shake, interact, clock, marks });
 
 /** Drop a marker where we are looking, for the team. */
 function ping(): void {
@@ -345,10 +354,11 @@ renderer.gl.setAnimationLoop((now) => {
       s.send({ t: 'move', seq: ++moveSeq, x: player.x, y: player.y, z: player.z, yaw: player.yaw, pitch: player.pitch, state });
     }
   } else {
-    // Menu backdrop: a slow pan around the courtyard.
+    // Menu backdrop: a slow pan from the map's vista.
     attract += dt;
     input.consumeMouse();
-    camera.position.set(33, 2.4, 43);
+    const { vista } = map.def.scene;
+    camera.position.set(vista.x, vista.y, vista.z);
     camera.rotation.set(0.12, attract * 0.06, 0, 'YXZ');
   }
   remotes.update(dt, clock.renderTime, camera, window.innerWidth, window.innerHeight);
@@ -367,7 +377,7 @@ renderer.gl.setAnimationLoop((now) => {
   world.update(dt, now / 1000);
   atmosphere.update(dt, camera.position.x, camera.position.y - PLAYER_EYE_HEIGHT, camera.position.z);
   sky.position.set(camera.position.x, 0, camera.position.z);
-  snow.update(now / 1000, camera.position);
+  snow?.update(now / 1000, camera.position);
   // A scoped rifle swaps the viewmodel for a scope overlay once the sights are up.
   const scoped = playing() && weapons.def?.cls === 'sniper' && weapons.aim > 0.85;
   renderer.render(scene, camera, live() && !player.freeCam && !scoped && match.life !== 'dead' ? vm : null);

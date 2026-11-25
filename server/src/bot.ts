@@ -5,12 +5,11 @@
 import { WebSocket } from 'ws';
 import {
   BotMind, CLIENT_MOVE_SEND_HZ, FLOOR_GAP, KNIFE_COOLDOWN, MoveState, PLAYER_MAX_HP, PLAYER_RADIUS, PROTOCOL_VERSION, Rng, SPRINT_SPEED, STAMINA_REGEN_DELAY, STAMINA_SECONDS,
-  SWAP_SECONDS, WALK_SPEED, ZombieState, compileMap, decodeServer, encode, fireInterval, fireRateMultWith, mapById, maxHpWith, moveCircle,
+  SWAP_SECONDS, WALK_SPEED, ZombieState, compiledMap, decodeServer, encode, fireInterval, fireRateMultWith, maxHpWith, moveCircle,
   reloadMultWith, speedMultWith, staminaWith, weaponStats,
-  type BotIntent, type BotTarget, type CacheState, type ClientMsg, type FireHit, type ForgeState, type GameEvent, type PlayerPublic, type ServerMsg, type WeaponState,
+  type BotIntent, type BotTarget, type CacheState, type CompiledMap, type ClientMsg, type FireHit, type ForgeState, type GameEvent, type PlayerPublic, type ServerMsg, type WeaponState,
 } from '@zh/shared';
 
-const map = compileMap(mapById(process.env.ZH_MAP));
 /** Seconds between presses of F. */
 const USE_EVERY = 0.6;
 /** Closest a player's centre gets to a zombie's. */
@@ -49,7 +48,9 @@ export class BotPlayer {
   shots = 0;
   /** What it last decided, for logs. */
   intent: BotIntent | null = null;
-  readonly mind: BotMind;
+  /** Its thinking. Made anew when the game turns out to be on another map than it was made for. */
+  mind: BotMind;
+  private map: CompiledMap;
   private readonly rng: Rng;
   private readonly open = new Set<string>();
   private readonly zombies = new Map<number, BotTarget & { inside?: boolean }>();
@@ -76,7 +77,8 @@ export class BotPlayer {
 
   constructor(readonly id: number, seed: number, private readonly send: (msg: ClientMsg) => void, private readonly skill: BotSkill = DEFAULT_SKILL) {
     this.rng = new Rng(seed);
-    this.mind = new BotMind(map, this.rng.fork(), id);
+    this.map = compiledMap(process.env.ZH_MAP);
+    this.mind = new BotMind(this.map, this.rng.fork(), id);
   }
 
   private get perks(): readonly string[] {
@@ -99,6 +101,13 @@ export class BotPlayer {
   onMessage(msg: ServerMsg): void {
     switch (msg.t) {
       case 'sync':
+        if (msg.map !== this.map.def.id) {
+          // The room is on another map than the one this bot knows: learn that one.
+          const roam = this.mind.roam;
+          this.map = compiledMap(msg.map);
+          this.mind = new BotMind(this.map, this.rng.fork(), this.id);
+          this.mind.roam = roam;
+        }
         this.place(msg.self.x, msg.self.y, msg.self.z);
         this.yaw = msg.self.yaw;
         this.open.clear();
@@ -247,7 +256,7 @@ export class BotPlayer {
     } else if ((this.sinceSprint += dt) >= STAMINA_REGEN_DELAY) this.stamina = Math.min(staminaWith(perks), this.stamina + dt);
     if (moving) {
       const speed = (sprint ? SPRINT_SPEED : WALK_SPEED) * (stats?.moveSpeedMult ?? 1) * speedMultWith(perks);
-      let p = moveCircle(map, this.open, this.x, this.y, this.z, it.moveX * speed * dt, it.moveZ * speed * dt, PLAYER_RADIUS);
+      let p = moveCircle(this.map, this.open, this.x, this.y, this.z, it.moveX * speed * dt, it.moveZ * speed * dt, PLAYER_RADIUS);
       // Bodies are in the way, as they are for a player at a screen (client/src/game/localPlayer.ts).
       for (const zb of this.zombies.values()) {
         if (!zb.inside || Math.abs(zb.y - p.y) >= FLOOR_GAP) continue;
@@ -255,7 +264,7 @@ export class BotPlayer {
         const oz = p.z - zb.z;
         const d = Math.hypot(ox, oz);
         if (d >= BODY_GAP || d < 1e-4) continue;
-        p = moveCircle(map, this.open, p.x, p.y, p.z, (ox / d) * (BODY_GAP - d), (oz / d) * (BODY_GAP - d), PLAYER_RADIUS);
+        p = moveCircle(this.map, this.open, p.x, p.y, p.z, (ox / d) * (BODY_GAP - d), (oz / d) * (BODY_GAP - d), PLAYER_RADIUS);
       }
       this.x = p.x;
       this.y = p.y;

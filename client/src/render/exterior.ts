@@ -160,6 +160,7 @@ export function buildExterior(map: CompiledMap, baker: Baker): Bucket {
     box(p.x - r - 0.05, p.z - r - 0.05, p.x + r + 0.05, p.z + r + 0.05, [top - 0.12, top - 0.12, top - 0.12, top - 0.12], top - 0.04, linear(SNOW));
   }
 
+  if (map.def.scene.beyond !== 'pines') return b;
   // Pines beyond the wire and behind the buildings, wherever there is rock for them to stand on.
   const solidAround = (x: number, z: number): boolean => {
     const n = Math.ceil(TREE_CLEARANCE / CELL_SIZE);

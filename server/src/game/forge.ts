@@ -1,4 +1,4 @@
-import { FORGE_COLLECT_SECONDS, FORGE_COST, FORGE_SECONDS, weaponDef, type ForgeState } from '@zh/shared';
+import { FORGE_COLLECT_SECONDS, FORGE_SECONDS, rulesOf, weaponDef, type ForgeState } from '@zh/shared';
 import { giveWeapon } from './combat';
 import { award } from './economy';
 import type { Game, PlayerState } from './Game';
@@ -27,8 +27,9 @@ export function useForge(g: Game, p: PlayerState, deny: Deny): void {
   const w = p.pub.weapons[p.pub.slot];
   if (!w || !weaponDef(w.id)) return deny('invalid');
   if (w.upgraded) return deny('upgraded');
-  if (p.pub.points < FORGE_COST) return deny('points');
-  award(g, p, -FORGE_COST, 'forge');
+  const cost = rulesOf(g.map.def).forgeCost;
+  if (p.pub.points < cost) return deny('points');
+  award(g, p, -cost, 'forge');
   p.reloadUntil = 0;
   p.pub.weapons.splice(p.pub.slot, 1);
   p.pub.slot = Math.max(0, Math.min(p.pub.slot, p.pub.weapons.length - 1));

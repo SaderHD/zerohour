@@ -45,8 +45,11 @@ export class Ambience {
   private emberT = 1;
   private heartT = 0;
   private readonly fires: { x: number; z: number }[];
+  /** Which air each zone has (`ZoneDef.air`). */
+  private readonly airOf = new Map<string, string>();
 
   constructor(private readonly s: Synth, private readonly sfx: Sfx, map: CompiledMap, private readonly drips: readonly (readonly [number, number, number])[]) {
+    for (const z of map.def.zones) if (z.air) this.airOf.set(z.id, z.air);
     this.fires = map.def.lights.filter((l) => l.flicker && !l.needsPower).map((l) => ({ x: l.x, z: l.z }));
   }
 
@@ -131,7 +134,7 @@ export class Ambience {
    */
   update(dt: number, zone: string | null, power: boolean, x: number, z: number, hp: number, downed: boolean): void {
     if (this.s.ctx.state !== 'running') return;
-    const air = AIR[zone ?? ''];
+    const air = AIR[this.airOf.get(zone ?? '') ?? ''];
     const key = air ? `${zone}|${power}` : this.key;
     if (key !== this.key && air) {
       this.drone?.stop(CROSSFADE);

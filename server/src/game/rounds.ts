@@ -1,6 +1,7 @@
 import {
+  rulesOf,
   HOWLER_ROUND_MAX_GAP, HOWLER_ROUND_MIN_GAP, HOWLER_SPAWN_INTERVAL, HOWLER_SPEED, howlerHpForRound, howlersForRound,
-  FIRST_ROUND_DELAY, INTERMISSION_SECONDS, MAX_GRENADES, MoveState, ROUND_GRENADE_REFILL, STRAGGLER_COUNT, STRAGGLER_SECONDS,
+  FIRST_ROUND_DELAY, MAX_GRENADES, MoveState, ROUND_GRENADE_REFILL, STRAGGLER_COUNT, STRAGGLER_SECONDS,
   ZOMBIE_SPEED_RUN, spawnIntervalForRound, zombieHpForRound, zombieSpeedForRound, zombiesForRound,
 } from '@zh/shared';
 import { killZombie } from './entities';
@@ -121,7 +122,7 @@ export function updateRounds(g: Game): void {
   }
   if (left === 0) {
     r.phase = 'intermission';
-    r.nextAt = g.time + INTERMISSION_SECONDS;
+    r.nextAt = g.time + rulesOf(g.map.def).intermission;
     g.emit({ e: 'roundEnd', round: r.round });
     return;
   }

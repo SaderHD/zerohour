@@ -111,7 +111,8 @@ function hostile(rng: Rng, roomCode: string): ClientMsg {
     case 14: return { t: 'revive', target: i(), hold: rng.next() < 0.7 };
     case 15: return { t: 'chat', text: s() };
     case 16: return { t: 'mark', x: n(), y: 0, z: n() };
-    default: return { t: 'debug', cmd: 'give', points: 1e9 } as ClientMsg;
+    // (A map change is a room message: it spends the same allowance as joining, so not too many.)
+    default: return rng.next() < 0.3 ? { t: 'map', id: rng.pick(['harrow_ridge', 'stacks', s()]) } : ({ t: 'debug', cmd: 'give', points: 1e9 } as ClientMsg);
   }
 }
 
@@ -197,7 +198,8 @@ describe('fuzz', () => {
 
     expect(ctx.thrown).toEqual([]);
     expect(kicks).toBeGreaterThan(50);
-    expect(inGame).toBeGreaterThan(500); // the hostile clients really were in the game
+    // The hostile clients really were in the game (of 8000 chances; ten runs gave 579 to 1278: it goes by how each game ends).
+    expect(inGame).toBeGreaterThan(300);
     expect(games).toBeGreaterThanOrEqual(1);
     expect(host.peer.kicked).toBeNull();
     expect(mate.peer.kicked).toBeNull();

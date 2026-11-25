@@ -1,6 +1,6 @@
 import {
-  DIR_VEC, FLOOR_GAP, FORGE_COST, cacheItemName, INTERACT_RANGE, MAX_PERKS, ammoCost, openingDistance, perkCost, perkDef, perkNeedsPower, reviveSecondsWith,
-  weaponDef, weaponStats,
+  DIR_VEC, FLOOR_GAP, cacheItemName, INTERACT_RANGE, MAX_PERKS, ammoCost, openingDistance, perkCost, perkDef, perkNeedsPower, reviveSecondsWith,
+  rulesOf, weaponDef, weaponStats,
   type CacheState, type ClientMsg, type CompiledMap, type ForgeState, type Interactable, type Opening, type PerkId, type WeaponId,
 } from '@zh/shared';
 import type { Input } from '../input/input';
@@ -122,7 +122,7 @@ export class Interact {
         const held = b.weapons[b.slot];
         const def = held && weaponDef(held.id);
         if (!held || !def) return no();
-        return held.upgraded ? no('This weapon is already upgraded') : yes(`forge the ${def.name} [${FORGE_COST}]`);
+        return held.upgraded ? no('This weapon is already upgraded') : yes(`forge the ${def.name} [${rulesOf(this.map.def).forgeCost}]`);
       }
       case 'cacheSite': {
         const c = b.cache(it.id);

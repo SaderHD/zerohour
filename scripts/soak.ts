@@ -19,7 +19,7 @@ const port = 21080 + Math.floor(Math.random() * 900);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const wss = new WebSocketServer({ port, path: '/ws' });
-const lobby = new Lobby({ debug: true });
+const lobby = new Lobby({ debug: true, map: process.env.ZH_MAP });
 wss.on('connection', (socket) => new Connection(socket, lobby));
 
 const url = `ws://localhost:${port}/ws`;

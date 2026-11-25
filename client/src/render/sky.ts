@@ -1,11 +1,13 @@
 import * as THREE from 'three';
-import { Rng } from '@zh/shared';
-import { PALETTE } from './materials';
+import { Rng, type MapScene } from '@zh/shared';
 
 const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
 
-/** Night sky cylinder: gradient, stars, aurora and a mountain silhouette. Follows the camera. */
-export function buildSky(): THREE.Mesh {
+/**
+ * The sky cylinder for a map's scene; it follows the camera. 'ridge' (the only kind so far): a
+ * night gradient, stars, a moon, an aurora and a mountain silhouette.
+ */
+export function buildSky(scene: MapScene): THREE.Mesh {
   const W = 512;
   const H = 128;
   const canvas = document.createElement('canvas');
@@ -16,8 +18,8 @@ export function buildSky(): THREE.Mesh {
   const horizon = Math.round(H * 0.8); // canvas y of the horizon line
 
   const grad = ctx.createLinearGradient(0, 0, 0, horizon);
-  grad.addColorStop(0, hex(PALETTE.skyTop));
-  grad.addColorStop(1, hex(PALETTE.skyHorizon));
+  grad.addColorStop(0, hex(scene.skyTop));
+  grad.addColorStop(1, hex(scene.skyHorizon));
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, W, horizon);
 
@@ -38,7 +40,7 @@ export function buildSky(): THREE.Mesh {
   ctx.beginPath();
   ctx.arc(mx, my, 5, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = hex(PALETTE.skyHorizon);
+  ctx.fillStyle = hex(scene.skyHorizon);
   ctx.globalAlpha = 0.85;
   ctx.beginPath();
   ctx.arc(mx + 3, my - 2, 4, 0, Math.PI * 2);
@@ -79,7 +81,7 @@ export function buildSky(): THREE.Mesh {
   };
   ridge(6, 16, '#121c2e', '#3a4c66', 11);
   ridge(2, 9, '#0b1220', null, 23);
-  ctx.fillStyle = hex(PALETTE.fog);
+  ctx.fillStyle = hex(scene.haze);
   ctx.fillRect(0, horizon, W, H - horizon);
 
   const tex = new THREE.CanvasTexture(canvas);

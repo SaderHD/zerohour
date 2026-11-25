@@ -100,7 +100,7 @@ const AMMO_HANDY = 0.1;
 const RESUPPLY_RANK = 3;
 
 /** `guns`: the wall guns this bot is after, worst first. `about`: zombies it knows of. `handy`: is this a short walk away? `after`: what it is on its way to now. */
-export function listWants(v: BotView, things: ReadonlyMap<string, Interactable>, guns: readonly string[], about: number, handy: (it: Interactable) => boolean = () => false, after = ''): Want[] {
+export function listWants(v: BotView, things: ReadonlyMap<string, Interactable>, guns: readonly string[], about: number, handy: (it: Interactable) => boolean = () => false, after = '', forgeCost = FORGE_COST): Want[] {
     const list: Want[] = [];
     const thing = (id: string): Interactable | undefined => things.get(id);
     const slots = weaponSlotsWith(v.perks);
@@ -161,7 +161,7 @@ export function listWants(v: BotView, things: ReadonlyMap<string, Interactable>,
         if (!w.upgraded && w.id !== 'warden' && (pick < 0 || rank(w) > rank(v.weapons[pick]!))) pick = i;
       });
       // After the first tonic, so a team does not queue at the Forge with nothing else.
-      if (pick >= 0) list.splice(Math.min(list.length, v.perks.length ? 0 : list.length), 0, { key: 'forge', it: forge, cost: FORGE_COST, hold: pick });
+      if (pick >= 0) list.splice(Math.min(list.length, v.perks.length ? 0 : list.length), 0, { key: 'forge', it: forge, cost: forgeCost, hold: pick });
     }
     return list;
 }

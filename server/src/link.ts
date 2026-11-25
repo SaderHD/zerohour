@@ -8,7 +8,7 @@ import { Bucket } from './rateLimit';
 
 type Limit = 'chat' | 'mark' | 'room' | 'ping';
 const LIMIT_OF: Partial<Record<ClientMsg['t'], Limit>> = {
-  chat: 'chat', mark: 'mark', ping: 'ping', create: 'room', join: 'room', leave: 'room', ready: 'room', start: 'room', again: 'room',
+  chat: 'chat', mark: 'mark', ping: 'ping', create: 'room', join: 'room', leave: 'room', ready: 'room', map: 'room', start: 'room', again: 'room',
 };
 /** Limits whose refusals the client is told about (the rest are dropped quietly). */
 const TOLD: ReadonlySet<Limit> = new Set<Limit>(['chat', 'room']);

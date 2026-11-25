@@ -3,9 +3,6 @@ import { Rng, type FloorStyle, type WallStyle } from '@zh/shared';
 
 // The fixed palette (sRGB hex). Models and UI pull colours from here so everything coheres.
 export const PALETTE = {
-  fog: 0x0a0e16,
-  skyTop: 0x04060a,
-  skyHorizon: 0x1b2c48,
   snow: 0xdfe8f2,
   rust: 0x7a3b22,
   hazard: 0xd8a020,

@@ -30,6 +30,7 @@
     "audio": "node scripts/audio.cjs",
     "ux": "node scripts/ux.cjs",
     "heights": "node scripts/heights.cjs",
+    "maps": "node scripts/maps.cjs",
     "site": "node scripts/site.cjs",
     "campaign": "tsx scripts/campaign.ts",
     "ship": "node scripts/ship.cjs"

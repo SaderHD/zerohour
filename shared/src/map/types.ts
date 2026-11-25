@@ -17,7 +17,46 @@ export interface ZoneDef {
   /** Ambient light colour (hex) the zone's surfaces receive before light pools. */
   ambient: number;
   /** The air in here: fog colour and range (metres) while the viewer stands in the zone. */
-  fog?: { color: number; near: number; far: number };
+  fog?: Fog;
+  /** What it sounds like when nothing is happening: one of the client's airs (`audio/ambience.ts`). None is silence. */
+  air?: string;
+}
+
+/** The air: fog colour and where it starts and ends, in metres. */
+export interface Fog {
+  color: number;
+  near: number;
+  far: number;
+}
+
+/**
+ * Where a map is: everything about its look and sound that is the place and not the engine. The
+ * client draws each part from the kind named here (`render/sky.ts`, `render/exterior.ts`,
+ * `render/snow.ts`, `render/atmosphere.ts`).
+ */
+export interface MapScene {
+  /** The sky round the map. 'ridge': stars, a low moon, an aurora and two ranges of mountains. */
+  sky: 'ridge';
+  /** The sky's colours: overhead, at the horizon, and the haze below the horizon. */
+  skyTop: number;
+  skyHorizon: number;
+  haze: number;
+  /** What stands on the solid ground beyond the walls. 'pines': a wood, thickest where the outdoor rooms look out on it. */
+  beyond: 'pines' | 'none';
+  /** Snow falls wherever a cell is open to the sky. */
+  snow: boolean;
+  /** The air in every zone that names none of its own. */
+  fog: Fog;
+  /** Where the camera stands behind the menu, turning slowly. */
+  vista: { x: number; y: number; z: number };
+}
+
+/** A map's own numbers, where it needs other than the game's (`rulesOf` fills in the rest). */
+export interface MapRules {
+  /** Seconds between rounds. */
+  intermission?: number;
+  /** What the Forge charges. */
+  forgeCost?: number;
 }
 
 /** A rectangle of open floor. Rooms of the same zone may abut to form L-shapes. */
@@ -142,6 +181,10 @@ export interface MapDef {
   id: string;
   name: string;
   size: { w: number; d: number };
+  /** Not offered in the lobby (a proving ground): only a debug server lets a host choose it. */
+  hidden?: boolean;
+  scene: MapScene;
+  rules?: MapRules;
   zones: ZoneDef[];
   /** Storeys other than the ground (level 0 at y 0 is always there). */
   levels?: LevelDef[];

@@ -412,7 +412,11 @@ buildings players do go into are the low old ones at the towers' feet.
 aim.** This is co-op with friends, so we optimise for feel and simplicity over cheat-proofing.
 
 - **Rooms:** client opens `ws://host/ws`, sends `create` or `join {code}` (4-letter code) with a
-  name. Lobby shows players + ready state; host starts. Late join allowed — spawns next round
+  name. Lobby shows players + ready state; host starts. A room is on one map (`room.map`): the
+  host may change it in the lobby (`map {id}`) to any the server offers (`room.maps`: the maps
+  people play, plus the proving grounds on a debug server), which asks everyone to ready up
+  again. A client builds its world once, for one map, so when its room is on another it loads
+  the page again with `?map=` and takes its seat back by its token. Late join allowed — spawns next round
   (at once during an intermission). After a game over the room shows the results until any
   player sends `again`, which returns everyone to the lobby.
   Disconnect: slot held 60 s for reconnect (token in `sessionStorage`), then dropped. A tab that
@@ -486,6 +490,13 @@ validation, nav and LOS. The **client** `worldBuilder.ts` turns it into one mesh
 surface style: floors, ceilings and wall quads wherever a cell's open height interval is not matched by
 its neighbour (this one rule yields walls, door lintels, window sills and jambs), with all
 lighting baked into vertex colours (zone ambient + light pools with grid line of sight + fake AO).
+
+**Where a map is** is data too (`MapDef.scene`): the kind of sky and its colours, what stands
+beyond the walls, whether it snows, the air of a zone that names none, where the menu's camera
+stands; a zone's `air` names the drone it hums (`audio/ambience.ts`). `MapDef.rules` holds the
+numbers a map needs to differ in (`rulesOf(def)`: the pause between rounds, the Forge's price).
+`map/maps.ts` is the list (`MAPS`, `mapChoices`, `compiledMap(id)`); a `hidden` map is a proving
+ground no lobby offers.
 
 **Windows** carve a walled, roofless pocket (3 m deep by default) behind them; zombies spawn at
 the back of the pocket, so `spawns` is generated, not authored. Pockets need solid ground behind
@@ -1139,14 +1150,32 @@ floor. Four steps.
 
 ### The second map: "The Longest Night"
 Asked for by the owner: a second map chosen in the lobby, a winter city at Christmas, full size
-(4.12 is the design). Ten sessions, each ending green like the first fourteen. Nothing here is
-started.
-- [ ] M1 A game can be on any map. The host picks the map in the lobby (it is a server env var
-  today); the room, the bots, the campaign and every script take it. What is the station's look
-  and not the engine's becomes data on `MapDef`: the sky, what `exterior.ts` puts on and round
-  buildings, the weather, the ambience bed. Per-map tunables where the station needed them (the
-  pause between rounds, the Forge's price). Harrow Ridge draws and plays as before (tour and
-  seeded campaigns unchanged).
+(4.12 is the design). Ten sessions, each ending green like the first fourteen.
+- [x] M1 A game can be on any map - done. A room has a map; its host changes it in the lobby
+  (a picker; protocol 10: `map {id}`, and `room` carries `map` and `maps`), the game starts on
+  it, and the pages of everyone in the room load it and keep their seats (section 5). A server
+  offers the maps people play, and the Stacks as well when it is a debug server; `ZH_MAP` now
+  only says which map a new room starts on. The WebSocket bots learn the map from `sync`;
+  `campaign --map=id`, `npm run map -- <id>` and the soak take one. The station's look is data
+  (`MapDef.scene`: sky kind and colours, the pines, the snow, the default fog, the menu's
+  vista; `ZoneDef.air` for the ambience, which was keyed by the station's zone ids), and
+  `MapDef.rules` can change the pause between rounds and the Forge's price for one map (nothing
+  sets them yet: the station's numbers are the game's defaults). `npm run maps` is the browser
+  check: two players and a bot, the host picks the Stacks, both pages and both seats follow,
+  the bot (started knowing only the station) fights there; a server without debug offers one
+  map and cannot be talked onto another.
+  Harrow Ridge is as it was: a seeded ten-round campaign gives the same rounds, downs, points
+  and purchases to the shot, and 84 tour views differ from the last commit's only by what moves
+  (80 under 2% of pixels - the snow; the lab's two views with the power on by its failing tube).
+  Found on the way: the Stacks' menu camera stood outside its own map (it had the station's
+  spot); a client sent to a map it did not know would have reloaded for ever; the fuzz test's
+  count of hostile clients inside the game depends on how often they get back in, and a map
+  change spends the same allowance as a join (the mix was rebalanced and the bar set from ten
+  runs).
+  Not done: the roofs and cladding in `exterior.ts` still go by the station's wall styles (M2
+  writes the city's and makes that a kind of `scene`); changing map reloads the page rather than
+  rebuilding the world in place, so a guest sees the lobby blink; the README says nothing of
+  maps while there is one to choose.
 - [ ] M2 The city outside. Towers with lit windows into fog, flat roofs, parapets, water tanks,
   the sky's glow; façades that stand far higher than the room in front of them (a street's wall
   is a building, not a fence); new floor and wall styles (asphalt, pavement, brick, shop front,
