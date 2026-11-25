@@ -54,7 +54,7 @@ export const harrowRidge: MapDef = {
   size: { w: 70, d: 70 },
   scene: {
     sky: 'ridge', skyTop: 0x04060a, skyHorizon: 0x1b2c48, haze: 0x0a0e16,
-    beyond: 'pines', snow: true, fog: { color: 0x0a0e16, near: 6, far: 42 },
+    built: 'station', beyond: 'pines', outside: 0x1c2638, snow: true, fog: { color: 0x0a0e16, near: 6, far: 42 },
     vista: { x: 33, y: 2.4, z: 43 },
   },
   zones: [

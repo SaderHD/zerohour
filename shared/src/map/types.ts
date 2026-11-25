@@ -2,9 +2,10 @@
 // Units are metres on a 0.5 m grid; x runs east, z runs south, y is up. Everything is solid
 // until a room, opening or window pocket carves it out.
 
-export const FLOOR_STYLES = ['concrete', 'tile', 'plank', 'snow', 'metal', 'lino'] as const;
+// (New styles go at the end: a compiled cell stores its style's place in the list.)
+export const FLOOR_STYLES = ['concrete', 'tile', 'plank', 'snow', 'metal', 'lino', 'asphalt', 'pavement', 'felt'] as const;
 export type FloorStyle = (typeof FLOOR_STYLES)[number];
-export const WALL_STYLES = ['panel', 'block', 'plaster', 'metal', 'fence', 'rock', 'siding'] as const;
+export const WALL_STYLES = ['panel', 'block', 'plaster', 'metal', 'fence', 'rock', 'siding', 'brick', 'shopfront', 'subway'] as const;
 export type WallStyle = (typeof WALL_STYLES)[number];
 
 export type Dir = 'n' | 's' | 'e' | 'w';
@@ -35,14 +36,30 @@ export interface Fog {
  * `render/snow.ts`, `render/atmosphere.ts`).
  */
 export interface MapScene {
-  /** The sky round the map. 'ridge': stars, a low moon, an aurora and two ranges of mountains. */
-  sky: 'ridge';
+  /**
+   * The sky round the map. 'ridge': stars, a low moon, an aurora and two ranges of mountains.
+   * 'city': low cloud lit from below, and a far skyline with its windows on.
+   */
+  sky: 'ridge' | 'city';
   /** The sky's colours: overhead, at the horizon, and the haze below the horizon. */
   skyTop: number;
   skyHorizon: number;
   haze: number;
-  /** What stands on the solid ground beyond the walls. 'pines': a wood, thickest where the outdoor rooms look out on it. */
-  beyond: 'pines' | 'none';
+  /**
+   * What the solid is, seen from outside. 'station': a hut or a shed over every room, clad by the
+   * walls it has inside, under a snowed roof. 'city': the solid is buildings (`MapDef.blocks`), each
+   * as tall as its block says, faced in masonry with rows of windows under a flat roof.
+   */
+  built: 'station' | 'city';
+  /**
+   * What stands beyond the map. 'pines': a wood, thickest where the outdoor rooms look out on it.
+   * 'towers': a ring of towers far taller than anything in the map, their windows lit.
+   */
+  beyond: 'pines' | 'towers' | 'none';
+  /** The light (hex) on whatever belongs to no zone: the pockets behind windows, roofs, what stands outside. */
+  outside: number;
+  /** What the pockets behind windows are floored and walled in (snow and rock when it does not say). */
+  pocket?: { floor: FloorStyle; wall: WallStyle };
   /** Snow falls wherever a cell is open to the sky. */
   snow: boolean;
   /** The air in every zone that names none of its own. */
@@ -57,6 +74,30 @@ export interface MapRules {
   intermission?: number;
   /** What the Forge charges. */
   forgeCost?: number;
+}
+
+/**
+ * A building as it stands outside, on a map whose scene is `built: 'city'`: the solid in this
+ * rectangle, and the rooms carved in it, are a building `h` metres tall. Where blocks overlap the
+ * later one has the ground; solid no block covers is `BLOCK_HEIGHT` of brick. See `map/massing.ts`.
+ */
+export interface BlockDef {
+  x: number;
+  z: number;
+  w: number;
+  d: number;
+  /** Height of its roof above the ground storey's base, metres. */
+  h: number;
+  /** What it is faced in above the street: the wall style of the strip of street in front of it, to carry on from it. */
+  face: WallStyle;
+  /** Hex colour multiplied into its walls (as a room's tint is). */
+  tint?: number;
+  /** How far its edge stands above its roof, metres (default `PARAPET`; 0 for a roof that is walked on, or a fence). */
+  parapet?: number;
+  /** The share of its windows with a light on, 0-1 (default 0.2); `false` for a wall with no windows in it. */
+  lit?: number | false;
+  /** What stands on its roof (default: by its size, from the map's seed). */
+  roof?: 'bare' | 'tank' | 'hut' | 'vents';
 }
 
 /** A rectangle of open floor. Rooms of the same zone may abut to form L-shapes. */
@@ -188,6 +229,8 @@ export interface MapDef {
   zones: ZoneDef[];
   /** Storeys other than the ground (level 0 at y 0 is always there). */
   levels?: LevelDef[];
+  /** The buildings, where the scene is `built: 'city'`. */
+  blocks?: BlockDef[];
   rooms: Room[];
   openings: Opening[];
   props: PropInst[];

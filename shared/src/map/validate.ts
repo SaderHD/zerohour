@@ -1,5 +1,6 @@
 import { CELL_SIZE, MIN_LANE_WIDTH, PLAYER_RADIUS } from '../constants';
 import { circleFits } from '../nav/collide';
+import { checkBlocks } from './massing';
 import { mapWindows } from './windows';
 import { Cell, NO_ZONE, type CompiledMap, type DoorSet } from './compile';
 
@@ -32,7 +33,7 @@ export function floodWalkable(map: CompiledMap, x: number, y: number, z: number,
 
 /** Structural checks from docs/PLAN.md section 6.1. A map with any error must not ship. */
 export function validateMap(map: CompiledMap): ValidationResult {
-  const errors = [...map.errors];
+  const errors = [...map.errors, ...checkBlocks(map)];
   const warnings: string[] = [];
   const def = map.def;
   const cell = (v: number) => Math.floor(v / CELL_SIZE);

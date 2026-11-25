@@ -525,8 +525,8 @@ export function compileMap(def: MapDef): CompiledMap {
           m.lo[i] = floor;
           m.slope0[i] = m.slope1[i] = floor;
           m.hi[i] = floor + Math.max(3, m.hi[src]! - floor);
-          m.floorStyle[i] = FLOOR_STYLES.indexOf('snow');
-          m.wallStyle[i] = WALL_STYLES.indexOf('rock');
+          m.floorStyle[i] = FLOOR_STYLES.indexOf(def.scene.pocket?.floor ?? 'snow');
+          m.wallStyle[i] = WALL_STYLES.indexOf(def.scene.pocket?.wall ?? 'rock');
           m.sky[i] = 1;
         }
       }

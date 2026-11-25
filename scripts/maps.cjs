@@ -65,7 +65,7 @@ async function serve(p, extra) {
     await inLobbyOn(b, 'harrow_ridge');
     const pa = await picker(a);
     const pb = await picker(b);
-    assert(pa.options.join() === 'harrow_ridge=Harrow Ridge Station,stacks=The Stacks', `host is offered ${pa.options}`);
+    assert(pa.options.join() === 'harrow_ridge=Harrow Ridge Station,stacks=The Stacks,corner=The Corner', `host is offered ${pa.options}`);
     assert(!pa.disabled && pb.disabled, `the host's picker should be live and the guest's not: ${pa.disabled} ${pb.disabled}`);
     await b.click('#ready');
     await a.waitForFunction(() => !document.getElementById('start').disabled);

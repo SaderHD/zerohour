@@ -2,8 +2,8 @@ import { CELL_SIZE, Cell, Rng, type CompiledMap, type Room } from '@zh/shared';
 import { Bucket, type Baker, type RGB, type Vert } from './bake';
 import { linear } from './materials';
 
-// What stands outside the walls, so that looking over the yard fence or up out of a window shows
-// a station and not a void: a roof over every building, their chimneys, and the pines beyond the
+// What stands outside the walls of a station (`scene.built: 'station'`; a city's outside is city.ts),
+// so that looking over the yard fence or up out of a window shows a station and not a void: a roof over every building, their chimneys, and the pines beyond the
 // wire. Nobody can get there; it is one mesh, lit as part of the yard so the floodlights reach it.
 
 type V3 = [number, number, number];

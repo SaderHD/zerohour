@@ -491,9 +491,11 @@ surface style: floors, ceilings and wall quads wherever a cell's open height int
 its neighbour (this one rule yields walls, door lintels, window sills and jambs), with all
 lighting baked into vertex colours (zone ambient + light pools with grid line of sight + fake AO).
 
-**Where a map is** is data too (`MapDef.scene`): the kind of sky and its colours, what stands
-beyond the walls, whether it snows, the air of a zone that names none, where the menu's camera
-stands; a zone's `air` names the drone it hums (`audio/ambience.ts`). `MapDef.rules` holds the
+**Where a map is** is data too (`MapDef.scene`): the kind of sky and its colours (`sky`: 'ridge' or
+'city'), what the solid looks like from outside (`built`: 'station' or 'city'), what stands beyond
+the map (`beyond`: pines, towers), the light on what belongs to no zone (`outside`), what the pockets
+behind windows are paved and walled in (`pocket`), whether it snows, the air of a zone that names
+none, where the menu's camera stands; a zone's `air` names the drone it hums (`audio/ambience.ts`). `MapDef.rules` holds the
 numbers a map needs to differ in (`rulesOf(def)`: the pause between rounds, the Forge's price).
 `map/maps.ts` is the list (`MAPS`, `mapChoices`, `compiledMap(id)`); a `hidden` map is a proving
 ground no lobby offers.
@@ -541,7 +543,33 @@ map machinery and a full-horde soak on it. Harrow Ridge uses all of it (4.11). A
 stand on a ramp or stairs (the compiler refuses it); a `railing` prop (dressing helpers `rail`,
 `stairRail`) marks the top of a ledge and stops nothing.
 
-`validate.ts` runs in tests and fails the build if: a prop blocks the floor inside a window; any zone is unreachable with all doors open;
+**The outside of a city** (`scene.built: 'city'`; `map/massing.ts`, `render/city.ts`). To whoever
+walks, solid is a wall of no particular height. Seen from outside it is a building, so on a city map
+the solid has one: `MapDef.blocks` are rectangles `{x, z, w, d, h, face, tint, parapet, lit, roof}`
+saying "what stands here is `h` metres tall, faced in this wall style" (later blocks have the ground
+where they overlap; solid no block covers is 14 m of brick). `massing(map)` gives every column of the
+grid its top: under the sky (a street, a walked roof, a pocket) the floor that lies open; anywhere
+else the block's height, or as much more as the rooms inside need (a stair head stands through the
+roof as a hut, its walls with it), plus a parapet wherever something lower lies beside it. Three
+things read it. The world builder stops a wall where the building behind it stops, and draws none
+against open sky (a roof's edge over a street or over a lower roof is a drop: rail it). `city.ts`
+carries every building on from where the street's own walls end (`Room.ceil` of the outdoor room,
+4 m by habit) to its top, in the block's wall style and lit as part of the same cell, so the seam
+does not show: a string course, a row of sash windows to each 4 m storey (one in five lit, by a
+hash of where it is), a cornice, a snowed roof on whatever anyone could look down on, and a water
+tank, a stair hut or vents on it. And the snow falls on the roofs. A street's ground storey is still
+the half-metre strip rooms along its edge: a shop front below, the block's brick above. Beyond the
+map, `beyond: 'towers'` (`render/towers.ts`) rings it with two rows of towers 48-165 m tall (one
+unlit mesh, the fog reaching it a quarter as much, colours fading into the sky's glow with height),
+across a cross street's width of bare ground; the 'city' sky is low cloud lit from underneath with
+a painted far skyline. The Corner (`map/corner.ts`, hidden; `npm run map -- corner`,
+`npm run tour -- --corner`) is the proving ground: a street with kerbs between buildings of six
+heights, a shop, a flat, a walked roof and an underpass.
+Not yet: sight and shots still take solid to be endlessly tall, so nothing is seen or hit across a
+roof lower than the eye (a roof's edge over a *street* is fine: the street is open sky); a pocket is
+open to the sky whatever storey it is on, so one below ground would be a shaft up through its block.
+
+`validate.ts` runs in tests and fails the build if: a block is off the grid or off the map; a prop blocks the floor inside a window; any zone is unreachable with all doors open;
 any window/spawn can't path to the player spawn; a prop seals a lane (<1.5 m); interactables are
 not adjacent to floor; rooms overlap. `npm run map` validates and writes an ASCII top-down dump to
 `docs/MAP.txt` (a sheet per storey when there are several; `^ v < >` mark ramps and stairs, pointing
@@ -593,7 +621,8 @@ wall buys, tonics, Cache, Forge, power switch, barricade rebuild and revive.
   `rounds(bool)` (stop/resume the round loop), `spawnZombies(n, opts)` (`opts.kind: 'howler'`), `killZombies()`, `god(bool)`, `freeCam()`, `openAllDoors()`, `powerOn()`, `dummy(x,z)` (target
   dummy), `lookAt(x,y,z)`, `press(code)` (mouse buttons are `Mouse0`/`Mouse2`), `audio` (`play(name)`,
   `names()`, `render(name)` offline, `record(on)`, `setVolume`), `pick()` (the name of whatever mesh is
-  under the crosshair, for finding what a stray surface belongs to). Matching server-side
+  under the crosshair, for finding what a stray surface belongs to), `fly(x, y, z, yaw, pitch)` (the
+  free camera at a point in the air, for pictures from where nobody can stand). Matching server-side
   `debug` messages, enabled only when `ZH_DEBUG=1`.
 - URL flags: `?name=X`, `?room=CODE` (join; with `autostart` the room is created if missing —
   debug servers only), `?autostart=1` (skip menu and lobby), `?debug=1` (stats overlay).
@@ -1176,17 +1205,41 @@ Asked for by the owner: a second map chosen in the lobby, a winter city at Chris
   writes the city's and makes that a kind of `scene`); changing map reloads the page rather than
   rebuilding the world in place, so a guest sees the lobby blink; the README says nothing of
   maps while there is one to choose.
-- [ ] M2 The city outside. Towers with lit windows into fog, flat roofs, parapets, water tanks,
-  the sky's glow; façades that stand far higher than the room in front of them (a street's wall
-  is a building, not a fence); new floor and wall styles (asphalt, pavement, brick, shop front,
-  subway tile, roofing felt). Proved on a one-block test map before anything is laid out.
+- [x] M2 The city outside - done (6.1, "The outside of a city", describes it). The solid has a
+  height: a map's `blocks` say how tall each building stands and what it is faced in, and
+  `massing()` (shared) turns them and the rooms into a top for every column. From that the client
+  draws each building on up from where the street's walls stop - the same brick under the same
+  lamps, string course, sash windows a storey apart with one in five lit, cornice, parapet, a
+  snowed roof with a tank, a hut or vents - stops a wall where the building behind it stops, and
+  leaves a roof's edge open over a street or a lower roof. Beyond the map a ring of towers with
+  their lights on fades up into the glow of a 'city' sky (cloud lit from below, a painted far
+  skyline). `MapScene` gained `built`, `outside` and `pocket`, `sky: 'city'` and
+  `beyond: 'towers'`; six surfaces are new (floors `asphalt`, `pavement`, `felt`; walls `brick`,
+  `shopfront`, `subway`). The snow lies on roofs and comes up with a viewer who stands on one.
+  Proved on the Corner (`map/corner.ts`, a hidden map: 48 x 40 m, four storeys, ten blocks from
+  3.5 to 30 m): `npm run tour -- --corner` takes twenty pictures of it (street, kerb, barricade,
+  shop, flat, roof in eight directions, underpass); 21,000-33,000 triangles and 18-33 draw calls
+  from anywhere on it. A six-round god-mode campaign runs on it (no stuck zombie, no
+  corrections).
+  Harrow Ridge is as it was: a seeded ten-round campaign is the same to the shot, and of 100 tour
+  views (84 of the station, 16 of the Stacks) 98 differ from the last commit's by under 2% of
+  pixels; the other two are the lab's and the cold store's failing tubes, which differ as much
+  from one run to the next.
+  New tool: `__zh.fly(x, y, z, yaw, pitch)`.
+  Not done: sight and shots across a roof lower than the eye (to `seeThrough` and `rayWorld` solid
+  is still endlessly tall: M4, with the roofs, where `massing` has the heights ready); a pocket
+  below ground is open to the sky through whatever stands over it (M4: "air or track"); every
+  façade is brick with one kind of window (stone, a church, a cinema's blind wall are M5-M6's);
+  the whole city's façades are one mesh a wall style, never culled (M9 measures); the Corner has
+  no browser walk of its own beyond the tour.
 - [ ] M3 Blockout I: street and subway. The square, avenue, lane and every ground floor, the
   mezzanine and platform, doors and prices, undressed. Engine work this needs, measured first: a
   flow field on six times the cells (the heap is sized by the whole grid today), bake time, the
   camera's reach and the fog on a 100 m street.
 - [ ] M4 Blockout II: upstairs and roofs. The tenement, Abelard's three floors, the Lyric's
   balcony, the bridge, the fire escape; windows on roofs and in tunnels (a pocket has always had
-  solid ground behind it: here it has air or track). Validator and ASCII dump clean, a god-mode
+  solid ground behind it: here it has air or track); sight and shots over a roof lower than the
+  eye (M2 left solid endlessly tall to both). Validator and ASCII dump clean, a god-mode
   campaign with no stuck zombie, `deadends` right about the new graph.
 - [ ] M5 Dressing I: the square and the streets. The Christmas kit (the tree as a landmark taller
   than its storey, light strings, wreaths, garlands, presents, stalls) and the street kit (cars,
@@ -1203,7 +1256,8 @@ Asked for by the owner: a second map chosen in the lobby, a winter city at Chris
   station), the existing browser scripts on both maps where they are about the map, `ship` on
   each. README and CLAUDE.md say what there is.
 
-M2 is the session most likely to become two (the engine has only ever hidden the outside), then
+M2 was the session thought most likely to become two (the engine had only ever hidden the
+outside); it took one. Next most likely is
 M9 (the station's rebuild took a whole step to balance, and errands here are longer still).
 
 ## 10. Risks to watch

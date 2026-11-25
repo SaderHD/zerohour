@@ -118,8 +118,8 @@ describe('lobby', () => {
     host.send({ t: 'create' });
     const first = host.peer.last('room')!;
     expect(first.map).toBe('harrow_ridge');
-    // A debug server offers the proving ground as well as the maps people play.
-    expect(first.maps).toEqual(['harrow_ridge', 'stacks']);
+    // A debug server offers the proving grounds as well as the maps people play.
+    expect(first.maps).toEqual(['harrow_ridge', 'stacks', 'corner']);
     const mate = join('Mate');
     mate.send({ t: 'join', code: first.code });
     mate.send({ t: 'ready', ready: true });

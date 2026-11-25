@@ -1,7 +1,7 @@
 // Screenshot tour: boots the built server and saves one or more views per zone to
 // test-results/tour-*.png so visual changes can be reviewed. Usage: npm run build && npm run tour
 // `npm run tour -- --stacks [view...]` tours the Stacks (the height proving ground) instead, with its
-// doors open, to test-results/tour-stacks-*.png.
+// doors open, to test-results/tour-stacks-*.png; `--corner` the Corner (one block of a city) likewise.
 const { spawn } = require('node:child_process');
 const { mkdirSync } = require('node:fs');
 const path = require('node:path');
@@ -102,9 +102,34 @@ const STACKS_VIEWS = [
   ['cellar-window', 17, 15, 3.14, 0, -3],
 ];
 
+// The Corner: the street, the shop and the flat over it (4), its roof (8), the underpass (-4).
+const CORNER_VIEWS = [
+  ['street', 8, 21, -1.57, 0.12, 0],
+  ['street-west', 38, 21, 1.57, 0.2, 0],
+  ['street-up', 24, 22, 0, 0.75, 0],
+  ['street-south', 24, 19.5, 3.14, 0.5, 0],
+  ['street-tall', 30, 24.5, 2.3, 0.9, 0.15],
+  ['pavement', 13, 17.4, -1.3, 0.02, 0.15],
+  ['kerb', 30, 19.5, 0.9, -0.5, 0],
+  ['barricade', 9, 20.75, 1.57, 0, 0],
+  ['shop', 22.5, 13.5, 0.9, -0.03, 0],
+  ['flat', 20, 14, 0.8, -0.03, 4],
+  ['roof-street', 14, 14.8, -2.5, -0.3, 8],
+  ['roof-down', 17, 15.3, 3.14, -0.9, 8],
+  ['roof-east', 23.5, 15.3, -1.57, -0.12, 8],
+  ['roof-north', 12, 12, -0.5, 0.35, 8],
+  ['roof-hut', 14, 11, -1.57, 0.05, 8],
+  ['roof-well', 15.7, 5.4, 0, -1.1, 8],
+  ['roof-sky', 19, 7, 2.6, 0.45, 8],
+  ['roof-south', 16, 9, 3.14, 0.15, 8],
+  ['under-stairs', 11, 25, 3.14, -0.45, 0.15],
+  ['under', 8, 35.5, -1.57, 0, -4],
+];
+
 (async () => {
-  const stacks = process.argv.includes('--stacks');
-  const server = spawn('node', ['server/dist/index.js'], { cwd: root, env: { ...process.env, PORT: String(port), ZH_DEBUG: '1', ...(stacks ? { ZH_MAP: 'stacks' } : {}) }, stdio: 'ignore' });
+  const which = ['stacks', 'corner'].find((id) => process.argv.includes(`--${id}`));
+  const stacks = !!which;
+  const server = spawn('node', ['server/dist/index.js'], { cwd: root, env: { ...process.env, PORT: String(port), ZH_DEBUG: '1', ...(which ? { ZH_MAP: which } : {}) }, stdio: 'ignore' });
   let browser;
   try {
     for (let i = 0; i < 50; i++) {
@@ -116,13 +141,13 @@ const STACKS_VIEWS = [
     browser = await chromium.launch();
     const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
     page.on('pageerror', (e) => console.error('[page]', String(e)));
-    await page.goto(`http://localhost:${port}/?debug=1&autostart=1${stacks ? '&map=stacks' : ''}`);
+    await page.goto(`http://localhost:${port}/?debug=1&autostart=1${which ? `&map=${which}` : ''}`);
     await page.waitForFunction(() => window.__zh?.state().phase === 'playing', null, { timeout: 15000 });
     await page.evaluate(() => window.__zh.rounds(false));
     mkdirSync(path.join(root, 'test-results'), { recursive: true });
     const only = process.argv.slice(2).filter((a) => !a.startsWith('--'));
     if (stacks) await page.evaluate(() => window.__zh.openAllDoors());
-    for (const [name, x, z, yaw, pitch, y] of stacks ? STACKS_VIEWS : VIEWS) {
+    for (const [name, x, z, yaw, pitch, y] of which === 'corner' ? CORNER_VIEWS : stacks ? STACKS_VIEWS : VIEWS) {
       if (only.length && !only.includes(name)) continue;
       if (name.endsWith('-on') && !(await page.evaluate(() => window.__zh.state().power))) {
         await page.evaluate(() => window.__zh.powerOn());
@@ -130,7 +155,7 @@ const STACKS_VIEWS = [
       }
       await page.evaluate(([x, z, yaw, pitch, y]) => { window.__zh.teleport(x, z, yaw, y ?? undefined); window.__zh.look(yaw, pitch); }, [x, z, yaw, pitch, y ?? null]);
       await page.waitForTimeout(900); // server round-trip for the teleport, a few frames, the air settling
-      await page.screenshot({ path: path.join(root, `test-results/tour-${stacks ? 'stacks-' : ''}${name}.png`) });
+      await page.screenshot({ path: path.join(root, `test-results/tour-${which ? `${which}-` : ''}${name}.png`) });
     }
     console.log('[tour]', JSON.stringify(await page.evaluate(() => window.__zh.state())));
   } finally {

@@ -1,11 +1,12 @@
 import { FORGE_COST, INTERMISSION_SECONDS } from '../constants';
 import { CompiledMap, compileMap } from './compile';
+import { corner } from './corner';
 import { harrowRidge } from './harrowRidge';
 import { stacks } from './stacks';
 import type { MapDef, MapRules } from './types';
 
-/** Every map there is, by id, in the order a lobby lists them. The Stacks is the proving ground for height. */
-export const MAPS: Readonly<Record<string, MapDef>> = { [harrowRidge.id]: harrowRidge, [stacks.id]: stacks };
+/** Every map there is, by id, in the order a lobby lists them. The Stacks is the proving ground for height, the Corner for a city's outside. */
+export const MAPS: Readonly<Record<string, MapDef>> = { [harrowRidge.id]: harrowRidge, [stacks.id]: stacks, [corner.id]: corner };
 
 /** The map a room is on until its host says otherwise. */
 export const DEFAULT_MAP = harrowRidge.id;

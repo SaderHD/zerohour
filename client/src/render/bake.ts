@@ -9,7 +9,6 @@ import { lightLevels, linear } from './materials';
 
 const AMBIENT_GAIN = 2.6;
 const LIGHT_GAIN = 2.4;
-const OUTDOOR_AMBIENT = 0x1c2638;
 
 export type RGB = [number, number, number];
 /**
@@ -106,7 +105,7 @@ export class Baker {
 
   private ambientOf(i: number): RGB {
     const zi = this.map.zone[i]!;
-    const a = linear(zi === NO_ZONE ? OUTDOOR_AMBIENT : this.map.zones[zi]!.ambient);
+    const a = linear(zi === NO_ZONE ? this.map.def.scene.outside : this.map.zones[zi]!.ambient);
     return [a[0] * AMBIENT_GAIN, a[1] * AMBIENT_GAIN, a[2] * AMBIENT_GAIN];
   }
 

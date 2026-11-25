@@ -144,6 +144,8 @@ export interface ZhDebug {
   /** Tap a key for one frame, e.g. press('Mouse0') to fire once. */
   press(code: string): void;
   freeCam(on?: boolean): void;
+  /** The free camera, put at a point in the air: `fly(24, 30, 20, 0, -1.2)` looks down on the map from 30 m. */
+  fly(x: number, y: number, z: number, yaw?: number, pitch?: number): void;
   openAllDoors(): void;
   openDoor(id: string): void;
   /** Throw the master switch (debug servers only). */
@@ -245,6 +247,7 @@ export function wireDebug({ map, player, input, socket: s, playing, renderer, re
     requestAnimationFrame(() => requestAnimationFrame(() => input.setKey(code, false)));
   },
   freeCam: (on) => player.setFreeCam(on ?? !player.freeCam),
+  fly: (x, y, z, yaw = 0, pitch = 0) => player.flyTo(x, y, z, yaw, pitch),
   openAllDoors: () => s.send({ t: 'debug', cmd: 'openAllDoors' }),
   openDoor: (id) => s.send({ t: 'debug', cmd: 'openDoor', id }),
   powerOn: () => s.send({ t: 'debug', cmd: 'powerOn' }),

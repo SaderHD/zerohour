@@ -1,13 +1,15 @@
 import * as THREE from 'three';
-import { CELL_SIZE, Cell, FLOOR_STYLES, NO_ZONE, WALL_STYLES, WINDOW_SILL, propDef, type CompiledMap, type FloorStyle, type WallStyle } from '@zh/shared';
+import { CELL_SIZE, Cell, FLOOR_STYLES, NO_ZONE, WALL_STYLES, WINDOW_SILL, massing, propDef, type CompiledMap, type FloorStyle, type WallStyle } from '@zh/shared';
 import { PROP_BUILDERS, Kit, fixture } from '../models/props';
 import type { PropOut } from '../models/props/kit';
 import { Ambient } from './ambient';
 import { Baker, Bucket, type RGB, type Vert } from './bake';
+import { buildCity } from './city';
 import { Doors } from './doors';
 import { buildExterior } from './exterior';
 import { glowMaterial, linear, propMaterial, setLightLevels, signMaterial, surfaceMaterial } from './materials';
 import { signTexture } from './signs';
+import { buildTowers } from './towers';
 
 // Turns the compiled map into meshes: for each zone one per surface style for its cells and one
 // for its props, so the renderer can leave out the zones that are not in
@@ -82,6 +84,8 @@ export function buildWorld(map: CompiledMap): World {
   ] as const;
   /** A face lower than this is a step or a kerb: it is drawn as floor, not as wall. */
   const STEP_FACE = 0.35;
+  /** In a city the solid has a height: a wall stops where the building behind it does. */
+  const mass = massing(map);
 
   let triangles = 0;
   for (let i = 0; i < map.kind.length; i++) {
@@ -132,7 +136,8 @@ export function buildWorld(map: CompiledMap): World {
             const na = floorAt(j, ax, az);
             const nb = floorAt(j, bx, bz);
             const nlo = Math.min(na, nb);
-            const nhi = map.hi[j]!;
+            // (Open sky has no top: a roof's edge over a street is a drop, not a wall.)
+            const nhi = map.sky[j] || map.kind[j] === Cell.Outside ? Infinity : map.hi[j]!;
             if (na !== nb && nlo >= bottom - 1e-4 && Math.max(na, nb) <= hi + 1e-4) skirts.push([nlo, na, nb]);
             const next: [number, number][] = [];
             for (const [s0, s1] of spans) {
@@ -144,6 +149,8 @@ export function buildWorld(map: CompiledMap): World {
             }
             spans = next;
           }
+          const col = nz * cols + nx;
+          if (mass && !mass.open[col]) spans = spans.filter(([s0]) => s0 < mass.top[col]!).map(([s0, s1]) => [s0, Math.min(s1, mass.top[col]!)]);
         }
         const u0 = (side.dx !== 0 ? az : ax) / t;
         const u1 = (side.dx !== 0 ? bz : bx) / t;
@@ -177,13 +184,19 @@ export function buildWorld(map: CompiledMap): World {
     group.add(mesh);
     triangles += b.triangles;
   };
+  // Props and lamp fixtures, merged into three meshes a zone.
+  const all: PropOut = { baker, prop: new Bucket(), glow: new Bucket(), sign: new Bucket(), movers: [], drips: [] };
+
+  // What stands outside the walls. A station's huts and pines are a mesh of their own; a city's
+  // buildings go on in the street's own surfaces.
+  const city = map.def.scene.built === 'city';
+  const exterior = city ? new Bucket() : buildExterior(map, baker);
+  if (city) buildCity(map, baker, { surface: (kind, style) => bucket(`${kind}:${style}|out`), prop: exterior, glow: all.glow });
+
   for (const [key, b] of buckets) {
     const [kind, style] = key.split('|')[0]!.split(':') as ['floor' | 'wall', FloorStyle | WallStyle];
     addMesh(key, b, surfaceMaterial(kind, style));
   }
-
-  // Props and lamp fixtures, merged into three meshes a zone.
-  const all: PropOut = { baker, prop: new Bucket(), glow: new Bucket(), sign: new Bucket(), movers: [], drips: [] };
   const outs = new Map<string, PropOut>();
   const outFor = (cell: number): PropOut => {
     const zone = zoneOf(cell);
@@ -218,7 +231,12 @@ export function buildWorld(map: CompiledMap): World {
   addMesh('glow', all.glow, glowMaterial);
   addMesh('signs', all.sign, signMaterial(signTexture()));
 
-  addMesh('exterior', buildExterior(map, baker), propMaterial());
+  addMesh('exterior', exterior, propMaterial());
+  const towers = buildTowers(map);
+  if (towers) {
+    group.add(towers);
+    triangles += towers.geometry.getAttribute('position').count / 3;
+  }
 
   // Whatever moves by itself: fans, flywheels, swinging lamps, drips, mist.
   const ambient = new Ambient(map, baker, all.movers!, all.drips!);

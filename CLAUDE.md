@@ -8,7 +8,7 @@ sessions and the progress checklist (section 9). All 14 sessions are done: the g
 (`README.md` is the player's and host's guide). Later work is maintenance: keep the plan true in
 the same commit as any change to what it describes.
 A second map, "The Longest Night", is being built: PLAN 4.12 is its design, "The second map" in
-section 9 its ten sessions (M1-M10; M1 is done).
+section 9 its ten sessions (M1-M10; M1 and M2 are done).
 
 ## Rules
 - Original content only: reuse genre mechanics, never another game's names, characters, maps,
@@ -63,7 +63,7 @@ section 9 its ten sessions (M1-M10; M1 is done).
 - URL flags for quick testing: `?autostart=1` (straight into a solo game), `?room=ABCD&autostart=1`
   (shared room across tabs), `?name=X`, `?debug=1`, `?auto=1` (the autopilot plays for you).
 - `npm run map` — validate the map and rewrite the ASCII dump `docs/MAP.txt` (`npm run map -- <id>`
-  checks and prints another map, e.g. `stacks`, the three-storey proving ground, without writing anything).
+  checks and prints another map, e.g. `stacks`, the three-storey proving ground, or `corner`, one block of a city, without writing anything).
 - `npm run maps` — after a build: two browser players and a bot; the host picks another map in the lobby,
   pages and seats follow, the game runs on it; a server without debug offers one map. Writes `test-results/maps-*.png`.
 - `npm run tour [view...]` — after a build: screenshots of every zone to `test-results/tour-*.png`
@@ -75,7 +75,7 @@ section 9 its ten sessions (M1-M10; M1 is done).
 - `npm run heights` — after a build: one browser player on the Stacks (server started with `ZH_MAP=stacks`,
   the map its rooms start on; the client follows its room's map, or takes `?map=stacks`): up the ramp and the stairs, the ledge, shots
   and prompts by floor, a zombie climbing three storeys. Writes `test-results/heights-*.png`.
-  `npm run tour -- --stacks` photographs every part of it (`tour-stacks-*.png`).
+  `npm run tour -- --stacks` photographs every part of it (`tour-stacks-*.png`); `npm run tour -- --corner` the Corner (`tour-corner-*.png`).
 - `npm run smoke` — after a build: boots the server, drives headless Chromium, checks handshake
   and rendering, writes `test-results/smoke.png`. Uses the globally installed `playwright`; do not
   add it as a dependency in the cloud environment.
@@ -88,9 +88,17 @@ section 9 its ten sessions (M1-M10; M1 is done).
 - Maps: `shared/src/map/maps.ts` lists them (`MAPS`; `hidden` ones are proving grounds only a debug server
   offers). A room has a map, picked by its host in the lobby; never assume the station: take the map from the
   game (`g.map`), the room, or `compiledMap(id)`. What is the place and not the engine is `MapDef.scene` (sky,
-  what stands beyond the walls, snow, default fog, the menu's vista) and `ZoneDef.air` (its drone, a name in
+  what the solid is from outside, what stands beyond the map, snow, default fog, the menu's vista) and `ZoneDef.air` (its drone, a name in
   `audio/ambience.ts`); numbers one map needs different go in `MapDef.rules`, read with `rulesOf(def)`. The
   client builds one map per page load (`followMap` in `main.ts` reloads for another).
+- A city's outside (PLAN 6.1; the Corner, `map/corner.ts`, proves it): with `scene.built: 'city'` the solid is
+  buildings. `MapDef.blocks` give each its height, face (a wall style) and tint; `massing(map)` (shared) is the
+  top of every column; `render/city.ts` draws each building from where the street's walls stop (`Room.ceil` of the
+  outdoor room, 4 m) up to it: windows, cornice, parapet, snowed roof, tanks. Give a block the wall style and tint
+  of the half-metre strip room in front of it, or the seam shows; a shop front is the strip alone. A walked roof is
+  an outdoor room a storey up in a block with `parapet: 0`: its edge over a street or a lower roof is open (put a
+  `rail`), against a taller block it is that block's wall. `render/towers.ts` is the ring beyond the map,
+  `paintCity` in `render/sky.ts` the sky. Sight and shots do not know the heights yet (M4).
 - Height (PLAN 6.1-6.3): the grid is a stack of layers, one per storey (`Room.level`, floor height
   `Room.y`, ramps and stairs as `Room.rise`). Cells join where their floors are within `STEP_HEIGHT`
   (`CompiledMap.links`); anything taller is a ledge nobody crosses. Whatever stands somewhere has a
@@ -196,7 +204,7 @@ section 9 its ten sessions (M1-M10; M1 is done).
   `__zh.spawnZombies(3, { kind: 'howler' })`,
   `__zh.spawnZombies(8, { interval: 0.3 })`, `__zh.god(true)`, `__zh.killZombies()`, `__zh.setRound(10)`, `__zh.rounds(false)`,
   `__zh.openDoor('d_mess_bunk')`, `__zh.powerOn()`, `__zh.chat('hi')`, `__zh.ping()`,
-  `__zh.auto(true)`, `__zh.pick()` (what mesh is under the crosshair), `__zh.settings.set({ fov: 90 })`, `__zh.settings.bind('use', 'KeyE')`, `__zh.screens.setPaused(true)`.
+  `__zh.auto(true)`, `__zh.pick()` (what mesh is under the crosshair), `__zh.fly(24, 30, 20, 0, -1.2)` (the free camera in the air), `__zh.settings.set({ fov: 90 })`, `__zh.settings.bind('use', 'KeyE')`, `__zh.screens.setPaused(true)`.
 - Sound (`client/src/audio`): `synth.ts` is the engine (a `Voice` of `tone`/`noise` layers; 24 at once,
   by `priority`; `at` places it in the world); the library is `guns.ts`, `sfx.ts`, `music.ts` (tunes as
   note lists) and `ambience.ts` (zone drones, heartbeat). `audio.ts` turns game events and each frame's

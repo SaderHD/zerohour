@@ -74,6 +74,32 @@ const FLOOR_DRAW: Record<FloorStyle, Draw> = {
       px(x, y, edge ? 100 : rivet ? 235 : tread ? 205 : 176 + r.range(-6, 6));
     }),
   lino: (px, r) => each((x, y) => px(x, y, (((x >> 4) + (y >> 4)) % 2 ? 205 : 158) + r.range(-6, 6))),
+  // A road: dark, gritty, cracked, with slush lying in the hollows.
+  asphalt: (px, r) => {
+    const slush = Array.from({ length: 5 }, () => [r.range(0, SIZE), r.range(0, SIZE), r.range(2.5, 6)] as const);
+    each((x, y) => {
+      let s = 0;
+      for (const [bx, by, br] of slush) s = Math.max(s, 1 - Math.hypot(Math.min(Math.abs(x - bx), SIZE - Math.abs(x - bx)), Math.min(Math.abs(y - by), SIZE - Math.abs(y - by))) / br);
+      px(x, y, s > 0.35 ? 190 + r.range(-14, 14) : 92 + r.range(-14, 14) + (r.chance(0.05) ? 46 : 0) + s * 60, [0.96, 0.98, 1]);
+    });
+    let cx = r.int(4, 28);
+    for (let y = 0; y < SIZE; y++) {
+      px(cx, y, 48);
+      if (r.chance(0.5)) cx += r.int(-1, 1);
+    }
+  },
+  // Flagstones a metre square, trodden snow in the joints and over the corners.
+  pavement: (px, r) => {
+    const flag = [r.range(-10, 10), r.range(-10, 10), r.range(-10, 10), r.range(-10, 10)];
+    each((x, y) => {
+      const joint = x % 16 === 0 || y % 16 === 0;
+      const edge = Math.min(x % 16, 16 - (x % 16), y % 16, 16 - (y % 16));
+      const snow = edge < 3 && r.chance(0.55 - edge * 0.15);
+      px(x, y, joint ? 104 : snow ? 222 + r.range(-8, 8) : 162 + flag[(x >> 4) + (y >> 4) * 2]! + r.range(-8, 8), [0.97, 0.98, 1]);
+    });
+  },
+  // Roofing felt in metre rolls, the laps tarred, grit and old snow on it.
+  felt: (px, r) => each((x, y) => px(x, y, x % 16 === 0 ? 46 : x % 16 === 1 ? 118 : r.chance(0.07) ? 196 : 84 + r.range(-12, 12) + ((x >> 4) % 2) * 8)),
 };
 
 const WALL_DRAW: Record<WallStyle, Draw> = {
@@ -89,6 +115,34 @@ const WALL_DRAW: Record<WallStyle, Draw> = {
   fence: (px, r) => each((x, y) => px(x, y, x % 8 === 7 ? 40 : y === 6 || y === 25 ? 120 : 160 + ((x >> 3) % 2) * 18 + r.range(-12, 12), [1, 0.94, 0.84])),
   // Weatherboards, the lap of each in shadow, rime along the top edges.
   siding: (px, r) => each((x, y) => px(x, y, y % 8 === 0 ? 96 : y % 8 === 1 ? 228 : x === (y >> 3) * 11 % 32 ? 120 : 176 + r.range(-10, 10) - (y % 8) * 3, [1, 0.94, 0.86])),
+  // Brick in running bond: courses a quarter of a metre high (it is a coarse world), every brick its own shade.
+  brick: (px, r) => {
+    const shade = Array.from({ length: 64 }, () => r.range(-22, 22) - (r.chance(0.12) ? 30 : 0));
+    each((x, y) => {
+      const row = y >> 2;
+      const sx = (x + (row % 2) * 4) % SIZE;
+      const mortar = y % 4 === 3 || sx % 8 === 7;
+      px(x, y, mortar ? 150 + r.range(-8, 8) : 186 + shade[(row * 4 + (sx >> 3)) % 64]! + r.range(-6, 6), mortar ? [0.9, 0.86, 0.8] : [1, 0.6, 0.47]);
+    });
+  },
+  // A shop front, two metres of it: a panelled stall riser, plate glass between mullions a metre apart, the fascia over it.
+  shopfront: (px, r) =>
+    each((x, y) => {
+      const mullion = x % 16 === 0 || x % 16 === 15;
+      if (y < 5) px(x, y, y === 0 ? 215 : y === 4 ? 110 : 168 + r.range(-5, 5), [0.86, 0.92, 0.88]);
+      else if (y >= 25) px(x, y, mullion || y === 25 ? 196 : (x % 16 === 2 || x % 16 === 13 || y === 27 || y === 30) ? 122 : 150 + r.range(-5, 5), [0.86, 0.92, 0.88]);
+      else if (mullion) px(x, y, 200, [0.86, 0.92, 0.88]);
+      // The glass: dark, with the street's glow lying across it.
+      else px(x, y, 46 + r.range(-4, 4) + ((x + y) % 16 < 3 ? 34 : 0) + (y < 7 ? 16 : 0), [0.8, 0.9, 1]);
+    }),
+  // Glazed tile in running bond, with one band of colour at the height of a hand.
+  subway: (px, r) =>
+    each((x, y) => {
+      const row = y >> 2;
+      const grout = y % 4 === 3 || (x + (row % 2) * 4) % 8 === 7;
+      const band = row === 4;
+      px(x, y, grout ? 176 : (band ? 170 : 226) + r.range(-7, 7) + (y % 4 === 0 ? 14 : 0) - (r.chance(0.02) ? 50 : 0), band && !grout ? [0.45, 0.8, 0.62] : [1, 1, 0.96]);
+    }),
   rock: (px, r) => {
     const blobs = Array.from({ length: 9 }, () => [r.int(0, 31), r.int(0, 31), r.range(60, 150)] as const);
     each((x, y) => {
