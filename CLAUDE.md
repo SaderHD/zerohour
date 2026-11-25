@@ -7,6 +7,8 @@ all assets generated in code. TypeScript + Three.js client, Node + `ws` authorit
 sessions and the progress checklist (section 9). All 14 sessions are done: the game is shipped
 (`README.md` is the player's and host's guide). Later work is maintenance: keep the plan true in
 the same commit as any change to what it describes.
+A second map, "The Longest Night", is planned and not started: PLAN 4.12 is its design, "The second map" in
+section 9 its ten sessions (M1-M10).
 
 ## Rules
 - Original content only: reuse genre mechanics, never another game's names, characters, maps,

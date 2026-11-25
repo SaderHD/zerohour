@@ -320,6 +320,90 @@ Props that are ≥0.5 m tall block movement (and bullets if tall); small clutter
 Keep every lane ≥1.5 m wide. Varied ceiling heights, skybox gradient with mountains silhouette and
 aurora for the outdoor zone.
 
+### 4.12 Map — "The Longest Night" (second map; planned, not built)
+Wexler Square, in the middle of a big, old, fictional American city, Christmas Eve in the early 1990s.
+Deep in the canyons between the towers, snowing, every decoration still lit and nobody left to look
+at them. Chosen by the host in the lobby; Harrow Ridge stays as it is. Same weapons, tonics, Cache,
+Forge, power, zombies and rounds: only where things stand and what they cost belong to the map.
+
+The city, its streets, shops and signs are all invented (section 1): no real landmark, brand or
+address, and nothing taken from any other game's map - the brief is a *kind* of place (streets you
+fight along, buildings you go through, roofs you cross, a subway underneath), not a layout.
+
+**Size.** 150 × 120 m and five storeys, against Harrow Ridge's 70 × 70 and three: about four times
+the floor to walk on, fourteen zones for nine. Big enough that a team splits up without meaning to
+and a round is fought across a block, not a room.
+
+| Storey | Height | What is on it |
+|---|---|---|
+| Roofs (level 2) | +8 m | Abelard's roof (plant room, the master switch), the tenement roof (water tank), the plank bridge between them |
+| Upstairs (level 1) | +4 m | Abelard's upper floor round its atrium, the tenement flat, the Lyric's balcony |
+| Street (level 0) | 0 | the square, Dray Avenue, Tallow Lane, the diner, the chapel, every ground floor |
+| Mezzanine (level -1) | -4 m | the subway's ticket hall, under the square's north-east corner |
+| Platform (level -2) | -8 m | the platform and the stalled train under the avenue, the service tunnel, the signal room |
+
+Nobody jumps, falls or climbs (6.2), so every change of height is something walked: the tenement's
+stairwell and its fire escape (an outdoor staircase down into the lane), Abelard's two dead
+escalators, the subway's stairs, the plank bridge. Roofs are railed. No ziplines or drops: either
+would be new movement code and is not part of this map.
+
+```
+        [St Audra's chapel]                                    (north of the avenue)
+               ||1000
+   ============ DRAY AVENUE ====1250==(stairs down)============  cars, a bus, the far subway entrance
+      ||1000 (fire exit)        |debris 1000|
+   [The Lyric]            +------------------+          +----------------------------+
+    lobby, auditorium,=1000=   WEXLER SQUARE  =1000=====  ABELARD'S  ground: toys, grotto
+    balcony upstairs      |  the tree, the rink |        |   upper (escalators, open)  |
+                          |  market stalls   ==1250==v   |   roof =1250= (the switch)  |
+   +---------------+      +------------------+ (subway)  +----------------------------+
+   | STARLIGHT     |=750=======||      ||debris 750          ||1000 (loading bay)  ¦ plank
+   | DINER (spawn) |                 ====== TALLOW LANE (alley) ===============    ¦ bridge
+   +---------------+=750=[TENEMENT stairwell]==750 (fire escape)==/                ¦ 1250
+                          flat upstairs =1000= roof ·······························+
+
+   Below: [Mezzanine] == turnstiles, stairs == [Platform + train] --(power)-- [Service tunnel: FORGE]
+          the service tunnel's far end climbs to a pavement hatch in Tallow Lane (power door)
+```
+
+Three circuits lie over each other and meet at the square: the streets (square, avenue, lane), the
+roofs (tenement, bridge, Abelard's, down the escalators) and the subway (the square's stairs, the
+platform, through the train, up the avenue's). The Forge is not at the end of a dead end here -
+Harrow Ridge keeps that - but both ways to it wait for the power.
+
+| Zone | Approx. size | Dressing | Windows | Contents |
+|---|---|---|---|---|
+| Starlight Diner (spawn) | 16×10 + kitchen | booths, counter and stools, jukebox, pie case, paper chains, plates still laid, a small tinsel tree | 3 | Farrow, Pike, Second Wind |
+| Wexler Square (outdoor) | 44×36 | **the tree** (14 m, lit, visible from every roof), a frozen rink round its foot, market stalls, heaped presents, benches, a bandstand, lamp posts with wreaths, light strings overhead | 4 (street barricades) | Cache start site |
+| Dray Avenue (outdoor) | 100×12 | abandoned cars under snow, a bus across the road, police sawhorses, steam from the gratings, a news kiosk, the towers straight up on both sides | 4 (barricades, a manhole) | Coachman |
+| Tallow Lane (outdoor) | 60×6 | bins, crates, the fire escape, a delivery van, washing lines, a brazier | 3 | Quickhands |
+| Tenement | stairwell + flat 12×9 | mailboxes, a flat with the dinner on the table and presents under the tree, a television showing snow | 3 | Stitch, Marathon |
+| Tenement roof (outdoor) | 14×12 | water tank, chimney pots, pigeon coop, aerials, a plastic reindeer | 2 (over the parapet) | Cache site |
+| Abelard's, ground | 30×24 | toy department, counters, mannequins, the grotto with its throne and a queue of rope posts, a model railway still running when the power is on | 4 (shop windows) | Kestrel |
+| Abelard's, upper | gallery round the atrium | racks, a gift-wrap counter, the atrium's hanging decorations, the escalators | 2 | Hair Trigger, Cache site |
+| Abelard's roof (outdoor) | 30×20 | plant room, vent stacks, the back of the store's lit sign, the bridge | 2 (over the parapet) | **Power switch** |
+| The Lyric | lobby 12×10, auditorium 18×16, balcony | ticket booth, popcorn stand, rows of seats, the projector still throwing a white frame on the screen | 3 | Brakeman, Packmule, Cache site |
+| St Audra's | 14×20 | pews, candles, a nativity with a figure missing, the organ | 2 | Ironhide |
+| Subway mezzanine | 20×12 | token booth, turnstiles, tiled pillars, tinsel on the booth glass | 1 | Cache site |
+| Platform | 50×8 + the train | benches, the stalled train (walked through end to end, doors open), flickering tubes | 2 (the track tunnels) | a second Stitch |
+| Service tunnel | 30×4 + signal room | cable trays, relay cabinets, warning stripes, the Forge in the signal room | 1 | **Forge** |
+
+About 36 windows for Harrow Ridge's 18. On a street a "window" is a barricade the dead tear down;
+on a roof they come over the parapet; in the subway out of the dark of the track tunnel.
+
+**The look.** The same 90s horror as the station - dark, grain, hard pools of light, nothing clean
+- with Christmas as the only colour in it. Warm strings of bulbs over grey snow; the tree lit over
+a square of wrecked stalls; shop windows with their displays still turning; presents nobody will
+open. The decorations are what is wrong with the place, so nothing festive is ever damaged for
+effect: it is all still on, and that is the point. Sound does the rest: wind between the towers, a
+siren a long way off that never gets nearer, a music box in the grotto and the diner's jukebox
+playing carols old enough to belong to nobody, a little slow and a little flat (as note lists, like
+every other tune).
+
+**The skyline** is never walked. Towers of thirty and forty storeys ring the map, their lit
+windows fading up into fog and a sodium glow where the station has mountains and an aurora; the
+buildings players do go into are the low old ones at the towers' feet.
+
 ---
 
 ## 5. Multiplayer architecture
@@ -1052,6 +1136,46 @@ floor. Four steps.
   Not done: the Forge still lies at the end of a long dead end and bots still die there (it is the
   site's one deathtrap by design, 4.11); damage arcs point in plan only; nobody has played it on
   real hardware, so whether 20 s and 4,000 suit people as they suit bots is unknown.
+
+### The second map: "The Longest Night"
+Asked for by the owner: a second map chosen in the lobby, a winter city at Christmas, full size
+(4.12 is the design). Ten sessions, each ending green like the first fourteen. Nothing here is
+started.
+- [ ] M1 A game can be on any map. The host picks the map in the lobby (it is a server env var
+  today); the room, the bots, the campaign and every script take it. What is the station's look
+  and not the engine's becomes data on `MapDef`: the sky, what `exterior.ts` puts on and round
+  buildings, the weather, the ambience bed. Per-map tunables where the station needed them (the
+  pause between rounds, the Forge's price). Harrow Ridge draws and plays as before (tour and
+  seeded campaigns unchanged).
+- [ ] M2 The city outside. Towers with lit windows into fog, flat roofs, parapets, water tanks,
+  the sky's glow; façades that stand far higher than the room in front of them (a street's wall
+  is a building, not a fence); new floor and wall styles (asphalt, pavement, brick, shop front,
+  subway tile, roofing felt). Proved on a one-block test map before anything is laid out.
+- [ ] M3 Blockout I: street and subway. The square, avenue, lane and every ground floor, the
+  mezzanine and platform, doors and prices, undressed. Engine work this needs, measured first: a
+  flow field on six times the cells (the heap is sized by the whole grid today), bake time, the
+  camera's reach and the fog on a 100 m street.
+- [ ] M4 Blockout II: upstairs and roofs. The tenement, Abelard's three floors, the Lyric's
+  balcony, the bridge, the fire escape; windows on roofs and in tunnels (a pocket has always had
+  solid ground behind it: here it has air or track). Validator and ASCII dump clean, a god-mode
+  campaign with no stuck zombie, `deadends` right about the new graph.
+- [ ] M5 Dressing I: the square and the streets. The Christmas kit (the tree as a landmark taller
+  than its storey, light strings, wreaths, garlands, presents, stalls) and the street kit (cars,
+  bus, lamp posts, kiosks, barricades, steam).
+- [ ] M6 Dressing II: Abelard's, the Lyric, the chapel.
+- [ ] M7 Dressing III: the diner, the tenement, the roofs, the subway and its train.
+- [ ] M8 Things to buy, bots, sound. Mounts for every wall gun, tonic and Cache site, the switch,
+  the Forge; whatever the bots need to know about a map this size; the city's ambience, the
+  carols, zone fog; signs.
+- [ ] M9 Balance and performance. `campaign --runs=32` against the station's numbers; frame time
+  and draw calls from the worst view (a roof, looking across the square); snapshot and tick
+  budgets with the horde spread over a block.
+- [ ] M10 Acceptance. The tour, a browser walk over every height (as `npm run site` is for the
+  station), the existing browser scripts on both maps where they are about the map, `ship` on
+  each. README and CLAUDE.md say what there is.
+
+M2 is the session most likely to become two (the engine has only ever hidden the outside), then
+M9 (the station's rebuild took a whole step to balance, and errands here are longer still).
 
 ## 10. Risks to watch
 - **Map authoring by hand in code** is the biggest schedule risk → mitigated by the carved-rect
