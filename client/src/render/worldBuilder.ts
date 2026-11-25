@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CELL_SIZE, Cell, FLOOR_STYLES, NO_ZONE, WALL_STYLES, WINDOW_SILL, massing, propDef, type CompiledMap, type FloorStyle, type WallStyle } from '@zh/shared';
+import { CELL_SIZE, Cell, DECK, FLOOR_STYLES, NO_ZONE, WALL_STYLES, WINDOW_SILL, massing, propDef, type CompiledMap, type FloorStyle, type WallStyle } from '@zh/shared';
 import { PROP_BUILDERS, Kit, fixture } from '../models/props';
 import type { PropOut } from '../models/props/kit';
 import { Ambient } from './ambient';
@@ -118,6 +118,28 @@ export function buildWorld(map: CompiledMap): World {
         quad(wallB, [C(x0, z0, cx, cz), C(x1, z0, cx + 1, cz), C(x1, z1, cx + 1, cz + 1), C(x0, z1, cx, cz + 1)], [0, -1, 0], i, tint);
       }
 
+      // A floor that hangs in the air (a bridge over a street, a ledge outside a window) has an
+      // underside, and an edge wherever there is air beside it.
+      const hangs = map.deck[i] === 1 && kind !== Cell.Window;
+      if (hangs) {
+        const y0 = lo - DECK;
+        let under = i;
+        for (let j = i - map.plane; j >= 0; j -= map.plane) {
+          if (map.kind[j] === Cell.Solid) continue;
+          under = j;
+          break;
+        }
+        const U = (x: number, z: number): Vert => ({ p: [x, y0, z], uv: [x / t, z / t], ao: 0.7 });
+        quad(floorB, [U(x0, z0), U(x1, z0), U(x1, z1), U(x0, z1)], [0, -1, 0], under, tint);
+        for (const side of SIDES) {
+          const [nx, nz] = [cx + side.dx, cz + side.dz];
+          if (map.holdAt(nx, nz, lo - DECK / 2) < 0 && !map.aloft(nx, nz, lo - DECK / 2)) continue;
+          const [ax, az, bx, bz] = side.edge(cx, cz);
+          const E = (x: number, y: number, z: number): Vert => ({ p: [x, y, z], uv: [(x + z) / t, y / t], ao: 0.85 });
+          quad(floorB, [E(bx, y0, bz), E(ax, y0, az), E(ax, lo, az), E(bx, lo, bz)], [-side.n[0], 0, -side.n[2]], i, tint);
+        }
+      }
+
       // Walls: wherever this cell's open interval is not matched by anything open in the column
       // beside it (this one rule yields walls, lintels, sills, stair risers, the faces of ledges
       // and the edges of the slabs between storeys).
@@ -137,7 +159,7 @@ export function buildWorld(map: CompiledMap): World {
             const nb = floorAt(j, bx, bz);
             const nlo = Math.min(na, nb);
             // (Open sky has no top: a roof's edge over a street is a drop, not a wall.)
-            const nhi = map.sky[j] || map.kind[j] === Cell.Outside ? Infinity : map.hi[j]!;
+            const nhi = map.cap[j]!;
             if (na !== nb && nlo >= bottom - 1e-4 && Math.max(na, nb) <= hi + 1e-4) skirts.push([nlo, na, nb]);
             const next: [number, number][] = [];
             for (const [s0, s1] of spans) {
@@ -150,7 +172,8 @@ export function buildWorld(map: CompiledMap): World {
             spans = next;
           }
           const col = nz * cols + nx;
-          if (mass && !mass.open[col]) spans = spans.filter(([s0]) => s0 < mass.top[col]!).map(([s0, s1]) => [s0, Math.min(s1, mass.top[col]!)]);
+          // (What hangs over a street has the building's own wall behind it, drawn from the street up: city.ts.)
+          if (mass && !mass.open[col]) spans = hangs && mass.open[i % map.plane] ? [] : spans.filter(([s0]) => s0 < mass.top[col]!).map(([s0, s1]) => [s0, Math.min(s1, mass.top[col]!)]);
         }
         const u0 = (side.dx !== 0 ? az : ax) / t;
         const u1 = (side.dx !== 0 ? bz : bx) / t;

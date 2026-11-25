@@ -8,8 +8,8 @@ sessions and the progress checklist (section 9). All 14 sessions are done: the g
 (`README.md` is the player's and host's guide). Later work is maintenance: keep the plan true in
 the same commit as any change to what it describes.
 A second map, "The Longest Night", is being built: PLAN 4.12 is its design, "The second map" in
-section 9 its ten sessions (M1-M10; M1 to M3 are done: its streets, ground floors and subway are blocked
-out in `shared/src/map/longestNight.ts`, a hidden map until it is finished).
+section 9 its ten sessions (M1-M10; M1 to M4 are done: all five storeys, from the subway to the roofs, are
+blocked out in `shared/src/map/longestNight.ts`, a hidden map until it is finished).
 
 ## Rules
 - Original content only: reuse genre mechanics, never another game's names, characters, maps,
@@ -100,12 +100,20 @@ out in `shared/src/map/longestNight.ts`, a hidden map until it is finished).
   of the half-metre strip room in front of it, or the seam shows; a shop front is the strip alone. A walked roof is
   an outdoor room a storey up in a block with `parapet: 0`: its edge over a street or a lower roof is open (put a
   `rail`), against a taller block it is that block's wall. `render/towers.ts` is the ring beyond the map,
-  `paintCity` in `render/sky.ts` the sky. Sight and shots do not know the heights yet (M4).
+  `paintCity` in `render/sky.ts` the sky. Sight and shots know the heights: above `map.skyline` (the massing's
+  tops) a point in no cell is in the air (`map.aloft`), so `lineOfSight`, `rayWorld` and grenades pass over a
+  lower roof or parapet. Never write "under the sky, so no top": ask `map.cap[i]` (a cell's air ends at its
+  ceiling, or at the underside of a floor that hangs over it; `map.deck` marks such a floor).
 - The Longest Night (`map/longestNight.ts`; PLAN 4.12 "As blocked out"): streets are a room plus half-metre
   strips (`alongX`/`alongZ`: each stretch gives its wall a face and a tint; match the block behind). The subway
   is levels -1 (-4 m) and -2 (-8 m) under open street. A flight that reaches the street must stand inside a
   building (its room is tall: `FLIGHT`), one that climbs to a pavement rises `STOREY + KERB`. A door or a
-  barricade cut through solid needs a block over it or it stands under 14 m of default brick. Tests:
+  barricade cut through solid needs a block over it or it stands under 14 m of default brick. Upstairs is level 1
+  (+4 m), the roofs level 2 (+8 m). A walked roof is a block with `parapet: 1` whose room stops half a metre
+  short of every edge with something lower beyond (that strip is the parapet) and runs right up to a taller
+  neighbour. A window's pocket is a yard, or `behind: 'air'` (the `ledge` helper: planks in the open, over a
+  street or a lower roof; in a parapet the window is a gap) or `behind: 'tunnel'` (`dark`: roofed, under a
+  street or the next floor). Only a floor that is itself outdoors may lie over an outdoor one (the bridge). Tests:
   `shared/src/map/longestNight.test.ts` (layout), `server/src/game/night.test.ts` (soak across it).
 - Height (PLAN 6.1-6.3): the grid is a stack of layers, one per storey (`Room.level`, floor height
   `Room.y`, ramps and stairs as `Room.rise`). Cells join where their floors are within `STEP_HEIGHT`

@@ -127,7 +127,7 @@ const CORNER_VIEWS = [
   ['under', 8, 35.5, -1.57, 0, -4],
 ];
 
-// The Longest Night: the streets, the ground floors, the mezzanine (-4) and the platform (-8).
+// The Longest Night: the streets, the ground floors, the mezzanine (-4) and the platform (-8), upstairs and the roofs.
 const NIGHT_VIEWS = [
   ['diner', 54.5, 95.5, 0.95, -0.03, 0],
   ['diner-kitchen', 55, 102, 1.0, -0.03, 0],
@@ -165,6 +165,30 @@ const NIGHT_VIEWS = [
   ['service', 68, 41.5, 3.14, 0, -8],
   ['signal-room', 64.5, 63, 1.0, 0, -8],
   ['service-landing', 68, 84, 3.14, 0, -4],
+  // Upstairs (+4) and the roofs (+8).
+  ['tenement-stairs', 68, 99.5, 3.14, 0.4, 0],
+  ['flat', 65.5, 109, 0.9, -0.03, 4],
+  ['escape', 72, 95, 1.57, 0.25, 0],
+  ['escape-landing', 59, 97, -1.57, -0.3, 4],
+  ['ten-roof', 58, 110, -0.75, 0, 8],
+  ['ten-roof-bridge', 68.2, 100.5, 0, -0.1, 8],
+  ['bridge', 68.2, 96, 0, -0.5, 8],
+  ['lane-up', 64, 94, -1.2, 0.9, 0],
+  ['roofwalk', 66.5, 90.5, -1.57, 0, 8],
+  ['roofwalk-pass', 80, 90.5, -1.57, -0.25, 8],
+  ['abelard-atrium', 111.5, 78, 0, 0.45, 0],
+  ['abelard-up', 98, 84.5, -0.85, -0.03, 4],
+  ['abelard-gallery', 106, 68, -2.3, -0.4, 4],
+  ['abelard-flight', 125.5, 72, 0, 0.4, 4],
+  ['abelard-roof', 97.5, 90.5, -0.8, 0, 8],
+  ['abelard-roof-square', 100, 78, 1.3, -0.2, 8],
+  ['abelard-roof-hut', 110, 75, -0.9, 0, 8],
+  ['square-awning', 80, 72, -1.57, 0.25, 0],
+  ['lyric-stairs', 50, 55, 1.57, 0.3, 0],
+  ['lyric-balcony', 38, 61, 0.85, -0.2, 4],
+  ['platform-tunnel', 70, 36, 1.57, 0, -8],
+  ['mezz-tunnel', 95.7, 62, 3.14, 0, -4],
+  ['air-roofs', 58, 116, -0.75, -0.5, 22],
   ['air-square', 74, 100, 0, -0.75, 40],
   ['air-avenue', 20, 36, -1.57, -0.35, 30],
   ['air-plan', 75, 66, 0, -1.5, 60],

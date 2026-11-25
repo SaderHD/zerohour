@@ -1,5 +1,6 @@
 import { CELL_SIZE, MIN_HEADROOM, STEP_HEIGHT } from '../constants';
 import { propDef, propRect, quarterTurns } from '../data/props';
+import { massing } from './massing';
 import { FLOOR_STYLES, WALL_STYLES, type Dir, type Interactable, type LevelDef, type MapDef, type Opening, type ZSpawn, type ZoneDef } from './types';
 
 export const enum Cell {
@@ -17,6 +18,10 @@ export const ARCH_HEIGHT = 2.4;
 export const WINDOW_SILL = 0.9;
 export const WINDOW_TOP = 2.1;
 const DEFAULT_POCKET = 3;
+/** What a pocket that is a tunnel is tinted: the dark it comes out of. */
+const TUNNEL_TINT = 0x585858;
+/** How thick a floor that hangs in the open air is (a bridge, a ledge outside a window): the air under it ends this far below it. */
+export const DECK = 0.25;
 /** Least thickness of the slab between a ceiling and the floor above it. */
 const MIN_SLAB = 0.1;
 const STEP_EPS = 1e-3;
@@ -68,6 +73,13 @@ export class CompiledMap {
   readonly wallStyle: Uint8Array;
   /** 1 = no ceiling. */
   readonly sky: Uint8Array;
+  /**
+   * Where each open cell's air ends: its ceiling, or under the sky nowhere (Infinity) - unless
+   * something hangs over it (a bridge over a street), and then the underside of that.
+   */
+  readonly cap: Float32Array;
+  /** 1 = the cell's floor hangs in the open air: it lies over a cell that is under the sky, or it is a ledge outside a window (`Opening.behind: 'air'`). */
+  readonly deck: Uint8Array;
   /** Linear-ish multiplier colour per cell (hex), from the room tint. */
   readonly tint: Uint32Array;
   /** Solid props on floor cells: 0 none, 1 blocks movement, 2 also blocks sight. */
@@ -119,6 +131,8 @@ export class CompiledMap {
     this.floorStyle = new Uint8Array(n);
     this.wallStyle = new Uint8Array(n);
     this.sky = new Uint8Array(n);
+    this.cap = new Float32Array(n);
+    this.deck = new Uint8Array(n);
     this.tint = new Uint32Array(n).fill(0xffffff);
     this.block = new Uint8Array(n);
     this.propH = new Float32Array(n);
@@ -187,13 +201,47 @@ export class CompiledMap {
     return best;
   }
 
+  private tops: Float32Array | null | undefined;
+  /**
+   * In a city (`scene.built: 'city'`), where the solid stops in each column: the top of the building
+   * there (`massing`). Above it is air, to sight and to shots. Null on a map whose solid has no height.
+   */
+  get skyline(): Float32Array | null {
+    if (this.tops === undefined) this.tops = massing(this)?.top ?? null;
+    return this.tops;
+  }
+
+  /**
+   * Is the point in the open air over a roof, in no cell at all? (Over a building nobody walks
+   * on, or over the wall round a roof somebody does.) Never on a map whose solid has no height.
+   */
+  aloft(cx: number, cz: number, y: number): boolean {
+    const tops = this.skyline;
+    if (!tops || !this.inBounds(cx, cz)) return false;
+    const c = cz * this.cols + cx;
+    if (y < tops[c]!) return false;
+    // (Not inside the thickness of something that hangs there.)
+    for (let i = c; i < this.kind.length; i += this.plane) if (this.deck[i] && y < this.lo[i]! && y > this.lo[i]! - DECK) return false;
+    return true;
+  }
+
+  /** Is everything between heights `a` and `b` (a <= b) in this column open air, with no floor in it: over the roof, and through nothing that hangs there? */
+  clearAir(cx: number, cz: number, a: number, b: number): boolean {
+    const tops = this.skyline;
+    if (!tops || !this.inBounds(cx, cz)) return false;
+    const c = cz * this.cols + cx;
+    if (a < tops[c]! - 0.01) return false;
+    for (let i = c; i < this.kind.length; i += this.plane) if (this.kind[i] !== Cell.Solid && this.lo[i]! > a && this.lo[i]! - DECK < b) return false;
+    return true;
+  }
+
   /** The cell whose open space holds the point at height `y` in this column (open sky has no top), or -1. */
   holdAt(cx: number, cz: number, y: number): number {
     if (!this.inBounds(cx, cz)) return -1;
     for (let i = cz * this.cols + cx; i < this.kind.length; i += this.plane) {
       const k = this.kind[i];
       if (k === Cell.Solid || y < this.lo[i]!) continue;
-      if (this.sky[i] || k === Cell.Outside || y <= this.hi[i]!) return i;
+      if (y <= this.cap[i]!) return i;
     }
     return -1;
   }
@@ -281,10 +329,11 @@ export class CompiledMap {
     for (let i = cz * this.cols + cx; i < this.kind.length; i += this.plane) {
       const k = this.kind[i];
       if (k === Cell.Solid || a < this.lo[i]! - 0.01) continue;
-      if (!this.sky[i] && k !== Cell.Outside && b > this.hi[i]! + 0.01) continue;
+      if (b > this.cap[i]! + 0.01) continue;
       return !this.shut(i, open);
     }
-    return false;
+    // In no one cell: over a roof lower than the line, unless it comes through something that hangs there.
+    return this.clearAir(cx, cz, a, b);
   }
 
   /**
@@ -302,9 +351,9 @@ export class CompiledMap {
       any = true;
       // (A window's own cell is open from the floor up for whoever is climbing through it.)
       const lo = k === Cell.Window ? this.lo[i]! - WINDOW_SILL : this.lo[i]!;
-      if (a >= lo - 0.01 && (this.sky[i] || k === Cell.Outside || k === Cell.Window || b <= this.hi[i]! + 0.01)) return true;
+      if (a >= lo - 0.01 && (k === Cell.Window || b <= this.cap[i]! + 0.01)) return true;
     }
-    return !any;
+    return !any || this.clearAir(cx, cz, a, b);
   }
 
   isDoorOpen(i: number, open: DoorSet): boolean {
@@ -501,6 +550,8 @@ export function compileMap(def: MapDef): CompiledMap {
         m.floorStyle[i] = m.floorStyle[src]!;
         m.wallStyle[i] = m.wallStyle[src]!;
         m.tint[i] = m.tint[src]!;
+        // Out of a floor under the sky into the open air: a gap in a parapet, with nothing over it.
+        if (o.kind === 'window' && o.behind === 'air' && m.sky[src]) m.sky[i] = 1;
       }
     }
     if (blocked) err(`opening ${o.id}: must be carved through solid wall`);
@@ -525,9 +576,17 @@ export function compileMap(def: MapDef): CompiledMap {
           m.lo[i] = floor;
           m.slope0[i] = m.slope1[i] = floor;
           m.hi[i] = floor + Math.max(3, m.hi[src]! - floor);
-          m.floorStyle[i] = FLOOR_STYLES.indexOf(def.scene.pocket?.floor ?? 'snow');
-          m.wallStyle[i] = WALL_STYLES.indexOf(def.scene.pocket?.wall ?? 'rock');
-          m.sky[i] = 1;
+          if (o.behind === 'tunnel') {
+            // Roofed and dark: more of what it opens on, with nothing lit in it.
+            m.floorStyle[i] = m.floorStyle[src]!;
+            m.wallStyle[i] = m.wallStyle[src]!;
+            m.tint[i] = TUNNEL_TINT;
+          } else {
+            m.floorStyle[i] = FLOOR_STYLES.indexOf(o.behind === 'air' ? 'plank' : (def.scene.pocket?.floor ?? 'snow'));
+            m.wallStyle[i] = WALL_STYLES.indexOf(def.scene.pocket?.wall ?? 'rock');
+            m.sky[i] = 1;
+            if (o.behind === 'air') m.deck[i] = 1;
+          }
         }
       }
       if (clash) err(`window ${o.id}: pocket overlaps something`);
@@ -562,20 +621,30 @@ export function compileMap(def: MapDef): CompiledMap {
     }
   }
 
-  // Storeys: what is open in one column must not run into what is open above it.
+  // Storeys: what is open in one column must not run into what is open above it. Over a cell that
+  // is under the sky a floor may hang (a bridge, a ledge): the air below then ends at its underside.
   let stacked = '';
-  for (let c = 0; c < m.plane && !stacked; c++) {
-    let top = -Infinity;
-    let roofless = false;
+  for (let c = 0; c < m.plane; c++) {
+    let below = -1;
     for (let i = c; i < m.kind.length; i += m.plane) {
       if (m.kind[i] === Cell.Solid) continue;
-      const floor = m.kind[i] === Cell.Window ? m.lo[i]! - WINDOW_SILL : m.lo[i]!;
-      const where = `(${(c % m.cols) * CELL_SIZE}, ${Math.floor(c / m.cols) * CELL_SIZE})`;
-      if (roofless) stacked = `level ${m.levels[m.layerOfCell(i)]!.level} lies over open sky at ${where}`;
-      else if (floor < top + MIN_SLAB - STEP_EPS) stacked = `level ${m.levels[m.layerOfCell(i)]!.level} has its floor inside the room below at ${where} (floor ${floor.toFixed(2)}, ceiling below ${top.toFixed(2)})`;
-      if (m.kind[i] !== Cell.Window && m.hi[i]! - m.lo[i]! < MIN_HEADROOM - STEP_EPS) stacked ||= `only ${(m.hi[i]! - m.lo[i]!).toFixed(2)} m of headroom at ${where} on level ${m.levels[m.layerOfCell(i)]!.level}`;
-      top = m.hi[i]!;
-      roofless = m.sky[i] === 1 || m.kind[i] === Cell.Outside;
+      m.cap[i] = m.sky[i] ? Infinity : m.hi[i]!;
+      if (below >= 0 && !stacked) {
+        const floor = m.kind[i] === Cell.Window ? m.lo[i]! - WINDOW_SILL : m.lo[i]!;
+        const where = `(${(c % m.cols) * CELL_SIZE}, ${Math.floor(c / m.cols) * CELL_SIZE})`;
+        const level = m.levels[m.layerOfCell(i)]!.level;
+        if (m.sky[below]) {
+          // (Only what is itself under the sky: a room with a roof on it is a building, and stands on something.)
+          if (!m.sky[i]) stacked = `level ${level} lies over open sky at ${where}`;
+          else if (floor - DECK - m.lo[below]! < MIN_HEADROOM - STEP_EPS) stacked = `level ${level} hangs only ${(floor - DECK - m.lo[below]!).toFixed(2)} m over the open floor below at ${where}`;
+        } else if (floor < m.hi[below]! + MIN_SLAB - STEP_EPS) stacked = `level ${level} has its floor inside the room below at ${where} (floor ${floor.toFixed(2)}, ceiling below ${m.hi[below]!.toFixed(2)})`;
+      }
+      if (below >= 0 && m.sky[below]) {
+        m.cap[below] = (m.kind[i] === Cell.Window ? m.lo[i]! - WINDOW_SILL : m.lo[i]!) - DECK;
+        m.deck[i] = 1;
+      }
+      if (!stacked && m.kind[i] !== Cell.Window && m.hi[i]! - m.lo[i]! < MIN_HEADROOM - STEP_EPS) stacked = `only ${(m.hi[i]! - m.lo[i]!).toFixed(2)} m of headroom at (${(c % m.cols) * CELL_SIZE}, ${Math.floor(c / m.cols) * CELL_SIZE}) on level ${m.levels[m.layerOfCell(i)]!.level}`;
+      below = i;
     }
   }
   if (stacked) err(stacked);

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { compileMap } from '../map/compile';
 import { harrowRidge } from '../map/harrowRidge';
+import { longestNight } from '../map/longestNight';
 import { GALLERY_Y, TERRACE_N, TERRACE_S, VAULT_Y } from '../map/terraces';
 import { DeadEnds } from './deadends';
 
@@ -35,5 +36,29 @@ describe('dead ends', () => {
 
   it('nowhere off the floor counts', () => {
     expect(dead.at(all, 1, 0, 1)).toBe(false);
+  });
+});
+
+describe('dead ends on The Longest Night', () => {
+  const night = compileMap(longestNight);
+  const every = new Set(night.def.openings.filter((o) => o.kind === 'door').map((o) => o.id));
+
+  it('with every door open the roofs, the store and the subway are round trips; the balcony, the chapel and the signal room are not', () => {
+    const dead = new DeadEnds(night);
+    for (const [x, y, z] of [
+      [63, 8, 104], [68.2, 8, 95], [80, 8, 90.5], [110, 8, 75], // tenement roof, bridge, walk, Abelard's roof
+      [61, 4, 104], [68, 2, 104], [59, 4, 97], [64, 2, 97], // the flat, its stairs, the fire escape
+      [101, 4, 74], [107.5, 2, 72.5], [125.5, 6, 67.5], // the gallery, an escalator, the roof stairs
+      [74, 0, 68], [80, -8, 36], [68, -8, 60], // the square, the platform, the service tunnel
+    ] as const) expect(dead.at(every, x, y, z), `${x}, ${y}, ${z}`).toBe(false);
+    for (const [x, y, z] of [[36.5, 4, 54], [40.5, 4, 55], [47, 0, 20], [61, -8, 61], [70.5, 8, 109.5]] as const) expect(dead.at(every, x, y, z), `${x}, ${y}, ${z}`).toBe(true);
+  });
+
+  it('a roof with its bridge unbought is the end of the line, and so is the stair to Abelard\'s', () => {
+    const dead = new DeadEnds(night);
+    const some = new Set(['d_diner_square', 'd_diner_tenement', 'd_tenement_roof', 'd_square_abelard']);
+    for (const [x, y, z] of [[63, 8, 104], [61, 4, 104], [68, 2, 104], [125.5, 6, 67.5]] as const) expect(dead.at(some, x, y, z), `${x}, ${y}, ${z}`).toBe(true);
+    // The gallery is still a loop: up one escalator, down the other.
+    expect(dead.at(some, 101, 4, 74)).toBe(false);
   });
 });

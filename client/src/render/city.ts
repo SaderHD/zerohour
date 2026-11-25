@@ -1,4 +1,4 @@
-import { CELL_SIZE, STOREY, massing, type CompiledMap, type FloorStyle, type WallStyle } from '@zh/shared';
+import { CELL_SIZE, Cell, STOREY, massing, type CompiledMap, type FloorStyle, type WallStyle } from '@zh/shared';
 import type { Baker, Bucket, RGB, Vert } from './bake';
 import { linear } from './materials';
 
@@ -58,7 +58,8 @@ export function buildCity(map: CompiledMap, baker: Baker, out: CitySinks): void 
   /** The cell each column's outside is lit as part of: the open-air floor there, or (ambient only) a cell of the map's solid rim. */
   const NOWHERE = map.idx(0, 0);
   const litAs = new Int32Array(plane).fill(NOWHERE);
-  for (let i = 0; i < map.kind.length; i++) if (map.sky[i]) litAs[i % plane] = i;
+  // (The lowest: a bridge or a ledge that hangs over a street does not light the walls under it.)
+  for (let i = 0; i < map.kind.length; i++) if (map.sky[i] && !map.deck[i] && map.kind[i] !== Cell.Window && litAs[i % plane] === NOWHERE) litAs[i % plane] = i;
 
   const faceOf = (c: number): WallStyle => blocks[ms.block[c]!]?.face ?? 'brick';
   const tints = blocks.map((b) => linear(b.tint ?? 0xffffff));

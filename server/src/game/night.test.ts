@@ -6,8 +6,8 @@ import { activeZones, zombieCount } from './spawner';
 import { makeGame } from './testkit';
 import { idleFor, spawnZombie } from './zombies';
 
-// The game on The Longest Night's blockout (PLAN section 9, M3): a map four times the station's
-// size, with the subway two storeys under its streets.
+// The game on The Longest Night's blockout (PLAN section 9, M3 and M4): a map four times the
+// station's size, the subway two storeys under its streets and the roofs two storeys over them.
 
 const map = compileMap(longestNight);
 const start = (seed = 3) => {
@@ -32,6 +32,9 @@ describe('a match on The Longest Night', () => {
       ['w_lane_e', 47, 0, 14, 150], // from the lane's east end to the chapel
       ['w_chapel_w', 110, -8, 36, 120], // from the chapel to the platform's east half
       ['w_diner_w', 118, 0, 36, 120], // from the diner to the far end of the avenue
+      ['w_platform_e', 110, 8, 75, 150], // out of the track tunnel, up four storeys to Abelard's roof
+      ['w_abelard_roof_w', 36.5, 4, 50, 150], // over Abelard's parapet, down, across the square and up to the Lyric's balcony
+      ['w_chapel_e', 68.2, 8, 95, 150], // from the chapel to the middle of the plank bridge
     ] as const) {
       const t = start(5);
       t.teleport(1, x, z, y);
@@ -49,24 +52,44 @@ describe('a match on The Longest Night', () => {
       expect(worst, from).toBeLessThan(8);
       expect(took, from).toBeLessThan(within - 5);
     }
+  }, 60_000);
+
+  it('the dead come where the living are: out of the tunnels for someone on the platform, over the parapet for someone on a roof', () => {
+    for (const [x, y, z, zones, floor] of [
+      [80, -8, 36, ['platform', 'mezz', 'service', 'avenue'], -8],
+      [110, 8, 75, ['abelard_roof', 'ten_roof', 'abelard_up'], 8],
+    ] as const) {
+      const t = start(6);
+      t.teleport(1, x, z, y);
+      expect(activeZones(t.game)).toEqual(new Set(zones));
+      t.game.spawnInterval = 0.1;
+      for (let i = 0; i < 12; i++) t.game.spawnQueue.push({ hp: 150, speed: ZOMBIE_SPEED_WALK });
+      const floors = new Set<number>();
+      t.wait(8, () => {
+        for (const zb of t.game.zombies.values()) floors.add(zb.y);
+      });
+      expect(zombieCount(t.game)).toBeGreaterThan(0);
+      expect(floors.has(floor), `spawned on ${[...floors]}`).toBe(true);
+    }
   });
 
-  it('the subway has no way in of its own yet: someone down there is come for from the street', () => {
-    const t = start(6);
-    t.teleport(1, 80, 36, -8);
-    expect(activeZones(t.game)).toEqual(new Set(['platform', 'mezz', 'service', 'avenue']));
-    t.game.spawnInterval = 0.1;
-    for (let i = 0; i < 6; i++) t.game.spawnQueue.push({ hp: 150, speed: ZOMBIE_SPEED_WALK });
-    t.wait(5);
-    expect(zombieCount(t.game)).toBeGreaterThan(0);
-    for (const z of t.game.zombies.values()) expect(z.y).toBeGreaterThan(-1);
+  it('a zombie on a ledge over the lane tears its way in over the parapet and is on the roof', () => {
+    const t = start(8);
+    t.teleport(1, 63, 104, 8);
+    const win = mapWindows(map).find((w) => w.id === 'w_ten_roof_n')!;
+    const zb = spawnZombie(t.game, win, win.spawnX, win.y, win.spawnZ, 150, ZOMBIE_SPEED_RUN);
+    expect(zb.y).toBe(8);
+    t.wait(40);
+    expect([ZombieState.Approach, ZombieState.Tear, ZombieState.Vault]).not.toContain(zb.state);
+    expect(t.game.map.zoneAt(zb.x, zb.y, zb.z)).toBe('ten_roof');
+    expect(Math.hypot(zb.x - t.p.x, zb.z - t.p.z)).toBeLessThan(2);
   });
 });
 
 const SPEEDS = [ZOMBIE_SPEED_SHAMBLE, ZOMBIE_SPEED_WALK, ZOMBIE_SPEED_RUN];
 
-describe('soak on The Longest Night: a full horde, 4 bots roaming the streets and the subway', () => {
-  it('4 minutes with the doors open: nobody gets stuck on a kerb, a flight or a train door, and the tick stays in budget', () => {
+describe('soak on The Longest Night: a full horde, 4 bots roaming the streets, the roofs and the subway', () => {
+  it('4 minutes with the doors open: nobody gets stuck on a kerb, a flight, a bridge or a train door, and the tick stays in budget', () => {
     const t = makeGame(21, { map });
     const { game } = t;
     const rng = new Rng(77);
@@ -119,8 +142,8 @@ describe('soak on The Longest Night: a full horde, 4 bots roaming the streets an
     console.log(`[soak night] worst idle ${worstIdle.toFixed(1)} s (${worst}); peak ${peak}; kills ${kills}; tick avg ${game.stats.tickMs.toFixed(2)} ms, max ${game.stats.tickMsMax.toFixed(2)} ms; bot zones ${[...botZones].sort()}; zombie floors ${[...zombieFloors].sort()}`);
     expect(t.corrections).toEqual([]);
     expect(peak).toBeGreaterThan(20);
-    expect(botZones.size).toBeGreaterThanOrEqual(8);
-    for (const y of [-8, -4, 0]) expect(zombieFloors.has(y), `zombies on ${y}`).toBe(true);
+    expect(botZones.size).toBeGreaterThanOrEqual(10);
+    for (const y of [-8, -4, 0, 4, 8]) expect(zombieFloors.has(y), `zombies on ${y}`).toBe(true);
     expect(worstIdle, worst).toBeLessThan(10);
     expect(game.stats.tickMs).toBeLessThan(5);
   }, 240_000);

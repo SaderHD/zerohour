@@ -320,7 +320,7 @@ Props that are ≥0.5 m tall block movement (and bullets if tall); small clutter
 Keep every lane ≥1.5 m wide. Varied ceiling heights, skybox gradient with mountains silhouette and
 aurora for the outdoor zone.
 
-### 4.12 Map — "The Longest Night" (second map; being built: streets and subway blocked out)
+### 4.12 Map — "The Longest Night" (second map; being built: blocked out on all five storeys)
 Wexler Square, in the middle of a big, old, fictional American city, Christmas Eve in the early 1990s.
 Deep in the canyons between the towers, snowing, every decoration still lit and nobody left to look
 at them. Chosen by the host in the lobby; Harrow Ridge stays as it is. Same weapons, tonics, Cache,
@@ -392,9 +392,8 @@ About 36 windows for Harrow Ridge's 18. On a street a "window" is a barricade th
 on a roof they come over the parapet; in the subway out of the dark of the track tunnel.
 
 **As blocked out (M3; `shared/src/map/longestNight.ts`, `npm run map -- longest_night`).** The
-streets, every ground floor and the subway stand, undressed, with the doors and prices above and 24
-of the windows (the street barricades, and every ground-floor window; nothing comes out of a
-tunnel yet). Where the sketch left room, it was decided so: the avenue runs along the north
+streets, every ground floor and the subway stand, undressed, with the doors and prices above and
+the street barricades and ground-floor windows. Where the sketch left room, it was decided so: the avenue runs along the north
 (z 30-42), a cut joins it to the square (z 50-86) and a passage joins the square to the lane
 (z 92-98), each with its heap of wreckage in a wall across the middle; the Lyric is the block
 between avenue and square on the west, its fire exit a corridor out of the auditorium; the diner is
@@ -407,7 +406,28 @@ to the other is through it. From the east half two flights climb in a head house
 north side. The service tunnel runs south from the west half under the square, the signal room off
 it, and comes up two flights to a door in the lane's north wall (the "hatch"). A flight that
 reaches the street always stands inside a building: its head room runs up past street level, and
-the compiler lets nothing lie over open sky.
+the compiler lets no room lie over open sky.
+
+**Upstairs and the roofs (M4).** The tenement is a hall, a stairwell of two flights side by side
+and a flat over the hall; the second flight comes out in a hut on its roof (1000). The fire escape
+is a flight up the tenement's wall from the west end of the lane to a landing at the flat's north
+door (750): the lane's, not the tenement's, and open to it. From the tenement's roof the plank
+bridge (1250, a gate in the parapet) crosses the lane to a walk two metres wide along the lane's
+north side - a setback a storey lower than the building it runs along - which crosses the mouth of
+the passage on two more planks and ends on Abelard's roof. Abelard's has an atrium ten metres
+square open to the upper floor's ceiling, a dead escalator at each side of it (one climbing north,
+one south), a gallery round it upstairs (a zone of its own, "Abelard's, Upstairs", joined at the
+escalators' heads), and stairs in the gallery's north-east corner to a hut on the roof (1250). The
+Lyric's lobby has a flight up its north wall to a landing and the balcony, which hangs over the
+auditorium's back rows and looks down on the rest: the one dead end upstairs. Fourteen zones, 17
+doors, 36 windows of three kinds: a yard behind the wall (the streets' barricades and most ground
+floors), a ledge in the open air (outside the flat, on the diner's roof and the fire escape; outside
+Abelard's upper floor over the square; over the parapets of both roofs, where the window is a gap
+in the parapet), and the dark (the track tunnel at each end of the platform, one off the mezzanine
+and one off the service tunnel; the tenement's cellar; and the stock rooms behind Abelard's four
+ground-floor windows, which were yards until its roof had to lie over them). A walked roof is a
+block with a metre of parapet all round wherever something lower lies beyond; against a taller
+neighbour it runs to that building's wall.
 
 **The look.** The same 90s horror as the station - dark, grain, hard pools of light, nothing clean
 - with Christmas as the only colour in it. Warm strings of bulbs over grey snow; the tree lit over
@@ -520,7 +540,12 @@ ground no lobby offers.
 
 **Windows** carve a walled, roofless pocket (3 m deep by default) behind them; zombies spawn at
 the back of the pocket, so `spawns` is generated, not authored. Pockets need solid ground behind
-the wall — the validator rejects pockets that overlap rooms or each other.
+the wall — the validator rejects pockets that overlap rooms or each other. `Opening.behind` names
+the two other kinds a city needs. `'air'`: a ledge in the open air, planks with nothing round them,
+which may hang over a street or over a lower roof (outside an upstairs window; over a parapet, and
+then the window itself is a gap in the parapet with nothing above it). `'tunnel'`: roofed and
+dark, floored and walled like the room it opens on, so it can lie under a street or under the
+floor above (a track tunnel, a cellar, a stock room).
 
 **Props** (`data/props.ts`: footprint, height, solid, tall) are placed per zone in
 `map/dressing/*.ts`. Solid props turn in quarter turns, sit on the 0.5 m grid and take their cells
@@ -546,7 +571,12 @@ risers, one a cell, meeting the floors at both ends). Openings, props, interacta
 player spawns take a `level` too. The compiled grid is a stack of layers, one per storey
 (`idx(cx, cz, layer)`; without a layer, the ground), and rooms on different levels may lie over
 each other as long as what is open in one column never overlaps (the compiler checks this, a
-slab's thickness between, and 2 m of headroom everywhere). A storey is only where a cell is
+slab's thickness between, and 2 m of headroom everywhere). A floor that is itself under the sky may
+hang over another that is (a bridge over a street, a ledge over a pavement; never a roofed room):
+`CompiledMap.deck` marks it, and the air of the cell below then ends at its underside
+(`CompiledMap.cap`: for every cell where its air stops - its ceiling, or under the sky nowhere,
+or the bottom of the `DECK`, a quarter of a metre, of whatever hangs over it). The world builder
+draws such a floor's underside and its edges. A storey is only where a cell is
 *stored*. What joins two cells is their floors lying within `STEP_HEIGHT` (0.3 m) of each other:
 `CompiledMap.links` holds, for every cell, the cell reached by a step to each of its eight
 neighbours, whatever layer that is on. So a staircase is a run of cells each a riser above the
@@ -583,9 +613,13 @@ across a cross street's width of bare ground; the 'city' sky is low cloud lit fr
 a painted far skyline. The Corner (`map/corner.ts`, hidden; `npm run map -- corner`,
 `npm run tour -- --corner`) is the proving ground: a street with kerbs between buildings of six
 heights, a shop, a flat, a walked roof and an underpass.
-Not yet: sight and shots still take solid to be endlessly tall, so nothing is seen or hit across a
-roof lower than the eye (a roof's edge over a *street* is fine: the street is open sky); a pocket is
-open to the sky whatever storey it is on, so one below ground would be a shaft up through its block.
+Sight and shots know the heights too (`CompiledMap.skyline`, which is `massing().top`; null on a
+map whose solid has none, where solid is endlessly tall as it always was): a point above the top of
+its column and in no cell is in the open air (`aloft`), so `seeThrough`, `rayWorld` and thrown
+things pass over a roof or a parapet lower than they are and stop at one that is not. To the
+buildings, what hangs in the air is not there: a column is open from its *lowest* floor under the
+sky, so the lane under a bridge is still street, a ledge over a lower roof leaves that roof as it
+was (the validator refuses one sunk into it), and a gap in a parapet is part of the parapet.
 
 `validate.ts` runs in tests and fails the build if: a block is off the grid or off the map; a prop blocks the floor inside a window; any zone is unreachable with all doors open;
 any window/spawn can't path to the player spawn; a prop seals a lane (<1.5 m); interactables are
@@ -601,8 +635,9 @@ than a step from that height as a wall, and follows the floor up and down as the
 treads. Nobody jumps or falls. Bodies whose feet are more than `FLOOR_GAP` (1.5 m) apart in height
 are on different floors and do not touch (attacks, separation, revives, pick-ups, purchases).
 Hitscan: client rays against zombie hit boxes (head/torso/limb boxes on the rig) and `rayWorld`
-(every storey's floors, ceilings, sills and props); server LOS is a grid DDA (`los.ts`) run chest
-to chest in 3D, so the floors between storeys hide and shield. Closed doors and unbroken windows
+(every storey's floors, ceilings, sills and props; in a city the roofs, with the air over them
+open); server LOS is a grid DDA (`los.ts`) run chest
+to chest in 3D, so the floors between storeys hide and shield, and so does a parapet to whoever is below it. Closed doors and unbroken windows
 are solid cells. The server accepts a reported move only onto a floor that exists and is no
 further up or down than stairs could have taken the player over that distance.
 
@@ -1290,11 +1325,47 @@ Asked for by the owner: a second map chosen in the lobby, a winter city at Chris
   than sky over it), so whoever is down there is come for from the street; the tenement is a hall
   with no stairs; the walls round a barricade are the building behind it with boards at its foot
   (M5's street kit).
-- [ ] M4 Blockout II: upstairs and roofs. The tenement, Abelard's three floors, the Lyric's
-  balcony, the bridge, the fire escape; windows on roofs and in tunnels (a pocket has always had
-  solid ground behind it: here it has air or track); sight and shots over a roof lower than the
-  eye (M2 left solid endlessly tall to both). Validator and ASCII dump clean, a god-mode
-  campaign with no stuck zombie, `deadends` right about the new graph.
+- [x] M4 Blockout II: upstairs and roofs - done (4.12, "Upstairs and the roofs", says where
+  everything is). Five storeys now, fourteen zones, 17 doors, 36 windows, about 8,100 m2 of floor;
+  the grid is 360,000 cells.
+  The engine (6.1):
+  - *Pockets of three kinds.* `Opening.behind`: a yard (as always), `'air'` (a ledge of planks in
+    the open, which may hang over a street or a lower roof; in a parapet the window is a gap, open
+    above), `'tunnel'` (roofed and dark, so it lies under a street or under the next floor). The
+    subway has four of its own, both roofs two each, and no zone is left with no way in.
+  - *Floors over open street.* A floor under the sky may hang over another (the plank bridge, the
+    walk over the passage, the ledges): `deck` marks it, `cap` is where the air below it ends, and
+    every lookup that took "under the sky" to mean "no top" asks `cap` instead. A roofed room over
+    open sky is still refused. Drawn with an underside and edges.
+  - *Solid has a top to sight and shots.* `skyline` (the massing's tops) and `aloft`: lines of
+    sight, `rayWorld` and thrown things pass over whatever is lower than they are. Maps without
+    blocks are untouched: a seeded ten-round campaign on Harrow Ridge is the same to the shot.
+  - *Massing.* A column is open from its lowest floor under the sky, so what hangs changes nothing
+    below it; the walls a ledge hangs against are the building's own, drawn from the street up.
+  The game on it: `night.test.ts` sends zombies out of the track tunnel up to Abelard's roof, over
+  Abelard's parapet to the Lyric's balcony and from the chapel to the middle of the bridge; checks
+  that someone on the platform is come for out of the tunnels and someone on a roof over the
+  parapet; and soaks four bots and a full horde for four minutes (13 zones walked, zombies on all
+  five storeys, worst idle 3.0 s, tick 0.9 ms on average). `campaign --god --map=longest_night`
+  runs ten rounds clean (no stuck zombie, no correction). `deadends` is tested on the new graph:
+  with every door open the roofs, the store and the subway are round trips and the balcony, the
+  chapel, the signal room and the nook behind the tenement's hut are dead ends; a roof whose
+  bridge is unbought is one too. `npm run tour -- --night` takes 62 pictures (23 new: the flat,
+  the fire escape, both roofs, the bridge from above and below, the walk, the atrium, the gallery,
+  the balcony, a tunnel's boards).
+  Found on the way: a window raised every wall beside it to its own lintel (the massing's "a wall
+  is as tall as the room beside it" took a window for a room), which put a ledge on the diner's
+  roof inside a wall 7 m tall; someone standing right under the bridge could see whoever stood on
+  it (the two ends of a sight line in one column were only asked whether each was in air).
+  Not done: a ledge is bare planks on nothing and the fire escape a solid stoop of brick (M7's
+  kit: iron, brackets, scaffold); the posts of the bridge's gate stand nearly 4 m (a door in a
+  parapet is a door frame with the parapet's rim on top); the diner's block came down from 4.5 m
+  to 3.75 so the flat's ledge clears it; from the street nobody on a roof is seen unless they
+  stand at the parapet, and then only from well back - right, but untried in play; nothing is
+  sold yet, so the campaign's bots still never leave the diner and the soak is what covers the
+  map; outdoors a frame is now up to 200,000 triangles and the world takes 1.06 s to build and
+  bake in headless Chromium (M9 measures and cuts); no browser walk of the heights beyond the
+  tour (M10).
 - [ ] M5 Dressing I: the square and the streets. The Christmas kit (the tree as a landmark taller
   than its storey, light strings, wreaths, garlands, presents, stalls) and the street kit (cars,
   bus, lamp posts, kiosks, barricades, steam).

@@ -6,8 +6,8 @@ import { WALL_STYLES } from './types';
 // outside it is a building, and on a map whose scene is `built: 'city'` every column of the grid
 // has a top: the roof of the block that stands there. The client draws the buildings from this
 // (render/city.ts), stops a wall where the building behind it stops (worldBuilder.ts) and lets the
-// snow lie on the roofs (snow.ts). Sight and shots do not consult it yet: to them solid is still
-// endlessly tall.
+// snow lie on the roofs (snow.ts); sight and shots pass over whatever is lower than they are
+// (`CompiledMap.skyline`, `aloft`).
 
 /** How tall solid stands where no block says. */
 export const BLOCK_HEIGHT = 14;
@@ -21,8 +21,8 @@ export const STOREY = 4;
 export interface Massing {
   /**
    * For each column of the grid: where the air above it starts. Under the sky (a street, a walked
-   * roof, the pocket behind a window) that is the floor that lies open; anywhere else the top of
-   * the building there, its parapet included.
+   * roof, the pocket behind a window) that is the floor that lies open, the lowest if a bridge or
+   * a ledge hangs over it; anywhere else the top of the building there, its parapet included.
    */
   readonly top: Float32Array;
   /** The same without the parapet: the height of the roof itself. */
@@ -64,17 +64,27 @@ function build(map: CompiledMap): Massing {
   const roof = new Float32Array(plane);
   /** The roof a column's own rooms need over them (-Infinity where it has none). */
   const rooms = new Float32Array(plane).fill(-Infinity);
+  /** The same, as far as it asks the columns round it to stand as tall. */
+  const beside = new Float32Array(plane).fill(-Infinity);
   let highest = 0;
   for (let c = 0; c < plane; c++) {
     for (let i = c; i < map.kind.length; i += plane) {
       const k = map.kind[i] as Cell;
       if (k === Cell.Solid) continue;
       if (k === Cell.Floor || k === Cell.Door) highest = Math.max(highest, map.lo[i]!);
-      if (map.sky[i] || k === Cell.Outside) {
+      // The lowest floor under the sky is what the column is open from: what hangs in the air
+      // (a bridge over a street, a ledge outside a window) stands on nothing and changes nothing,
+      // and a gap in a parapet is part of its wall.
+      if (map.sky[i]) {
+        if (open[c] || map.deck[i] || k === Cell.Window) continue;
         open[c] = 1;
         roof[c] = map.lo[i]!;
         drawn[c] = map.hi[i]!;
-      } else rooms[c] = Math.max(rooms[c]!, map.hi[i]! + ROOF_SLAB);
+      } else {
+        rooms[c] = Math.max(rooms[c]!, map.hi[i]! + ROOF_SLAB);
+        // (A window is in a wall already: it asks nothing of the walls beside it.)
+        if (k !== Cell.Window) beside[c] = rooms[c]!;
+      }
     }
   }
   // A building is as tall as its block, or as its rooms need; and a wall is as tall as the tallest room it stands beside.
@@ -83,7 +93,7 @@ function build(map: CompiledMap): Massing {
       const c = cz * cols + cx;
       if (open[c]) continue;
       let h = Math.max(blocks[block[c]!]?.h ?? BLOCK_HEIGHT, rooms[c]!);
-      for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) if (map.inBounds(cx + dx, cz + dz) && !open[c + dz * cols + dx]) h = Math.max(h, rooms[c + dz * cols + dx]!);
+      for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) if (map.inBounds(cx + dx, cz + dz) && !open[c + dz * cols + dx]) h = Math.max(h, beside[c + dz * cols + dx]!);
       roof[c] = h;
     }
   }

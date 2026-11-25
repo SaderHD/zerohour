@@ -156,6 +156,14 @@ export interface Opening {
   out?: Dir;
   /** Windows only: pocket depth in metres (default 3). */
   pocket?: number;
+  /**
+   * Windows only: what its pocket is. By default a walled yard open to the sky, carved out of solid
+   * ground. 'air': a ledge in the open air with nothing round it - outside an upstairs window, over
+   * a parapet (the window is then a gap in it, open above), hanging over a street or a lower roof.
+   * 'tunnel': roofed and dark - a track tunnel, a cellar, a back room - so it can lie under a
+   * street or under the floor above.
+   */
+  behind?: 'air' | 'tunnel';
   /** Doors only: a heap of wreckage to clear instead of a door to open. */
   style?: 'debris';
   /** The storey it is cut on (default 0). It stands at the floor height of the room it touches. */
