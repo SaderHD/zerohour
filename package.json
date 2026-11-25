@@ -32,6 +32,7 @@
     "heights": "node scripts/heights.cjs",
     "maps": "node scripts/maps.cjs",
     "site": "node scripts/site.cjs",
+    "city": "node scripts/city.cjs",
     "campaign": "tsx scripts/campaign.ts",
     "ship": "node scripts/ship.cjs"
   },

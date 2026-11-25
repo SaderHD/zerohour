@@ -2,6 +2,8 @@
 // the Cache (roll, take, Jinx, move), all six power-ups, every Cache weapon in the hand, the
 // Arclight and the Gravewell against a 24-zombie horde, the Siren decoy and a howler round.
 // Screenshots go to test-results/wonders-*.png. Usage: npm run build && npm run wonders
+// `npm run wonders -- --night` does it on The Longest Night: the Cache under the square's south
+// wall, the rest out in Wexler Square (wonders-night-*.png).
 const { spawn } = require('node:child_process');
 const { mkdirSync } = require('node:fs');
 const path = require('node:path');
@@ -14,8 +16,35 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
 const GUNS = ['coachman', 'kestrel', 'brakeman', 'halberd', 'longwatch', 'ferrier', 'thumper', 'arclight', 'gravewell'];
 const POWERUPS = ['resupply', 'reaper', 'double', 'firestorm', 'rebuild', 'clearance'];
 
+// Where it happens, by map. `cache`: the site the Cache starts on, where to stand to use it, where
+// its beam and its leaving are seen from; `hands`: indoors, for the guns in the hand; `drops`: a
+// row of six power-ups and where it is looked at from; `stand`: where the wonder weapons are fired
+// from, the packs east of it; `siren`: the pack, and where the decoy is thrown; `howl`: where the
+// howler round is met.
+const STATION = {
+  map: null, tag: 'wonders',
+  cache: { site: 'cache_yard', at: [20.5, 37], use: [22.3, 37], beam: [26.5, 40.5], leaving: [24, 38.5] },
+  hands: [28, 27, 0.4],
+  drops: { x: 26.5, z: 46, from: [30, 50.5] },
+  stand: [22, 49], arclight: [28, 49], gravewell: [29, 49],
+  siren: { pack: [36, 48], aim: [30, 44.5] },
+  howl: [36.5, 47, 0.6],
+};
+const NIGHT = {
+  map: 'longest_night', tag: 'wonders-night',
+  cache: { site: 'cache_square', at: [67, 85.5], use: [67, 83.6], beam: [62, 82.5], leaving: [64.5, 83] },
+  hands: [47.5, 92, 0.4],
+  // Wexler Square: the south-west of it, between the rink and the stalls.
+  drops: { x: 54, z: 77, from: [57.5, 81.5] },
+  stand: [53.3, 83.8], arclight: [58.5, 83.8], gravewell: [59, 83.8],
+  siren: { pack: [68.3, 83], aim: [61, 79.5] },
+  howl: [60, 83, -0.9],
+};
+const P = process.argv.includes('--night') ? NIGHT : STATION;
+const SITE = P.cache.site;
+
 (async () => {
-  const env = { ...process.env, PORT: String(port), ZH_DEBUG: '1' };
+  const env = { ...process.env, PORT: String(port), ZH_DEBUG: '1', ZH_MAP: P.map ?? '' };
   const server = spawn('node', ['server/dist/index.js'], { cwd: root, env, stdio: 'inherit' });
   let browser;
   try {
@@ -27,11 +56,11 @@ const POWERUPS = ['resupply', 'reaper', 'double', 'firestorm', 'rebuild', 'clear
     const page = await browser.newPage({ viewport: { width: 960, height: 540 }, deviceScaleFactor: 1 });
     const errors = [];
     page.on('pageerror', (e) => errors.push(String(e)));
-    await page.goto(`http://localhost:${port}/?name=Ada&debug=1&autostart=1`);
-    await page.waitForFunction(() => window.__zh?.state().phase === 'playing', null, { timeout: 15000 });
+    await page.goto(`http://localhost:${port}/?name=Ada&debug=1&autostart=1${P.map ? `&map=${P.map}` : ''}`);
+    await page.waitForFunction(() => window.__zh?.state().phase === 'playing', null, { timeout: 30000 });
     mkdirSync(path.join(root, 'test-results'), { recursive: true });
     const state = () => page.evaluate(() => window.__zh.state());
-    const shot = (name) => page.screenshot({ path: path.join(root, `test-results/wonders-${name}.png`) });
+    const shot = (name) => page.screenshot({ path: path.join(root, `test-results/${P.tag}-${name}.png`) });
     const zh = (fn, arg) => page.evaluate(fn, arg);
     const until = async (what, fn, timeout = 20000) => {
       const t0 = Date.now();
@@ -46,23 +75,25 @@ const POWERUPS = ['resupply', 'reaper', 'double', 'firestorm', 'rebuild', 'clear
     await zh(() => { window.__zh.rounds(false); window.__zh.god(true); window.__zh.openAllDoors(); window.__zh.give(30000); });
     await sleep(600);
 
-    // 1. The Cache stands in the yard under its beam. A roll: the lid lifts, weapons flicker past, one hangs there.
-    await zh(() => { window.__zh.teleport(26.5, 40.5, 0); window.__zh.lookAt(20.5, 3.2, 37); });
+    // 1. The Cache stands on its first site under its beam. A roll: the lid lifts, weapons flicker past, one hangs there.
+    /** Stand at `from` and look at the Cache's site, `h` metres up. */
+    const atCache = (from, h) => zh(([x, z, cx, cz, h]) => { window.__zh.teleport(x, z, 0); window.__zh.lookAt(cx, h, cz); }, [...from, ...P.cache.at, h]);
+    await atCache(P.cache.beam, 3.2);
     await sleep(500);
-    assert((await state()).cache.home === 'cache_yard', 'the Cache should start in the yard');
+    assert((await state()).cache.home === SITE, `the Cache should start on ${SITE}: it is on ${(await state()).cache.home}`);
     await shot('cache-beam');
-    await zh(() => { window.__zh.teleport(22.3, 37, 0); window.__zh.lookAt(20.5, 0.9, 37); });
+    await atCache(P.cache.use, 0.9);
     await until('the Cache prompt', async () => (await state()).prompt.includes('open the Cache [950]'), 3000);
     await shot('cache-prompt');
     const before = (await state()).points;
     await zh(() => { window.__zh.cacheNext('halberd'); window.__zh.press('KeyF'); });
-    await until('the roll', async () => (await box('cache_yard')).phase === 'rolling', 3000);
+    await until('the roll', async () => (await box(SITE)).phase === 'rolling', 3000);
     assert((await state()).points === before - 950, 'a roll costs 950');
     await sleep(1500);
     await shot('cache-rolling');
-    await until('the offer', async () => (await box('cache_yard')).phase === 'offering', 6000);
+    await until('the offer', async () => (await box(SITE)).phase === 'offering', 6000);
     await sleep(300);
-    assert((await box('cache_yard')).shown === 'halberd', 'the crate should show the Halberd');
+    assert((await box(SITE)).shown === 'halberd', 'the crate should show the Halberd');
     await until('the take prompt', async () => (await state()).prompt.includes('take the "Halberd"'), 2000);
     await shot('cache-offer');
     await zh(() => window.__zh.press('KeyF'));
@@ -72,23 +103,23 @@ const POWERUPS = ['resupply', 'reaper', 'double', 'firestorm', 'rebuild', 'clear
     // 2. The Jinx: a skull, the points back, and the crate leaves for another site.
     const paid = (await state()).points;
     await zh(() => { window.__zh.cacheNext('jinx'); window.__zh.press('KeyF'); });
-    await until('the Jinx', async () => (await box('cache_yard')).phase === 'jinx', 8000);
+    await until('the Jinx', async () => (await box(SITE)).phase === 'jinx', 8000);
     await sleep(700);
     await shot('cache-jinx');
     assert((await state()).points === paid, 'a Jinx refunds the roll');
-    await until('the Cache leaving', async () => (await box('cache_yard')).phase === 'moving', 5000);
-    await zh(() => { window.__zh.teleport(24, 38.5, 0); window.__zh.lookAt(20.5, 6, 37); });
+    await until('the Cache leaving', async () => (await box(SITE)).phase === 'moving', 5000);
+    await atCache(P.cache.leaving, 6);
     await sleep(900);
     await shot('cache-leaving');
-    const home = await until('a new home', async () => { const c = (await state()).cache; return c.home !== 'cache_yard' && c.home; }, 6000);
+    const home = await until('a new home', async () => { const c = (await state()).cache; return c.home !== SITE && c.home; }, 6000);
     await sleep(800);
-    assert(!(await box('cache_yard')).visible, 'the old site should be empty');
+    assert(!(await box(SITE)).visible, 'the old site should be empty');
     assert((await box(home)).visible, 'the new site should have the Cache');
     console.log(`[wonders] the Cache moved to ${home}`);
     await shot('cache-gone');
 
     // 3. Every gun the Cache can give, in the hand (the seven that were placeholders, and the two wonder weapons).
-    await zh(() => { window.__zh.powerOn(); window.__zh.teleport(28, 27, 0); window.__zh.look(0.4, 0); });
+    await zh(([x, z, yaw]) => { window.__zh.powerOn(); window.__zh.teleport(x, z, 0); window.__zh.look(yaw, 0); }, P.hands);
     for (const gun of GUNS) {
       await zh((g) => window.__zh.give(g), gun);
       await until(`the ${gun}`, async () => (await state()).weapon === gun, 3000);
@@ -97,12 +128,12 @@ const POWERUPS = ['resupply', 'reaper', 'double', 'firestorm', 'rebuild', 'clear
     }
 
     // 4. Power-ups: all six in a row on the snow, then walked through one by one.
-    await zh((kinds) => { window.__zh.teleport(30, 50.5, 0); kinds.forEach((k, i) => window.__zh.powerup(k, 26.5 + i * 1.4, 46)); window.__zh.lookAt(30, -0.6, 46); }, POWERUPS);
+    await zh(([kinds, d]) => { window.__zh.teleport(d.from[0], d.from[1], 0); kinds.forEach((k, i) => window.__zh.powerup(k, d.x + i * 1.4, d.z)); window.__zh.lookAt(d.from[0], -0.6, d.z); }, [POWERUPS, P.drops]);
     await until('six drops', async () => (await state()).powerups.length === 6, 3000);
     await sleep(700);
     await shot('powerups');
     for (let i = 0; i < POWERUPS.length; i++) {
-      await zh((x) => window.__zh.teleport(x, 46, 0), 26.5 + i * 1.4);
+      await zh(([x, z]) => window.__zh.teleport(x, z, 0), [P.drops.x + i * 1.4, P.drops.z]);
       await until(`taking ${POWERUPS[i]}`, async () => (await state()).powerupsTaken.includes(POWERUPS[i]), 3000);
     }
     await zh(() => window.__zh.look(0, 0));
@@ -113,7 +144,7 @@ const POWERUPS = ['resupply', 'reaper', 'double', 'firestorm', 'rebuild', 'clear
     assert(fx.grenades === 4, 'Resupply should fill the grenades');
     assert(fx.cache.boxes.every((b) => b.visible), 'during Clearance the Cache is at every site');
     await shot('powerup-timers');
-    await zh(() => { window.__zh.teleport(22.6, 37, 0); window.__zh.lookAt(20.5, 0.9, 37); });
+    await atCache(P.cache.use, 0.9);
     await until('the Clearance price', async () => (await state()).prompt.includes('open the Cache [10]'), 3000);
     await shot('clearance');
 
@@ -128,9 +159,9 @@ const POWERUPS = ['resupply', 'reaper', 'double', 'firestorm', 'rebuild', 'clear
       const z = s.entities.filter((e) => e.kind !== 'dummy').sort((a, b) => Math.hypot(a.x - s.x, a.z - s.z) - Math.hypot(b.x - s.x, b.z - s.z))[0];
       window.__zh.lookAt(z.x, z.y + 1.2, z.z);
     });
-    await zh(() => { window.__zh.teleport(22, 49, 0); window.__zh.give('arclight'); });
+    await zh(([x, z]) => { window.__zh.teleport(x, z, 0); window.__zh.give('arclight'); }, P.stand);
     await until('the Arclight', async () => (await state()).weapon === 'arclight', 3000);
-    await horde(24, 28, 49);
+    await horde(24, ...P.arclight);
     await sleep(900);
     await aimAtNearest();
     await sleep(200);
@@ -149,7 +180,7 @@ const POWERUPS = ['resupply', 'reaper', 'double', 'firestorm', 'rebuild', 'clear
     // Forged, it reaches further: fourteen.
     await zh(() => window.__zh.give('arclight', true));
     await until('the forged Arclight', async () => { const s = await state(); return s.upgraded[s.slot]; }, 3000);
-    await horde(24, 28, 49);
+    await horde(24, ...P.arclight);
     await sleep(900);
     await aimAtNearest();
     await sleep(250);
@@ -163,7 +194,7 @@ const POWERUPS = ['resupply', 'reaper', 'double', 'firestorm', 'rebuild', 'clear
     // 6. The Gravewell against 24: the orb, the singularity dragging them in, the implosion.
     await zh(() => window.__zh.give('gravewell'));
     await until('the Gravewell', async () => (await state()).weapon === 'gravewell', 3000);
-    await horde(24, 29, 49);
+    await horde(24, ...P.gravewell);
     await sleep(700);
     await aimAtNearest();
     await sleep(200);
@@ -185,9 +216,9 @@ const POWERUPS = ['resupply', 'reaper', 'double', 'firestorm', 'rebuild', 'clear
     assert(well.hp === 100, 'the Gravewell should not hurt its owner');
 
     // 7. The Siren: thrown past a pack, they turn and go to it; then it blows.
-    await zh(() => { window.__zh.killZombies(); window.__zh.god(false); window.__zh.give('siren'); window.__zh.teleport(22, 49, 0); });
+    await zh(([x, z]) => { window.__zh.killZombies(); window.__zh.god(false); window.__zh.give('siren'); window.__zh.teleport(x, z, 0); }, P.stand);
     await until('three Sirens', async () => (await state()).tacticals === 3, 3000);
-    await zh(() => { for (let i = 0; i < 8; i++) window.__zh.spawnZombies(1, { x: 36 + (i % 4) * 0.9, z: 48 + Math.floor(i / 4) * 0.9, speed: 2.2, hp: 400 }); window.__zh.lookAt(30, 1.6, 44.5); });
+    await zh((sn) => { for (let i = 0; i < 8; i++) window.__zh.spawnZombies(1, { x: sn.pack[0] + (i % 4) * 0.9, z: sn.pack[1] + Math.floor(i / 4) * 0.9, speed: 2.2, hp: 400 }); window.__zh.lookAt(sn.aim[0], 1.6, sn.aim[1]); }, P.siren);
     await sleep(300);
     await zh(() => window.__zh.press('KeyE'));
     await until('the Siren in the air', async () => (await state()).fx.kinds.includes('siren'), 3000);
@@ -202,7 +233,7 @@ const POWERUPS = ['resupply', 'reaper', 'double', 'firestorm', 'rebuild', 'clear
     await zh(() => { window.__zh.god(true); window.__zh.killZombies(); });
 
     // 8. A howler round: lightning, then the pack.
-    await zh(() => { window.__zh.teleport(36.5, 47, 0); window.__zh.look(0.6, 0.05); window.__zh.give('halberd'); window.__zh.setRound(6, true); });
+    await zh(([x, z, yaw]) => { window.__zh.teleport(x, z, 0); window.__zh.look(yaw, 0.05); window.__zh.give('halberd'); window.__zh.setRound(6, true); }, P.howl);
     await until('lightning', async () => (await state()).strikes > 0, 8000);
     await zh(() => { const s = window.__zh.state(); window.__zh.lookAt(s.lastStrike.x, 3, s.lastStrike.z); });
     const seen = (await state()).strikes;
@@ -223,7 +254,7 @@ const POWERUPS = ['resupply', 'reaper', 'double', 'firestorm', 'rebuild', 'clear
     console.log(`[wonders] howler round: ${end.entities.filter((e) => e.kind === 'howler').length} howlers in, ${end.zombiesLeft} to go; ${end.fps} fps, ${end.drawCalls} draw calls`);
     assert(end.drawCalls < 150, `draw calls ${end.drawCalls} >= 150`);
     assert(errors.length === 0, `page errors:\n${errors.join('\n')}`);
-    console.log('[wonders] ok');
+    console.log(`[wonders] ok${P.map ? ` (${P.map})` : ''}`);
   } catch (e) {
     console.error('[wonders] FAILED:', e.message);
     process.exitCode = 1;

@@ -110,6 +110,8 @@ zerohour/
   No realtime lights for the world. Emissive faces for lamps, screens, specimen tanks and embers
   follow the same three levels.
 - **Characters:** hierarchical box rigs (`rig.ts`): pelvis, torso, head, 2-segment arms and legs.
+  (A teammate's eleven parts are one mesh: the joints are empty groups and the vertices are put
+  where they say each frame, `PlayerModel.pose` - a draw call a body. Zombies are instanced.)
   Animation is procedural (`anim.ts`) — sine-driven walk/run/shamble cycles keyed off movement
   speed, additive attack swing, hit flinch, vault, crawl, and a short tween-to-ground death then
   fade. Zombies get per-instance variation from a seed (height, palette, missing arm, head tilt,
@@ -320,7 +322,7 @@ Props that are ≥0.5 m tall block movement (and bullets if tall); small clutter
 Keep every lane ≥1.5 m wide. Varied ceiling heights, skybox gradient with mountains silhouette and
 aurora for the outdoor zone.
 
-### 4.12 Map — "The Longest Night" (second map; being built: blocked out, dressed, everything on sale, balanced; hidden until M10)
+### 4.12 Map — "The Longest Night" (second map; built, and offered in every lobby since M10)
 Wexler Square, in the middle of a big, old, fictional American city, Christmas Eve in the early 1990s.
 Deep in the canyons between the towers, snowing, every decoration still lit and nobody left to look
 at them. Chosen by the host in the lobby; Harrow Ridge stays as it is. Same weapons, tonics, Cache,
@@ -616,7 +618,8 @@ aim.** This is co-op with friends, so we optimise for feel and simplicity over c
   - *Hit detection ("favour the shooter").* Client raycasts against the zombies it is rendering
     and sends `fire {weapon, seq, hits:[{zombieId, zone, dist}]}`. Server validates fire rate and
     ammo (which it tracks), zombie alive, distance within range + slack, and coarse line of sight
-    on the nav grid, then applies damage and awards points. Projectiles (grenades, Thumper,
+    on the nav grid (chest to chest, or from the shooter's eye to the body's chest: a shot leaves
+    the eye, and over a roof's parapet only the eye sees), then applies damage and awards points. Projectiles (grenades, Thumper,
     Gravewell, Siren) are fully server-simulated.
 - **Client presentation:** other players and zombies are interpolated ~120 ms in the past from a
   snapshot buffer; own firing/reload/recoil play immediately and reconcile ammo from snapshots.
@@ -783,6 +786,23 @@ map and fails if one ever enters a cell whose region would not have been drawn
 (`VIS_DENSE=1` looks four times as hard: run it after touching the sampling or a map's doors);
 `__zh.cull(false)` draws everything, `__zh.meshes()` lists what a frame is made of and
 `npm run tour -- --night --perf` measures every view.
+
+Three smaller things keep the count of draw calls down (M10; the budget is 150 in a frame with
+four players in). A big mesh is cut into tiles of at most 40 m laid over *its own* extent, as
+few and as equal as will do, so a shop that fits in one tile is one mesh wherever it stands (on
+a grid fixed to the map it was four whenever a grid line crossed it); and into no more tiles
+than leaves each about 6,000 triangles, so what is spread thin (a city's far faces: 16,000
+triangles over the whole map) is two meshes and not twelve. A shut door - its slab, its stencilled price, a lamp if it waits for the power: up to three
+calls, and a city has seventeen - is drawn only while a line from the eye (or from 35 cm to any
+side of it) reaches one of the points just clear of its two faces (`doorSights`: every half
+metre along from two centimetres inside each jamb, at four heights; `doorInSight`); a door within
+two metres is always drawn, and so is one that is opening. And each turning part (a fan, the
+carousel, the projector's reels) goes with the zone its pivot stands in. What decides whether a
+thing is drawn looks along `clearLine`, which knows walls, floors and - when told which are
+open - shut doors, and nothing of furniture: to `rayWorld` and `lineOfSight` a tall prop blocks
+at any height (on a map whose solid has no top), and from higher ground it is seen over. The
+test for doors is the test for zones: wherever a marched line from an eye ends on a shut door,
+`doorInSight` must have said so, with every door shut and with each half of them open.
 
 `validate.ts` runs in tests and fails the build if: a block is off the grid or off the map; a prop blocks the floor inside a window; any zone is unreachable with all doors open;
 any window/spawn can't path to the player spawn; a prop seals a lane (<1.5 m); interactables are
@@ -1766,9 +1786,77 @@ Asked for by the owner: a second map chosen in the lobby, a winter city at Chris
   not found one). The strings of bulbs are still five faces a bulb. Nothing was judged by ear
   or by hand: how the city plays for people, the air's level outdoors (M8) and whether rounds
   of three minutes are too long are M10's, with players. README says nothing of the map (M10).
-- [ ] M10 Acceptance. The tour, a browser walk over every height (as `npm run site` is for the
-  station), the existing browser scripts on both maps where they are about the map, `ship` on
-  each. README and CLAUDE.md say what there is.
+- [x] M10 Acceptance - done. The Longest Night is no longer hidden: every lobby offers the two
+  maps, the station first (`ZH_MAP=longest_night` starts rooms on the city). What was run, and
+  what running it found:
+  **The walk.** `npm run city` (`scripts/city.cjs`), as `site` is for the station: one browser
+  player over every change of height there is - the kerb, the tenement's two flights, its roof
+  and parapet, the plank bridge and the walk to Abelard's roof, the hut and its stairs, down one
+  dead escalator and up the other, the gallery's rail, the Lyric's stairs and balcony, the fire
+  escape and the flat's door, the subway from the square to the mezzanine, a turnstile, the
+  platform, through the train, the head house's two flights to the avenue, the service tunnel
+  and its two flights to the hatch. Twenty-seven walks, the view never moving faster than a climb
+  does, and not one correction from the server. Then by floor: the master switch is offered on
+  the roof and not under it, Hair Trigger upstairs and not on the shop floor, Packmule on the
+  balcony and not in the stalls, the second Stitch on the platform and not on the pavement over
+  it; a shot from the balcony stops at its floor and one from the shop floor does not reach the
+  roof; a zombie is shot in the lane from the bridge, on the shop floor from the gallery, and in
+  the square over the roof's parapet. Three zombies follow: from the platform to the tenement's
+  roof (27 s), from Abelard's roof to the signal room (30 s), from the balcony to the chapel.
+  **The scripts that are about the place** take `-- --night` and do on the city what they do on
+  the station, from a table of places at the top of each: `economy` (the Farrow and its
+  ammunition in the diner, the door to the square, Second Wind, the switch on the roof and
+  nothing under it, Quickhands in the lane, the Forge in the signal room, 225 to a dummy, down
+  and up again), `horde` (the diner's three windows torn, vaulted and mended; the full 32 and
+  three bots in the square: 71 draw calls) and `wonders` (the Cache under the square's south
+  wall, the Jinx, every gun, six drops, the Arclight's 8 and 14, the Gravewell's 24 of 24, the
+  Siren, a howler round). `maps` now finds two maps on a server without debug and plays the
+  city there; `ship -- --map=longest_night` has the host pick it in the lobby as a person would.
+  The tour's 158 pictures of the city were taken and looked at.
+  **Found: a shot over a parapet did not count.** The server asked for a line of sight chest
+  to chest (1.2 m) and the client shoots from the eye (1.6 m): on a roof with a metre of
+  parapet the eye sees the square, the client draws the blood, and the server threw the hit
+  away. It now accepts either line (5, "Hit detection"); `night.test.ts` shoots the square from
+  Abelard's roof, and is still refused what stands under the wall and what is two floors up.
+  Bots aim chest to chest, as before, so no campaign changes.
+  **Found: the frame was over its budget.** M9 measured the tour's views - alone, standing
+  still, doors open - and found 127 draw calls at worst. Four players in a real game were 185
+  (`ship` on the city cleared its ten rounds in 14:33 with nothing in any console, and failed on
+  that alone). Four cuts (6.1, "What is drawn"; 3, "Characters"), measured between each:
+  - *Tiles over a mesh's own extent, and no more than it has triangles for.* Abelard's floor
+    was four meshes because the map's 40 m grid crossed it; the city's far faces were twelve
+    for 16,000 triangles.
+  - *A shut door is drawn only in sight.* Seventeen doors of up to three calls each were always
+    drawn. (The first version looked along `rayWorld` and was wrong: on the station tall
+    furniture stops a shot at any height, and from the bluff the bunker's door is seen over the
+    shelter in the low yard. The pictures caught it; the test, which made the same assumption,
+    had not. Both look along `clearLine` now. The denser run then found a door seen as a sliver
+    three centimetres wide past its jamb from ten metres: the samples start two centimetres in.)
+  - *A turning part goes with its zone.*
+  - *A teammate is one mesh.* Eleven parts were eleven draw calls, three teammates 42 with
+    their guns: more than a quarter of the budget, on both maps. The joints are still a
+    hierarchy; the boxes' vertices are put where the joints say each frame.
+  After, over the tour's 151 walked views of the city: 88 draw calls at worst (127) and 43 at
+  the median (52); triangles 95,700 at the median (84,500) and 204,000 at worst (195,600) -
+  bigger tiles hide less - and the frame rate as M9 left it (33 at the median, 19 at the tenth,
+  15 at worst). The free camera in the air: 117 calls (166). A round fought with three bots and
+  32 of the dead: 102 calls at worst where it was 135 before the last cut. Harrow Ridge: 43
+  calls at worst (60), 34,900 triangles at the median, 36 fps at the slowest. That nothing
+  seen is left out: `visibility.test.ts` marches lines from eyes all over both maps and wherever
+  one ends on a shut door `doorInSight` must have said so (every door shut, then each half
+  open; clean at eight times the density it runs at); every one of the tour's 203 walked views
+  of both maps was drawn with every door shut, culled and unculled, and the pairs differ only
+  in what moves (the carousel, fans, swinging lamps, steam); and the 278 pictures of both tours
+  before and after differ only in those and in lights still stuttering up.
+  **Also.** The menu names the map it stands in front of, and "How to play" no longer says
+  "station". README has the two maps, `ZH_MAP` and the new scripts.
+  Not done: nobody but bots and the autopilot has played the city - how it plays for people,
+  the air's level outdoors (M8) and whether rounds of two to three minutes are too long are
+  still unjudged, and are now for players to say. `rounds`, `ux`, `e2e`, `smoke` and `audio`'s
+  first half are about the game and not the place and run on the station only. A remote
+  player's gun is still one to three draw calls of its own. Outdoors is still everything
+  outdoors (M9). The autopilot's frame rate in four headless browsers on four cores is 5 to 15
+  on the city (it is 20 to 40 alone): software rendering, and no measure of a real machine.
 
 M2 was the session thought most likely to become two (the engine had only ever hidden the
 outside); it took one. Next most likely was

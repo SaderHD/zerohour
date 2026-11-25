@@ -7,8 +7,8 @@ import { stacks } from './stacks';
 import type { MapDef, MapRules } from './types';
 
 /**
- * Every map there is, by id, in the order a lobby lists them. The Longest Night is hidden while it is being built (PLAN section 9, M3-M10);
- * the Stacks is the proving ground for height, the Corner for a city's outside.
+ * Every map there is, by id, in the order a lobby lists them: the station and the city are the two people play;
+ * the Stacks is the proving ground for height, the Corner for a city's outside (hidden: only a debug server offers them).
  */
 export const MAPS: Readonly<Record<string, MapDef>> = { [harrowRidge.id]: harrowRidge, [longestNight.id]: longestNight, [stacks.id]: stacks, [corner.id]: corner };
 

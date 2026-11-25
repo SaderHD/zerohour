@@ -39,14 +39,33 @@ export class Bucket {
   }
 
   /**
-   * The same triangles sorted into buckets by where they are, a square of `tile` metres each: one
-   * mesh for the whole of a long street is in view from anywhere on it, and all of it is drawn.
+   * The same triangles sorted into buckets by where they are: one mesh for the whole of a long
+   * street is in view from anywhere on it, and all of it is drawn. The tiles are laid over the
+   * mesh's own extent, as few and as equal as keep each within `tile` metres a side: a room that
+   * fits in one is left whole wherever on the map it stands. And never more than `most` of them:
+   * a mesh that is spread thin (the far faces of a city) is not worth a draw call every forty metres.
    */
-  split(tile: number): Bucket[] {
+  split(tile: number, most = Infinity): Bucket[] {
+    let [x0, x1, z0, z1] = [Infinity, -Infinity, Infinity, -Infinity];
+    const mid = (t: number, k: number): number => (this.pos[t + k]! + this.pos[t + k + 3]! + this.pos[t + k + 6]!) / 3;
+    for (let t = 0; t < this.pos.length; t += 9) {
+      const [x, z] = [mid(t, 0), mid(t, 2)];
+      x0 = Math.min(x0, x);
+      x1 = Math.max(x1, x);
+      z0 = Math.min(z0, z);
+      z1 = Math.max(z1, z);
+    }
+    let nx = Math.max(1, Math.ceil((x1 - x0) / tile));
+    let nz = Math.max(1, Math.ceil((z1 - z0) / tile));
+    while (nx * nz > Math.max(1, most)) {
+      if ((x1 - x0) / nx < (z1 - z0) / nz) nz--;
+      else nx--;
+    }
+    if (nx * nz === 1) return [this];
     const parts = new Map<number, Bucket>();
     for (let t = 0; t < this.pos.length; t += 9) {
-      const tx = Math.floor((this.pos[t]! + this.pos[t + 3]! + this.pos[t + 6]!) / 3 / tile);
-      const tz = Math.floor((this.pos[t + 2]! + this.pos[t + 5]! + this.pos[t + 8]!) / 3 / tile);
+      const tx = Math.min(nx - 1, Math.floor(((mid(t, 0) - x0) / (x1 - x0 || 1)) * nx));
+      const tz = Math.min(nz - 1, Math.floor(((mid(t, 2) - z0) / (z1 - z0 || 1)) * nz));
       const key = tx * 4096 + tz;
       const b = parts.get(key) ?? parts.set(key, new Bucket()).get(key)!;
       const v = t / 3;

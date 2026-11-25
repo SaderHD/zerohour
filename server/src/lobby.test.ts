@@ -154,9 +154,9 @@ describe('lobby', () => {
       lobby.handle(session, { t: 'map', id: 'stacks' });
       return peer.last('room')!;
     };
-    expect(open({ debug: false })).toMatchObject({ map: 'harrow_ridge', maps: ['harrow_ridge'] });
-    expect(open({ debug: false, map: 'stacks' })).toMatchObject({ map: 'stacks', maps: ['harrow_ridge', 'stacks'] });
-    expect(open({ debug: false, map: 'nowhere' })).toMatchObject({ map: 'harrow_ridge', maps: ['harrow_ridge'] });
+    expect(open({ debug: false })).toMatchObject({ map: 'harrow_ridge', maps: ['harrow_ridge', 'longest_night'] });
+    expect(open({ debug: false, map: 'stacks' })).toMatchObject({ map: 'stacks', maps: ['harrow_ridge', 'longest_night', 'stacks'] });
+    expect(open({ debug: false, map: 'nowhere' })).toMatchObject({ map: 'harrow_ridge', maps: ['harrow_ridge', 'longest_night'] });
   });
 
   it('sanitises names', () => {

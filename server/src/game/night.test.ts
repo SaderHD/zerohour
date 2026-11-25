@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_ALIVE_CAP, Rng, TICK_BUDGET_MS, TICK_DT, ZOMBIE_SPEED_RUN, ZOMBIE_SPEED_SHAMBLE, ZOMBIE_SPEED_WALK, ZombieState, compileMap, longestNight, mapWindows, wallFor, type Interactable } from '@zh/shared';
+import { MAX_ALIVE_CAP, Rng, TICK_BUDGET_MS, TICK_DT, ZOMBIE_SPEED_RUN, ZOMBIE_SPEED_SHAMBLE, ZOMBIE_SPEED_WALK, ZombieState, compileMap, lineOfSight, longestNight, mapWindows, wallFor, type Interactable } from '@zh/shared';
 import { BotBrain } from '../botBrain';
 import { runCampaign } from './campaign';
 import { killZombie } from './entities';
@@ -55,6 +55,32 @@ describe('a match on The Longest Night', () => {
       expect(took, from).toBeLessThan(within - 5);
     }
   }, 60_000);
+
+  it('a shot from a roof goes over its parapet from the eye: the square from Abelard\'s roof, but not what stands under the wall, nor the roof from the shop floor', () => {
+    const t = start();
+    let seq = 0;
+    const shoot = (zb: { id: number; x: number; y: number; z: number }) => {
+      t.wait(0.5);
+      t.game.onMessage(1, { t: 'fire', seq: ++seq, slot: t.p.pub.slot, yaw: 0, pitch: 0, aim: true, hits: [{ id: zb.id, zone: 'torso', dist: Math.hypot(zb.x - t.p.x, zb.y - t.p.y, zb.z - t.p.z) }] });
+    };
+    // At the west parapet, a metre of wall between us and the square eight metres down.
+    t.teleport(1, 97.3, 79, 8);
+    expect(t.p.y).toBe(8);
+    const far = spawnZombie(t.game, null, 72, 0, 79, 150, 0.01);
+    const under = spawnZombie(t.game, null, 93, 0, 79, 150, 0.01);
+    // Chest to chest the parapet is in the way; the eye, 40 cm higher, sees over it.
+    expect(lineOfSight(map, t.p.x, t.p.y, t.p.z, far.x, far.y, far.z)).toBe(false);
+    shoot(far);
+    expect(far.hp).toBeLessThan(150);
+    shoot(under);
+    expect(under.hp).toBe(150);
+    // From the shop floor, straight up through two floors: no.
+    const high = spawnZombie(t.game, null, 110, 8, 80, 150, 0.01);
+    t.teleport(1, 110, 82, 0);
+    expect(t.p.y).toBe(0);
+    shoot(high);
+    expect(high.hp).toBe(150);
+  });
 
   it('the dead come in within a block of somebody: nothing from the far end of a street a hundred metres long', () => {
     // At the avenue's west end, every door open: the avenue's own windows run to its east end, 90 m off.

@@ -1,7 +1,8 @@
 // Choosing the map: two browser players and a bot in one room on a debug server (which offers the
 // proving ground as well as the maps people play). The host picks another map in the lobby; both
 // pages load it and keep their seats; the game starts on it and the bot, which was started knowing
-// only the station, plays there. Then a server without debug: one map on offer, nothing to choose.
+// only the station, plays there. Then a server without debug: the two maps people play on offer and
+// no proving ground; its host picks The Longest Night and the game is in the diner.
 // Run `npm run build` first. Usage: npm run maps. Writes test-results/maps-*.png.
 const { spawn } = require('node:child_process');
 const { mkdirSync } = require('node:fs');
@@ -112,12 +113,13 @@ async function serve(p, extra) {
     await sleep(500);
     await shot(a, 'game-stacks');
 
-    // 4. A server without debug offers the one map: nothing to choose, and a hand-made request changes nothing.
+    // 4. A server without debug offers the maps people play and no proving ground: a hand-made request for one changes nothing.
     const c = await open(`http://localhost:${port + 1}`, 'name=Cy');
     await c.click('#create');
     await inLobbyOn(c, 'harrow_ridge');
+    const plainCode = (await state(c)).room;
     const pc = await picker(c);
-    assert(pc.options.length === 1 && pc.disabled, `a plain server offers ${pc.options} (disabled ${pc.disabled})`);
+    assert(pc.options.join() === 'harrow_ridge=Harrow Ridge Station,longest_night=The Longest Night' && !pc.disabled, `a plain server offers ${pc.options} (disabled ${pc.disabled})`);
     await c.evaluate(() => {
       const s = document.getElementById('lobby-map');
       s.add(Object.assign(document.createElement('option'), { value: 'stacks', text: 'x' }));
@@ -126,12 +128,22 @@ async function serve(p, extra) {
     });
     await sleep(500);
     assert((await state(c)).map === 'harrow_ridge' && (await picker(c)).value === 'harrow_ridge', 'a plain server must not be talked onto the proving ground');
+    // 5. Its host picks the city: the page loads it, the room is kept, and the game starts in the diner.
+    await c.selectOption('#lobby-map', 'longest_night');
+    await inLobbyOn(c, 'longest_night');
+    assert((await state(c)).room === plainCode && (await state(c)).isHost, 'the host should keep the room when the map changes');
+    await sleep(600);
+    await shot(c, 'lobby-night');
     await c.click('#start');
-    await c.waitForFunction(() => window.__zh.state().phase === 'playing');
-    assert((await state(c)).map === 'harrow_ridge', 'the plain server plays the station');
+    await c.waitForFunction(() => window.__zh.state().phase === 'playing' && window.__zh.state().life === 'alive');
+    const sc = await state(c);
+    assert(sc.map === 'longest_night' && sc.zone === 'diner', `the plain server plays the city: ${sc.map}, ${sc.zone}`);
+    assert(sc.mapErrors.length === 0, `map errors: ${sc.mapErrors}`);
+    await sleep(1500);
+    await shot(c, 'game-night');
 
     assert(errors.length === 0, `page errors:\n${errors.join('\n')}`);
-    console.log('[maps] ok: host picks the map, pages and seats follow, the bot plays it; a plain server offers one');
+    console.log('[maps] ok: host picks the map, pages and seats follow, the bot plays it; a plain server offers the two people play, and plays the city');
   } catch (err) {
     console.error(`[maps] FAILED: ${err.message}`);
     process.exitCode = 1;

@@ -141,8 +141,6 @@ export const longestNight: MapDef = {
   id: 'longest_night',
   name: 'The Longest Night',
   size: { w: 150, d: 120 },
-  // Until it is finished (M10) only a debug server offers it.
-  hidden: true,
   // The dead come in within a block of somebody, as on the station they cannot help doing (M9:
   // without this a third of them came in more than 40 m of walking away, some of them over 100).
   rules: { spawnReach: 40 },

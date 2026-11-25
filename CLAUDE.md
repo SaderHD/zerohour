@@ -7,11 +7,10 @@ all assets generated in code. TypeScript + Three.js client, Node + `ws` authorit
 sessions and the progress checklist (section 9). All 14 sessions are done: the game is shipped
 (`README.md` is the player's and host's guide). Later work is maintenance: keep the plan true in
 the same commit as any change to what it describes.
-A second map, "The Longest Night", is being built: PLAN 4.12 is its design, "The second map" in
-section 9 its ten sessions (M1-M10; M1 to M9 are done: all five storeys, from the subway to the roofs, are
-blocked out in `shared/src/map/longestNight.ts`, a hidden map until it is finished, all of it is dressed,
-everything is on sale, signed and has its sound, and it is balanced against the station and drawn in budget;
-M10 is acceptance).
+There are two maps a host can pick in the lobby: Harrow Ridge Station and "The Longest Night" (a city square
+on Christmas Eve, five storeys from the subway to the roofs: `shared/src/map/longestNight.ts`). PLAN 4.12 is
+the city's design and "The second map" in section 9 the record of its ten sessions (M1-M10, all done).
+Whatever is about the place and not the engine must be tried on both.
 
 ## Rules
 - Original content only: reuse genre mechanics, never another game's names, characters, maps,
@@ -42,10 +41,10 @@ M10 is acceptance).
   run, fails on a stuck zombie, slow tick or fat snapshot. Without it the bots are mortal and it
   reports how far a team gets: run it with `--runs=32` before and after any balance change (eight seeds can be off by rounds)
   (`--downs` tallies what each bot was after, and where, when it went down; `--trace` prints where they and the horde are every ten seconds; `--ledger` what the team earned and spent).
-- `npm run ship [-- --here]` — the acceptance run: fresh clone of the last commit, `npm ci`, build,
+- `npm run ship [-- --here] [--map=longest_night]` — the acceptance run: fresh clone of the last commit, `npm ci`, build,
   `npm start` (no debug commands), four browser players on the autopilot through ten rounds, nothing
-  that looks like an error in any console or the server log. About 20 minutes. `--here` uses this
-  checkout's build. Writes `test-results/ship-*.png`.
+  that looks like an error in any console or the server log, never 150 draw calls in a frame. About 20 minutes. `--here` uses this
+  checkout's build; `--map` has the host pick that map in the lobby. Writes `test-results/ship-*.png` (`ship-<map>-*.png`).
 - `npm run rounds` — after a build: two browser players through the round loop (round 1, points,
   late join, down, revive, scoreboard, game over, back to lobby). Writes `test-results/rounds-*.png`.
 - `npm run economy` — after a build: one browser player through the purchases (wall gun and ammo,
@@ -53,6 +52,10 @@ M10 is acceptance).
   `test-results/economy-*.png`.
 - `npm run horde` — after a build: browser walk-through of the zombie features (tear, vault,
   attack, damage, rebuild, hit zones, crawler, full horde). Writes `test-results/horde-*.png`.
+- `economy`, `horde` and `wonders` take `-- --night` to do the same on The Longest Night
+  (`economy-night-*.png`, ...): where each thing stands on each map is the table at the top of the script
+  (`STATION`, `NIGHT`). A spot in such a table must be clear floor: check with `scripts/region.ts`
+  (a teleport into a parked car lands on the storey below).
 - `npm run wonders` — after a build: one browser player through session 11 (Cache roll, take, Jinx and move;
   the six power-ups; every Cache gun in the hand; Arclight and Gravewell against 24 zombies; the Siren;
   a howler round). Writes `test-results/wonders-*.png`.
@@ -71,7 +74,8 @@ M10 is acceptance).
   `npx tsx scripts/region.ts <map> <level> <x0> <z0> <x1> <z1>` prints part of one storey a character a cell
   (0.5 m both ways, with a ruler; `$` is something to buy): for finding where a thing fits.
 - `npm run maps` — after a build: two browser players and a bot; the host picks another map in the lobby,
-  pages and seats follow, the game runs on it; a server without debug offers one map. Writes `test-results/maps-*.png`.
+  pages and seats follow, the game runs on it; a server without debug offers the two maps people play and
+  plays the city. Writes `test-results/maps-*.png`.
 - `npm run tour [view...]` — after a build: screenshots of every zone to `test-results/tour-*.png`
   (`--perf`: no pictures; triangles, draw calls and frame rate of every view, the dearest first)
   (views are listed in `scripts/tour.cjs` with the height of the floor each stands on; add one when you add
@@ -79,6 +83,10 @@ M10 is acceptance).
 - `npm run site` — after a build: one browser player over Harrow Ridge's heights (the yard's slope and bluff,
   the lab stairs, the tunnel's ramps, the gallery, the dock, the vault's two flights; shots and prompts by floor;
   zombies following up and down). Writes `test-results/site-*.png`.
+- `npm run city` — after a build: one browser player over every height of The Longest Night (the kerb, the
+  tenement's flights and roof, the plank bridge, Abelard's hut, stairs and both escalators, the Lyric's balcony,
+  the fire escape, the subway down to the platform, through the train and up to the avenue, the service tunnel
+  to the hatch; no corrections; prompts and shots by floor; zombies following over five storeys). Writes `test-results/city-*.png`.
 - `npm run heights` — after a build: one browser player on the Stacks (server started with `ZH_MAP=stacks`,
   the map its rooms start on; the client follows its room's map, or takes `?map=stacks`): up the ramp and the stairs, the ledge, shots
   and prompts by floor, a zombie climbing three storeys. Writes `test-results/heights-*.png`.
@@ -187,13 +195,17 @@ M10 is acceptance).
   `server/src/bot.ts` (`BotPlayer`: wire messages, modelled aim), `server/src/game/campaign.ts` (fake
   clock) and `client/src/game/autopilot.ts` (key presses through the real client code).
 - World meshes are one per zone and surface style plus props and glow per zone (`worldBuilder.ts`; a big
-  one is cut into 40 m tiles), so three.js culls what is out of view; keep new static geometry in those
+  one is cut into tiles of 40 m at most, laid over its own extent and never more than a tile to 6,000 triangles), so three.js culls what is out of view; keep new static geometry in those
   buckets. What is in view but behind walls is left out by zone (PLAN 6.1 "What is drawn"):
   `shared/src/map/visibility.ts` works out once a map which zones can see each other at all, and each time
   the eye moves `seenFrom` asks which roofed zones have a doorway or window in sight (and, from indoors,
   whether any way out to the open air is); `World.view` hides the rest. A mesh named `...|zone` is drawn with that zone, `...|out` with the outside. Anything new that is
-  drawn per zone must go through `addMesh` with such a name, or it is never hidden; after changing the
+  drawn per zone must go through `addMesh` with such a name (a turning part goes with the zone its pivot is in), or it is never hidden; after changing the
   sampling or a map's doors run `VIS_DENSE=1 npx vitest run shared/src/map/visibility.test.ts`.
+  A shut door is drawn only while one of its faces is in sight (`doorSights`, `doorInSight`). What decides
+  whether something is *drawn* must use `clearLine` (walls and shut doors only), never `rayWorld` or
+  `lineOfSight`: to those tall furniture blocks at any height, and from higher ground it is seen over.
+  The budget is 150 draw calls in a frame with four players in (`ship` fails at it).
 - Server: `lobby.ts` (rooms, seats, reconnect, chat; transport-agnostic via `Peer`) and `game/Game.ts`
   (the match; `step(dt)` is pure so tests drive it without timers). Client: `net/net.ts` is the
   connection/lobby state machine, `main.ts` builds everything and runs the frame loop,
@@ -209,11 +221,13 @@ M10 is acceptance).
   `settings.label('use')`. Screens over the game (`ui/screens.ts`: settings, help, pause, the
   connection notice) are switched by `body[data-panel|data-paused|data-net]` in CSS; while
   `screens.blocking` or `chat.open` the game takes no input.
-- Dynamic models: build from `models/rig.ts` boxes and tint each frame with `world.lightAt()`.
+- Dynamic models: build from `models/rig.ts` boxes and tint each frame with `world.lightAt()`. A remote
+  player (`models/player.ts`) is joints that are empty groups and one mesh for the whole body, posed in code
+  each frame (`pose`): give a new body part to `bone(...)`, not a mesh of its own.
 - Combat: stats in `shared/src/data/weapons.ts`, maths in `shared/src/combat.ts`. The client
   (`game/weapons.ts`) resolves its own shots against `game/entities.ts` hit boxes and
   `rayWorld`, predicts ammo and sends `fire`; `server/src/game/combat.ts` validates rate, ammo,
-  distance and line of sight. Server enemies live in `game/entities.ts` (types, damage, the
+  distance and line of sight (chest to chest, or from the shooter's eye: over a roof's parapet only the eye sees). Server enemies live in `game/entities.ts` (types, damage, the
   dummy), thrown/launched things in `game/projectiles.ts`.
 - Zombies (server): `game/zombies.ts` (brain and movement), `spawner.ts` (queue → windows of
   active zones), `barricades.ts` (planks, rebuild), `nav.ts` (a `FlowField` per player),

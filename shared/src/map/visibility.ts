@@ -1,5 +1,6 @@
 import { CELL_SIZE } from '../constants';
-import { Cell, NO_ZONE, type CompiledMap } from './compile';
+import { Cell, DOOR_HEIGHT, NO_ZONE, type CompiledMap, type DoorSet } from './compile';
+import type { Opening } from './types';
 
 // Which zones can be seen from which. The renderer culls by the view's frustum, but on a map the
 // size of a city most of the world lies inside the frustum from anywhere and behind a wall: the
@@ -43,6 +44,52 @@ const EYE_BOX = 0.35;
 const BOX = [[0, 0], [EYE_BOX, 0], [-EYE_BOX, 0], [0, EYE_BOX], [0, -EYE_BOX]] as const;
 /** A boundary of more points than this is only looked for from a region that is itself seen: a line to it comes through there. */
 const WAITS_OVER = 240;
+
+/** How far apart, at most, the points on a door's face are along it. */
+const DOOR_EVERY = 0.5;
+const DOOR_HEIGHTS = [0.2, 0.8, 1.4, DOOR_HEIGHT - 0.15];
+/** A door this near is drawn whatever the lines say. */
+const DOOR_NEAR = 2;
+const NONE_OPEN: ReadonlySet<string> = new Set();
+
+/**
+ * A shut door is a draw call or three and stands in a wall, out of sight from most of a map: the
+ * client draws one only while it can be seen (through walls and other shut doors it cannot; over
+ * or past furniture it can). These are the points it is looked for at (x, y, z,
+ * ...): just clear of both its faces, every half metre along and at four heights.
+ */
+export function doorSights(map: CompiledMap, o: Opening): number[] {
+  const alongX = o.w > o.d;
+  const [len, thick] = [Math.max(o.w, o.d), Math.min(o.w, o.d)];
+  const [x, z] = [o.x + o.w / 2, o.z + o.d / 2];
+  const floor = map.lo[map.idx(Math.floor(x / CELL_SIZE), Math.floor(z / CELL_SIZE), Math.max(0, map.layerOf(o.level ?? 0)))]!;
+  const n = Math.max(2, Math.ceil(len / DOOR_EVERY) + 1);
+  const points: number[] = [];
+  for (const side of [-1, 1]) {
+    const off = side * (thick / 2 + 0.12);
+    for (let k = 0; k < n; k++) {
+      // (From two centimetres inside each jamb: a sliver of a door seen past its frame is still a door.)
+      const along = -len / 2 + 0.02 + ((len - 0.04) * k) / (n - 1);
+      for (const h of DOOR_HEIGHTS) points.push(x + (alongX ? along : off), floor + h, z + (alongX ? off : along));
+    }
+  }
+  return points;
+}
+
+/**
+ * Can a shut door be seen from about (x, y, z)? `points` are its `doorSights`, `open` the doors a
+ * line may pass through. As everything here it errs towards seeing: the eye is anywhere within a
+ * step of where it is said to be.
+ */
+export function doorInSight(map: CompiledMap, open: DoorSet, points: readonly number[], x: number, y: number, z: number): boolean {
+  for (const [ex, ez] of BOX) {
+    for (let k = 0; k < points.length; k += 3) {
+      if (Math.hypot(points[k]! - x, points[k + 1]! - y, points[k + 2]! - z) < DOOR_NEAR) return true;
+      if (clearLine(map, x + ex, y, z + ez, points[k]!, points[k + 1]!, points[k + 2]!, open ?? NONE_OPEN)) return true;
+    }
+  }
+  return false;
+}
 
 /**
  * What an eye at (x, y, z) sees, by region; `within` are the regions it is in or beside. Fills
@@ -124,8 +171,12 @@ export function visibility(map: CompiledMap): Visibility {
   return v;
 }
 
-/** Is the straight line between two points clear of walls, floors and ceilings? (Doors and furniture do not count.) */
-export function clearLine(map: CompiledMap, x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): boolean {
+/**
+ * Is the straight line between two points clear of walls, floors and ceilings? Furniture does not
+ * count (a prop is smaller than the cells it blocks, and is seen over from higher up), nor do
+ * doors unless `open` says which are open: then a shut one is a wall.
+ */
+export function clearLine(map: CompiledMap, x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, open: DoorSet = 'all'): boolean {
   let cx = Math.floor(x0 / CELL_SIZE);
   let cz = Math.floor(z0 / CELL_SIZE);
   const ex = Math.floor(x1 / CELL_SIZE);
@@ -151,7 +202,9 @@ export function clearLine(map: CompiledMap, x0: number, y0: number, z0: number, 
     // Is everything between the two heights in this column inside one open space: a cell's, or the air over a roof?
     if (cx < 0 || cz < 0 || cx >= cols || cz >= rows) return false;
     let clear = false;
-    for (let i = cz * cols + cx; i < n && !clear; i += plane) clear = kind[i] !== Cell.Solid && a >= floor[i]! - EPS && b <= cap[i]! + EPS;
+    for (let i = cz * cols + cx; i < n && !clear; i += plane) {
+      clear = kind[i] !== Cell.Solid && a >= floor[i]! - EPS && b <= cap[i]! + EPS && (open === 'all' || kind[i] !== Cell.Door || map.isDoorOpen(i, open));
+    }
     if (!clear && !map.clearAir(cx, cz, a - EPS, b)) return false;
     if (tOut >= 1 || (cx === ex && cz === ez)) return true;
     if (tMaxX < tMaxZ) {

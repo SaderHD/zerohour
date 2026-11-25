@@ -4,7 +4,7 @@ import { DEFAULT_MAP, MAPS, compiledMap, isMapId, mapById, mapChoices, rulesOf }
 
 describe('the maps', () => {
   it('lists the ones people play, and the proving grounds only for a debug server', () => {
-    expect(mapChoices(false)).toEqual(['harrow_ridge']);
+    expect(mapChoices(false)).toEqual(['harrow_ridge', 'longest_night']);
     expect(mapChoices(true)).toEqual(['harrow_ridge', 'longest_night', 'stacks', 'corner']);
     expect(mapChoices(false)).toContain(DEFAULT_MAP);
   });

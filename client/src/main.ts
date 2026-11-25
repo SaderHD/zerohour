@@ -128,6 +128,9 @@ resize();
 // --- Network and screens
 const net = new Net();
 const menu = new Menu(net, params.get('name'), autostart ? null : wantedRoom);
+// The menu stands in front of the map this page was built for, and says which.
+const menuSub = document.querySelector('#menu .sub');
+if (menuSub) menuSub.textContent = `${map.def.name} · 1–4 survivors`;
 const screens = new Screens(net);
 const chat = new Chat((text) => net.chat(text));
 const playing = () => net.phase === 'playing';

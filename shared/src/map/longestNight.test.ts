@@ -44,7 +44,7 @@ describe('The Longest Night compiles', () => {
     expect([map.cols, map.rows]).toEqual([300, 240]);
     expect(map.levels.map((l) => l.y)).toEqual([-8, -4, 0, 4, 8]);
     expect(map.zones).toHaveLength(14);
-    expect(longestNight.hidden).toBe(true);
+    expect(longestNight.hidden).toBeUndefined();
   });
 
   it('is about four times the station to walk on', () => {

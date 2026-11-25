@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CELL_SIZE, DOOR_HEIGHT, DOOR_OPEN_SECONDS, type CompiledMap, type Opening } from '@zh/shared';
+import { CELL_SIZE, DOOR_HEIGHT, DOOR_OPEN_SECONDS, doorSights, type CompiledMap, type Opening } from '@zh/shared';
 import { Kit, type PropOut } from '../models/props/kit';
 import { crateAt, shelfUnit } from '../models/props/common';
 import { C } from '../models/props/palette';
@@ -9,7 +9,8 @@ import { signTexture, textTile } from './signs';
 
 // What fills a doorway until it is bought: a steel shutter with its price stencilled on, or a
 // heap of wreckage. One small group per door so it can move: shutters rise into the lintel,
-// debris drops through the floor.
+// debris drops through the floor. Each is up to three draw calls (the slab, its stencilled price,
+// a lamp), so a shut door is drawn only while it is in sight (`sights`, `show`: worldBuilder's `view`).
 
 const TRAVEL = DOOR_HEIGHT + 0.1;
 
@@ -41,6 +42,8 @@ function debris(k: Kit, w: number): void {
 }
 
 interface Door {
+  /** What the world shows or hides; the group in it is what moves. */
+  holder: THREE.Group;
   group: THREE.Group;
   debris: boolean;
   /** 0 shut .. 1 open. */
@@ -52,6 +55,8 @@ export class Doors {
   readonly group = new THREE.Group();
   triangles = 0;
   private readonly doors = new Map<string, Door>();
+  /** Points just clear of both faces of every door (`doorSights`): one of them in sight and the door is. */
+  readonly sights = new Map<string, number[]>();
 
   constructor(map: CompiledMap, baker: Baker) {
     this.group.name = 'doors';
@@ -65,14 +70,17 @@ export class Doors {
       if (o.style === 'debris') debris(k, Math.max(o.w, o.d));
       else shutter(k, o, Math.max(o.w, o.d));
       const group = new THREE.Group();
-      group.name = `door:${o.id}`;
+      const holder = new THREE.Group();
+      holder.name = `door:${o.id}`;
+      holder.add(group);
+      this.sights.set(o.id, doorSights(map, o));
       for (const [b, mat] of [[out.prop, propMaterial()], [out.glow, glowMaterial], [out.sign, signMaterial(signTexture())]] as const) {
         if (!b.pos.length) continue;
         group.add(new THREE.Mesh(b.toGeometry(), mat));
         this.triangles += b.triangles;
       }
-      this.doors.set(o.id, { group, debris: o.style === 'debris', t: 0, open: false });
-      this.group.add(group);
+      this.doors.set(o.id, { holder, group, debris: o.style === 'debris', t: 0, open: false });
+      this.group.add(holder);
     }
   }
 
@@ -83,6 +91,17 @@ export class Doors {
     d.open = open;
     if (!open || !animate) d.t = open ? 1 : 0;
     this.place(d);
+  }
+
+  /** Is it open, or opening? (Then it is not in anything's way, and `show` has nothing to say about it.) */
+  isOpen(id: string): boolean {
+    return this.doors.get(id)?.open ?? false;
+  }
+
+  /** Draw a door or leave it out (a door that is opening is drawn regardless, until it is gone). */
+  show(id: string, visible: boolean): void {
+    const d = this.doors.get(id);
+    if (d) d.holder.visible = visible || d.open;
   }
 
   private place(d: Door): void {

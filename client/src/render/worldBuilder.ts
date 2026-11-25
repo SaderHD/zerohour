@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CELL_SIZE, Cell, DECK, FLOOR_STYLES, WALL_STYLES, WINDOW_SILL, massing, propDef, seenFrom, visibility, type CompiledMap, type FloorStyle, type WallStyle } from '@zh/shared';
+import { CELL_SIZE, Cell, DECK, FLOOR_STYLES, WALL_STYLES, WINDOW_SILL, doorInSight, massing, propDef, seenFrom, visibility, type CompiledMap, type FloorStyle, type WallStyle } from '@zh/shared';
 import { PROP_BUILDERS, Kit, fixture } from '../models/props';
 import type { PropOut } from '../models/props/kit';
 import { Ambient } from './ambient';
@@ -18,7 +18,10 @@ import { buildTowers } from './towers';
 
 const S = CELL_SIZE;
 const TEX_METRES = 2; // one texture repeat covers 2 m
-/** A mesh of more triangles than this is cut into square tiles this many metres across, each culled by itself. */
+/**
+ * A mesh of more triangles than this is cut into tiles, each culled by itself: no more than this
+ * many metres across, and no more of them than leaves each about this many triangles.
+ */
 const SPLIT_OVER = 6000;
 const TILE = 40;
 /** Seconds for the lights to come up when the power is switched on. */
@@ -215,7 +218,7 @@ export function buildWorld(map: CompiledMap): World {
     if (!b.pos.length) return;
     // (A big mesh goes in tiles, so that the part of a street behind the eye is not drawn.)
     if (b.triangles > SPLIT_OVER) {
-      const parts = b.split(TILE);
+      const parts = b.split(TILE, Math.ceil(b.triangles / SPLIT_OVER));
       if (parts.length > 1) return parts.forEach((part) => addMesh(name, part, mat));
     }
     const mesh = new THREE.Mesh(b.toGeometry(), mat);
@@ -295,6 +298,12 @@ export function buildWorld(map: CompiledMap): World {
   const ambient = new Ambient(map, baker, all.movers!, all.drips!, all.steams!);
   group.add(ambient.group);
   triangles += ambient.triangles;
+  // (Each turning part is a draw call or two: it goes with the zone it stands in.)
+  for (const m of ambient.group.children) {
+    if (!m.name.startsWith('mover:')) continue;
+    const i = map.holdAt(Math.floor(m.position.x / S), Math.floor(m.position.z / S), m.position.y);
+    if (i >= 0) with_(zoneOf(i), m);
+  }
 
   const doors = new Doors(map, baker);
   group.add(doors.group);
@@ -311,6 +320,8 @@ export function buildWorld(map: CompiledMap): World {
   const seen = new Uint8Array(vis.regions.length);
   /** The eye has to move this far before what it sees is worked out again (`seenFrom` allows for more). */
   const LOOK_AGAIN = 0.2;
+  /** The doors that are open: a line of sight goes through them. */
+  const openNow = new Set<string>();
   const view = (x: number, y: number, z: number): void => {
     const [cx, cz] = [Math.floor(x / S), Math.floor(z / S)];
     const at = map.holdAt(cx, cz, y);
@@ -336,6 +347,8 @@ export function buildWorld(map: CompiledMap): World {
       const show = within.size === 0 || (r < 0 ? out : seen[r] === 1);
       for (const o of things) o.visible = show;
     }
+    // A shut door is small and stands in a wall: it is drawn while a line from here reaches one of its faces.
+    for (const [id, points] of doors.sights) doors.show(id, within.size === 0 || doors.isOpen(id) || doorInSight(map, openNow, points, x, y, z));
   };
 
   return {
@@ -352,8 +365,15 @@ export function buildWorld(map: CompiledMap): World {
     setDoors: (open) => {
       const want = new Set(open);
       for (const o of map.def.openings) if (o.kind === 'door') doors.set(o.id, want.has(o.id));
+      openNow.clear();
+      for (const id of want) openNow.add(id);
+      stale = true;
     },
-    openDoor: (id) => doors.set(id, true, true),
+    openDoor: (id) => {
+      doors.set(id, true, true);
+      openNow.add(id);
+      stale = true;
+    },
     setPower: (on, animate = false) => {
       power = on;
       if (!animate || !on) powerT = on ? 1 : 0;
