@@ -17,6 +17,7 @@ import { floodWalkable, validateMap } from './validate';
 
 const tiny = (over: Partial<MapDef> = {}): MapDef => ({
   id: 't', name: 't', size: { w: 20, d: 12 },
+  scene: harrowRidge.scene,
   zones: [{ id: 'a', name: 'A', letter: 'a', ambient: 0x202020 }, { id: 'b', name: 'B', letter: 'b', ambient: 0x202020 }],
   rooms: [
     { id: 'a', zone: 'a', x: 5, z: 2, w: 5, d: 6, ceil: 3, floor: 'concrete', wall: 'block' },

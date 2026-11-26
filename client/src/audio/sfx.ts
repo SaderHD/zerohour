@@ -167,6 +167,18 @@ export class Sfx {
     v.noise({ d: 0.4, g: 0.12, a: 0.1, r: 0.2, filter: { type: 'lowpass', f: 400 } });
   }
 
+  /**
+   * A siren a long way off across the city, that never gets any nearer: two slow wails through
+   * a lot of air. `pan` is which way it seems to come from.
+   */
+  distantSiren(pan = 0): void {
+    const v = this.s.voice({ gain: 0.11, priority: 0, bus: 'music', pan, reverb: 1 });
+    for (let i = 0; i < 2; i++) {
+      v.tone({ t: i * 4.6, type: 'sawtooth', f: 520, via: [[0.42, 880], [0.55, 860], [1, 500]], d: 4.4, g: 0.5, a: 0.8, r: 1.6, filter: { type: 'bandpass', f: 760, q: 1.2 } });
+      v.tone({ t: i * 4.6 + 0.35, type: 'sine', f: 518, via: [[0.42, 874], [0.55, 856], [1, 498]], d: 4.4, g: 0.2, a: 1, r: 1.8 });
+    }
+  }
+
   // ------------------------------------------------------------------ our own body
 
   hurt(heavy: boolean): void {

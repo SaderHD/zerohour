@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { WALK_SPEED, clamp, type WeaponId } from '@zh/shared';
-import { damp, modelMaterial, part, pivot, shadedBox } from './rig';
+import { damp, modelMaterial, pivot, shadedBox } from './rig';
 import { buildWeapon, disposeWeapon, type WeaponModel } from './weapons';
 
 /** Jacket colours by seat. */
@@ -13,15 +13,26 @@ const SKIN = 0xc89a78;
 const HAT = 0x24262c;
 const HIP_Y = 0.92;
 
+const JOINT = new THREE.Matrix4();
+
 export interface PlayerAnim {
   speed: number;
   sprinting: boolean;
   pitch: number;
 }
 
+/** The boxes that hang from one joint: where their vertices are in the body's one mesh, and where they are at rest. */
+interface Skin {
+  joint: THREE.Group;
+  from: number;
+  rest: Float32Array;
+}
+
 /**
  * Third-person survivor: a box rig with procedural animation. Faces -z at yaw 0. The root's
- * origin is at the feet.
+ * origin is at the feet. The joints are empty groups; the eleven parts that hang from them are
+ * one mesh, its vertices put where the joints say each frame (`pose`): a draw call a player,
+ * where a mesh a part was eleven, and three teammates in view a quarter of a frame's budget.
  */
 export class PlayerModel {
   readonly root = new THREE.Group();
@@ -37,6 +48,8 @@ export class PlayerModel {
   private readonly hipR: THREE.Group;
   private readonly kneeL: THREE.Group;
   private readonly kneeR: THREE.Group;
+  private readonly skins: Skin[] = [];
+  private readonly position: THREE.BufferAttribute;
   private phase = 0;
   private amp = 0;
   private sprintBlend = 0;
@@ -51,16 +64,20 @@ export class PlayerModel {
   private recoil = 0;
 
   constructor(jacket: number) {
-    const m = this.material;
+    const parts: { joint: THREE.Group; geo: THREE.BufferGeometry }[] = [];
+    /** A joint, and the boxes that move with it. */
+    const bone = (joint: THREE.Group, ...boxes: THREE.BufferGeometry[]): THREE.Group => {
+      parts.push({ joint, geo: boxes.length === 1 ? boxes[0]! : mergeGeometries(boxes) });
+      return joint;
+    };
     const arm = (side: -1 | 1) => {
-      const fore = [shadedBox(0.1, 0.28, 0.1, jacket, 0, -0.14, 0), shadedBox(0.09, 0.08, 0.09, SKIN, 0, -0.32, 0)];
-      const elbow = pivot(0, -0.3, 0, part(m, ...fore));
-      const shoulder = pivot(side * 0.27, 0.44, 0, part(m, shadedBox(0.12, 0.32, 0.12, jacket, 0, -0.15, 0)), elbow);
+      const elbow = bone(pivot(0, -0.3, 0), shadedBox(0.1, 0.28, 0.1, jacket, 0, -0.14, 0), shadedBox(0.09, 0.08, 0.09, SKIN, 0, -0.32, 0));
+      const shoulder = bone(pivot(side * 0.27, 0.44, 0, elbow), shadedBox(0.12, 0.32, 0.12, jacket, 0, -0.15, 0));
       return { shoulder, elbow };
     };
     const leg = (side: -1 | 1) => {
-      const knee = pivot(0, -0.44, 0, part(m, shadedBox(0.12, 0.4, 0.13, PANTS, 0, -0.2, 0), shadedBox(0.13, 0.1, 0.25, BOOTS, 0, -0.43, -0.05)));
-      const hip = pivot(side * 0.1, 0, 0, part(m, shadedBox(0.15, 0.46, 0.16, PANTS, 0, -0.22, 0)), knee);
+      const knee = bone(pivot(0, -0.44, 0), shadedBox(0.12, 0.4, 0.13, PANTS, 0, -0.2, 0), shadedBox(0.13, 0.1, 0.25, BOOTS, 0, -0.43, -0.05));
+      const hip = bone(pivot(side * 0.1, 0, 0, knee), shadedBox(0.15, 0.46, 0.16, PANTS, 0, -0.22, 0));
       return { hip, knee };
     };
     const L = arm(-1);
@@ -69,22 +86,39 @@ export class PlayerModel {
     this.elbowL = L.elbow;
     this.shoulderR = R.shoulder;
     this.elbowR = R.elbow;
-    this.head = pivot(0, 0.52, 0, part(
-      m,
+    this.head = bone(
+      pivot(0, 0.52, 0),
       shadedBox(0.1, 0.08, 0.1, SKIN, 0, 0.02, 0),
       shadedBox(0.23, 0.24, 0.24, SKIN, 0, 0.17, 0),
       shadedBox(0.25, 0.09, 0.26, HAT, 0, 0.3, 0),
       shadedBox(0.25, 0.03, 0.1, HAT, 0, 0.26, -0.17),
-    ));
-    this.torso = pivot(0, 0.1, 0, part(m, shadedBox(0.42, 0.5, 0.24, jacket, 0, 0.26, 0), shadedBox(0.3, 0.3, 0.1, PANTS, 0, 0.3, 0.16)), this.head, this.shoulderL, this.shoulderR);
+    );
+    this.torso = bone(pivot(0, 0.1, 0, this.head, this.shoulderL, this.shoulderR), shadedBox(0.42, 0.5, 0.24, jacket, 0, 0.26, 0), shadedBox(0.3, 0.3, 0.1, PANTS, 0, 0.3, 0.16));
     const legL = leg(-1);
     const legR = leg(1);
     this.hipL = legL.hip;
     this.kneeL = legL.knee;
     this.hipR = legR.hip;
     this.kneeR = legR.knee;
-    this.body = pivot(0, HIP_Y, 0, part(m, shadedBox(0.34, 0.18, 0.2, PANTS, 0, 0.03, 0)), this.torso, this.hipL, this.hipR);
+    this.body = bone(pivot(0, HIP_Y, 0, this.torso, this.hipL, this.hipR), shadedBox(0.34, 0.18, 0.2, PANTS, 0, 0.03, 0));
     this.root.add(this.body);
+    // All of it as one mesh in the root's space.
+    const geo = mergeGeometries(parts.map((p) => p.geo));
+    this.position = geo.getAttribute('position') as THREE.BufferAttribute;
+    this.position.setUsage(THREE.DynamicDrawUsage);
+    let from = 0;
+    for (const { joint, geo: g } of parts) {
+      const rest = new Float32Array(g.getAttribute('position').array);
+      this.skins.push({ joint, from, rest });
+      from += rest.length;
+      g.dispose();
+    }
+    // (Whatever the pose, the body is within this of its middle: three.js culls by it.)
+    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.95, 0), 1.5);
+    const mesh = new THREE.Mesh(geo, this.material);
+    mesh.name = 'player';
+    this.root.add(mesh);
+    this.pose();
 
     // The gun's -z (muzzle) maps to the forearm's -y, its +y (sights) to the forearm's -z.
     this.mount.position.set(-0.02, -0.38, -0.05);
@@ -172,6 +206,25 @@ export class PlayerModel {
     this.shoulderL.rotation.set(hold * (1.05 + aim) + run * (s * 0.9) + swipe * 0.5, 0, hold * 0.55 - swipe * 0.9);
     this.elbowL.rotation.x = hold * 0.5 + run * 1.1;
     this.shoulderL.position.y = this.shoulderR.position.y = 0.44 + breathe * 1.5;
+    this.pose();
+  }
+
+  /** Put every part's vertices where its joint now is. */
+  private pose(): void {
+    for (const s of this.skins) s.joint.updateMatrix();
+    const out = this.position.array as Float32Array;
+    for (const { joint, from, rest } of this.skins) {
+      const m = JOINT.identity();
+      for (let o: THREE.Object3D | null = joint; o && o !== this.root; o = o.parent) m.premultiply(o.matrix);
+      const e = m.elements;
+      for (let i = 0; i < rest.length; i += 3) {
+        const [x, y, z] = [rest[i]!, rest[i + 1]!, rest[i + 2]!];
+        out[from + i] = e[0]! * x + e[4]! * y + e[8]! * z + e[12]!;
+        out[from + i + 1] = e[1]! * x + e[5]! * y + e[9]! * z + e[13]!;
+        out[from + i + 2] = e[2]! * x + e[6]! * y + e[10]! * z + e[14]!;
+      }
+    }
+    this.position.needsUpdate = true;
   }
 
   /** Tint by the baked light at the model's position. */

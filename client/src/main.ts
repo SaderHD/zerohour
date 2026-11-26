@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import {
-  BLEEDOUT_SECONDS, CLIENT_MOVE_SEND_HZ, MARK_RANGE, MoveState, PLAYER_EYE_HEIGHT, aimDir, compileMap, mapById, maxHpWith, rayWorld, validateMap,
+  BLEEDOUT_SECONDS, CLIENT_MOVE_SEND_HZ, MARK_RANGE, MoveState, PLAYER_EYE_HEIGHT, aimDir, compileMap, isMapId, mapById, maxHpWith, rayWorld, validateMap,
 } from '@zh/shared';
 import { GameAudio } from './audio/audio';
-import { debugState, wireDebug } from './debug';
+import { debugState, wireDebug, type ZhDebug } from './debug';
 import { Autopilot } from './game/autopilot';
 import { Barricades } from './game/barricades';
 import { CacheView } from './game/cacheView';
@@ -24,7 +24,6 @@ import { Input } from './input/input';
 import { ServerClock } from './net/interp';
 import { Net } from './net/net';
 import { Atmosphere } from './render/atmosphere';
-import { PALETTE } from './render/materials';
 import { RetroRenderer } from './render/renderer';
 import { buildSky } from './render/sky';
 import { Snow } from './render/snow';
@@ -49,27 +48,38 @@ const canvas = document.getElementById('game') as HTMLCanvasElement;
 const statusEl = document.getElementById('status') as HTMLDivElement;
 
 // --- World
-// The station, unless the address asks for another map (`?map=stacks`); a server playing a
-// different one sends us back here with its own (events.ts).
+// The station, unless the address asks for another map (`?map=stacks`). The world is built once,
+// for one map: when the room we are in is on another, the page is loaded again for that one
+// (`followMap`), and the seat is kept by its token.
 const map = compileMap(mapById(params.get('map')));
+/** Load the page again on the map the room is on. False when there is nothing to do, or no such map here. */
+function followMap(id: string): boolean {
+  if (id === map.def.id || !isMapId(id) || params.get('map') === id) return false;
+  const url = new URL(location.href);
+  url.searchParams.set('map', id);
+  location.replace(url);
+  return true;
+}
 const validation = validateMap(map);
 for (const e of validation.errors) console.error(`[map] ${e}`);
 debugState.mapErrors = validation.errors;
 
 const renderer = new RetroRenderer(canvas);
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(PALETTE.skyTop);
+scene.background = new THREE.Color(map.def.scene.skyTop);
 const atmosphere = new Atmosphere(map);
 scene.fog = atmosphere.fog;
 // World surfaces carry baked lighting in vertex colours; this ambient passes it through 1:1
 // (Lambert divides by pi). Realtime lights added later (muzzle flashes...) stack on top.
 scene.add(new THREE.AmbientLight(0xffffff, Math.PI));
-const sky = buildSky();
+const sky = buildSky(map.def.scene);
 scene.add(sky);
+const builtAt = performance.now();
 const world = buildWorld(map);
+debugState.worldBuildMs = Math.round(performance.now() - builtAt);
 scene.add(world.group);
-const snow = new Snow(map);
-scene.add(snow.points);
+const snow = map.def.scene.snow ? new Snow(map) : null;
+if (snow) scene.add(snow.points);
 debugState.worldTriangles = world.triangles;
 debugState.movers = world.movers;
 
@@ -118,6 +128,9 @@ resize();
 // --- Network and screens
 const net = new Net();
 const menu = new Menu(net, params.get('name'), autostart ? null : wantedRoom);
+// The menu stands in front of the map this page was built for, and says which.
+const menuSub = document.querySelector('#menu .sub');
+if (menuSub) menuSub.textContent = `${map.def.name} · 1–4 survivors`;
 const screens = new Screens(net);
 const chat = new Chat((text) => net.chat(text));
 const playing = () => net.phase === 'playing';
@@ -220,6 +233,7 @@ let joinedByLink = false;
 /** The roster as last seen, to say who came, went, dropped and returned. */
 let roster = new Map<number, { name: string; connected: boolean }>();
 net.onRoom = (room) => {
+  if (room && followMap(room.map)) return;
   menu.setRoom(room);
   debugState.room = room?.code ?? null;
   debugState.isHost = net.isHost;
@@ -256,7 +270,7 @@ s.on('chat', (m) => {
   chat.add(m.name, m.text, m.from === net.id);
   if (m.from !== net.id) audio.sfx.chat();
 });
-wireEvents({ net, match, map, world, player, remotes, entities, barricades, scores, hud, audio, arcs, cacheView, pickups, forgeView, fx, weapons, vm, shake, interact, clock, marks });
+wireEvents({ net, match, map, followMap, world, player, remotes, entities, barricades, scores, hud, audio, arcs, cacheView, pickups, forgeView, fx, weapons, vm, shake, interact, clock, marks });
 
 /** Drop a marker where we are looking, for the team. */
 function ping(): void {
@@ -283,7 +297,27 @@ const pick = (): { name: string; dist: number; at: [number, number, number] } | 
   for (let o: THREE.Object3D | null = hit.object; o && o !== scene; o = o.parent) names.unshift(o.name || o.type);
   return { name: names.join('/'), dist: hit.distance, at: [hit.point.x, hit.point.y, hit.point.z] };
 };
-wireDebug({ map, player, input, socket: s, playing, renderer, resize, audio, settings, screens, chat: (text) => net.chat(text), ping, autopilot, pick });
+const hidden = new Set<THREE.Object3D>();
+const meshes = (hide?: string): ReturnType<ZhDebug['meshes']> => {
+  for (const o of hidden) o.visible = true;
+  hidden.clear();
+  camera.updateMatrixWorld();
+  const frustum = new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+  const list: ReturnType<ZhDebug['meshes']> = [];
+  scene.traverseVisible((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    const g = m.geometry;
+    const one = (g.index ? g.index.count : (g.getAttribute('position')?.count ?? 0)) / 3;
+    const names: string[] = [];
+    for (let q: THREE.Object3D | null = m; q && q !== scene; q = q.parent) names.unshift(q.name || q.type);
+    if (hide && new RegExp(hide).test(names.join('/'))) return void hidden.add(m);
+    list.push({ name: names.join('/'), triangles: Math.round(one * ((m as THREE.InstancedMesh).isInstancedMesh ? (m as THREE.InstancedMesh).count : 1)), seen: !m.frustumCulled || frustum.intersectsObject(m), at: g.boundingSphere ? [g.boundingSphere.center.x, g.boundingSphere.center.y, g.boundingSphere.center.z, g.boundingSphere.radius].map((v) => Math.round(v)) : [] });
+  });
+  for (const o of hidden) o.visible = false;
+  return list.sort((a, b) => b.triangles - a.triangles);
+};
+wireDebug({ map, player, input, socket: s, playing, renderer, resize, audio, settings, screens, chat: (text) => net.chat(text), ping, autopilot, pick, meshes, cull: (on) => world.setCull(on) });
 
 const MAX_FRAME = 0.2;
 const SPECTATE_BACK = 2.4;
@@ -345,10 +379,11 @@ renderer.gl.setAnimationLoop((now) => {
       s.send({ t: 'move', seq: ++moveSeq, x: player.x, y: player.y, z: player.z, yaw: player.yaw, pitch: player.pitch, state });
     }
   } else {
-    // Menu backdrop: a slow pan around the courtyard.
+    // Menu backdrop: a slow pan from the map's vista.
     attract += dt;
     input.consumeMouse();
-    camera.position.set(33, 2.4, 43);
+    const { vista } = map.def.scene;
+    camera.position.set(vista.x, vista.y, vista.z);
     camera.rotation.set(0.12, attract * 0.06, 0, 'YXZ');
   }
   remotes.update(dt, clock.renderTime, camera, window.innerWidth, window.innerHeight);
@@ -365,9 +400,10 @@ renderer.gl.setAnimationLoop((now) => {
   pickups.update(dt, gameTime);
   hud.setEffects(live() ? [...match.effects].map(([kind, until]) => ({ kind, left: until - gameTime })) : []);
   world.update(dt, now / 1000);
+  world.view(camera.position.x, camera.position.y, camera.position.z);
   atmosphere.update(dt, camera.position.x, camera.position.y - PLAYER_EYE_HEIGHT, camera.position.z);
   sky.position.set(camera.position.x, 0, camera.position.z);
-  snow.update(now / 1000, camera.position);
+  snow?.update(now / 1000, camera.position);
   // A scoped rifle swaps the viewmodel for a scope overlay once the sights are up.
   const scoped = playing() && weapons.def?.cls === 'sniper' && weapons.aim > 0.85;
   renderer.render(scene, camera, live() && !player.freeCam && !scoped && match.life !== 'dead' ? vm : null);

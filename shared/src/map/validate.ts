@@ -1,7 +1,8 @@
 import { CELL_SIZE, MIN_LANE_WIDTH, PLAYER_RADIUS } from '../constants';
 import { circleFits } from '../nav/collide';
+import { checkBlocks } from './massing';
 import { mapWindows } from './windows';
-import { Cell, NO_ZONE, type CompiledMap, type DoorSet } from './compile';
+import { Cell, DECK, NO_ZONE, type CompiledMap, type DoorSet } from './compile';
 
 export interface ValidationResult {
   errors: string[];
@@ -32,7 +33,7 @@ export function floodWalkable(map: CompiledMap, x: number, y: number, z: number,
 
 /** Structural checks from docs/PLAN.md section 6.1. A map with any error must not ship. */
 export function validateMap(map: CompiledMap): ValidationResult {
-  const errors = [...map.errors];
+  const errors = [...map.errors, ...checkBlocks(map)];
   const warnings: string[] = [];
   const def = map.def;
   const cell = (v: number) => Math.floor(v / CELL_SIZE);
@@ -160,6 +161,15 @@ export function validateMap(map: CompiledMap): ValidationResult {
   for (const sp of map.spawns) {
     const i = map.cellAt(sp.x, sp.y, sp.z);
     if (i < 0 || map.kind[i] !== Cell.Outside) errors.push(`zombie spawn ${sp.id} is not inside its pocket`);
+  }
+  // What hangs in the air hangs over something lower: a ledge may not be sunk in the roof under it.
+  const tops = map.skyline;
+  if (tops) {
+    for (let i = 0; i < map.kind.length; i++) {
+      if (!map.deck[i] || map.kind[i] === Cell.Window || tops[i % map.plane]! <= map.lo[i]! - DECK + 1e-3) continue;
+      errors.push(`the floor at ${at(i)} hangs in the air, but what stands under it is ${tops[i % map.plane]!.toFixed(2)} m tall (most ${(map.lo[i]! - DECK).toFixed(2)})`);
+      break;
+    }
   }
   if (map.zone.every((z) => z === NO_ZONE)) errors.push('map has no rooms');
   return { errors, warnings };

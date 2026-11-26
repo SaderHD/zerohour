@@ -9,32 +9,57 @@ const WALL_COST = 8;
 /** How many cells ahead along the path a mover aims for (smooths the 8-direction staircase). */
 const LOOK_AHEAD = 3;
 
-const wallCostCache = new WeakMap<CompiledMap, Uint8Array>();
-function wallCosts(map: CompiledMap): Uint8Array {
-  let w = wallCostCache.get(map);
-  if (w) return w;
-  w = new Uint8Array(map.kind.length);
+/** Buckets of the queue: a power of two over the most one step can cost (DIAG + WALL_COST), so no two distances in the queue at once share one. */
+const BUCKETS = 32;
+
+/** What a field needs to know about a map and never changes: worked out once a map, shared by every field on it. */
+interface Ground {
+  /** Per cell: WALL_COST if it touches a wall, a ledge or furniture. */
+  wall: Uint8Array;
+  /** Per cell: 1 if it is floor nothing stands on. A door's cell is 0 here: whether it is open is asked each time. */
+  floor: Uint8Array;
+  /** The cells that are doorways. */
+  doors: Int32Array;
+}
+
+const grounds = new WeakMap<CompiledMap, Ground>();
+function groundOf(map: CompiledMap): Ground {
+  let g = grounds.get(map);
+  if (g) return g;
+  const n = map.kind.length;
+  const wall = new Uint8Array(n);
+  const floor = new Uint8Array(n);
+  const doors: number[] = [];
   const open = (i: number) => i >= 0 && (map.kind[i] === Cell.Floor || map.kind[i] === Cell.Door) && !map.block[i];
-  for (let i = 0; i < w.length; i++) {
+  for (let i = 0; i < n; i++) {
+    if (map.kind[i] === Cell.Door) doors.push(i);
+    else if (map.walkable(i)) floor[i] = 1;
     if (!open(i)) continue;
     // A wall, a ledge or furniture on any side.
-    for (let n = 0; n < 8; n++) if (!open(map.links[i * 8 + n]!)) { w[i] = WALL_COST; break; }
+    for (let k = 0; k < 8; k++) if (!open(map.links[i * 8 + k]!)) { wall[i] = WALL_COST; break; }
   }
-  wallCostCache.set(map, w);
-  return w;
+  grounds.set(map, (g = { wall, floor, doors: Int32Array.from(doors) }));
+  return g;
 }
 
 /**
  * Walking distance from every walkable cell to one goal (Dijkstra on the collision grid).
  * Zombies follow it downhill to their target player; bots use it to walk to a destination.
+ *
+ * A step costs a small whole number, so the queue is a ring of buckets, one a distance (Dial's
+ * algorithm): no heap, and the work is a few operations a cell reached, whatever the size of the
+ * grid it lies in. A map four times the station's is four times the work, not more.
  */
 export class FlowField {
   /** Cost to the goal per cell (10 per orthogonal step), or UNREACHABLE. */
   readonly dist: Uint16Array;
   private readonly walk: Uint8Array;
-  private readonly heap: Int32Array;
-  private heapSize = 0;
+  private readonly ground: Ground;
   private readonly wall: Uint8Array;
+  /** The queue: the first cell waiting at each distance (mod BUCKETS), and each waiting cell's neighbours in its list. */
+  private readonly head = new Int32Array(BUCKETS);
+  private readonly next: Int32Array;
+  private readonly prev: Int32Array;
   goalX = 0;
   goalY = 0;
   goalZ = 0;
@@ -43,72 +68,60 @@ export class FlowField {
     const n = map.kind.length;
     this.dist = new Uint16Array(n).fill(UNREACHABLE);
     this.walk = new Uint8Array(n);
-    this.heap = new Int32Array(n * 16); // room for every relaxation of every cell
-    this.wall = wallCosts(map);
-  }
-
-  // Binary min-heap of [dist, index] pairs.
-  private push(d: number, i: number): void {
-    const h = this.heap;
-    let k = this.heapSize++;
-    while (k > 0) {
-      const parent = (k - 1) >> 1;
-      if (h[parent * 2]! <= d) break;
-      h[k * 2] = h[parent * 2]!;
-      h[k * 2 + 1] = h[parent * 2 + 1]!;
-      k = parent;
-    }
-    h[k * 2] = d;
-    h[k * 2 + 1] = i;
-  }
-
-  private pop(): number {
-    const h = this.heap;
-    const top = h[1]!;
-    const n = --this.heapSize;
-    const d = h[n * 2]!;
-    const i = h[n * 2 + 1]!;
-    let k = 0;
-    for (;;) {
-      let c = k * 2 + 1;
-      if (c >= n) break;
-      if (c + 1 < n && h[(c + 1) * 2]! < h[c * 2]!) c++;
-      if (h[c * 2]! >= d) break;
-      h[k * 2] = h[c * 2]!;
-      h[k * 2 + 1] = h[c * 2 + 1]!;
-      k = c;
-    }
-    h[k * 2] = d;
-    h[k * 2 + 1] = i;
-    return top;
+    this.next = new Int32Array(n);
+    this.prev = new Int32Array(n);
+    this.ground = groundOf(map);
+    this.wall = this.ground.wall;
   }
 
   /** Recompute for a goal standing at (x, z) with its feet at `y`. Returns false if the goal is not on walkable ground. */
   compute(open: DoorSet, x: number, y: number, z: number): boolean {
-    const { map, dist, walk } = this;
+    const { map, dist, walk, head, next, prev, wall } = this;
     const links = map.links;
     this.goalX = x;
     this.goalY = y;
     this.goalZ = z;
     dist.fill(UNREACHABLE);
-    for (let i = 0; i < walk.length; i++) walk[i] = map.walkable(i, open) ? 1 : 0;
+    walk.set(this.ground.floor);
+    if (open) for (const i of this.ground.doors) if (map.isDoorOpen(i, open)) walk[i] = 1;
     const goal = map.cellAt(x, y, z);
     if (goal < 0 || !walk[goal]) return false;
-    this.heapSize = 0;
+    head.fill(-1);
     dist[goal] = 0;
-    this.push(0, goal);
-    while (this.heapSize > 0) {
-      const d = this.heap[0]!;
-      const i = this.pop();
-      if (d > dist[i]!) continue;
-      for (let n = 0; n < 8; n++) {
-        const j = links[i * 8 + n]!;
-        if (j < 0 || !walk[j]) continue;
-        if (n >= 4 && !this.cornerOpen(i, n)) continue; // no cutting corners
-        const nd = d + (n < 4 ? ORTH : DIAG) + this.wall[j]!;
-        if (nd < dist[j]! && nd < UNREACHABLE) {
+    head[0] = goal;
+    next[goal] = prev[goal] = -1;
+    let waiting = 1;
+    for (let d = 0; waiting > 0; d++) {
+      const b = d & (BUCKETS - 1);
+      for (let i = head[b]!; i >= 0; i = head[b]!) {
+        // Take it out: whatever it reaches is further off than `d`, so nothing joins this bucket again before it is empty.
+        head[b] = next[i]!;
+        if (head[b]! >= 0) prev[head[b]!] = -1;
+        waiting--;
+        const base = i * 8;
+        for (let n = 0; n < 8; n++) {
+          const j = links[base + n]!;
+          if (j < 0) continue;
+          const nd = d + (n < 4 ? ORTH : DIAG) + wall[j]!;
+          const old = dist[j]!;
+          if (nd >= old || nd >= UNREACHABLE || !walk[j]) continue;
+          // No cutting corners: NEIGHBOURS 4..7 are (+,+) (+,-) (-,+) (-,-), the orthogonal steps sharing their signs.
+          if (n >= 4 && !(walk[links[base + (n < 6 ? 0 : 1)]!] === 1 && walk[links[base + (n % 2 === 0 ? 2 : 3)]!] === 1)) continue;
+          if (old !== UNREACHABLE) {
+            // It was waiting further off: out of that list.
+            const p = prev[j]!;
+            const q = next[j]!;
+            if (p >= 0) next[p] = q;
+            else head[old & (BUCKETS - 1)] = q;
+            if (q >= 0) prev[q] = p;
+          } else waiting++;
           dist[j] = nd;
-          this.push(nd, j);
+          const nb = nd & (BUCKETS - 1);
+          const h = head[nb]!;
+          next[j] = h;
+          prev[j] = -1;
+          if (h >= 0) prev[h] = j;
+          head[nb] = j;
         }
       }
     }

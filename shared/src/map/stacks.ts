@@ -15,6 +15,12 @@ export const stacks: MapDef = {
   id: 'stacks',
   name: 'The Stacks',
   size: { w: 30, d: 30 },
+  hidden: true,
+  scene: {
+    sky: 'ridge', skyTop: 0x04060a, skyHorizon: 0x1b2c48, haze: 0x0a0e16,
+    built: 'station', beyond: 'pines', outside: 0x1c2638, snow: true, fog: { color: 0x0a0e16, near: 6, far: 42 },
+    vista: { x: 13, y: 1.8, z: 13 },
+  },
   zones: [
     { id: 'hall', name: 'Hall', letter: 'h', ambient: 0x2a2620 },
     { id: 'loft', name: 'Loft', letter: 'l', ambient: 0x26221c },

@@ -2,6 +2,8 @@
 // through the session 5 features — window tear-down, vault, chase, damage and regen, rebuild,
 // shooting zombies, a crawler, then a 32-strong horde with three bots for the frame-rate numbers.
 // Screenshots go to test-results/horde-*.png. Usage: npm run build && npm run horde
+// `npm run horde -- --night` does the same on The Longest Night: the diner's windows, then the
+// full horde out in Wexler Square (horde-night-*.png).
 const { spawn } = require('node:child_process');
 const { mkdirSync } = require('node:fs');
 const path = require('node:path');
@@ -14,8 +16,33 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
 // ZombieState values (shared/src/protocol.ts)
 const S = { Approach: 0, Tear: 1, Vault: 2, Chase: 3, Attack: 4, Crawl: 5, CrawlAttack: 8 };
 
+// Where it happens, by map. `windows`: a spot inside each of the starting room's windows and a
+// point outside to look at; `rebuild`: where to stand to mend each, and where the planks are;
+// `mortal`: where the one zombie that may hurt us comes from, given where we stand; `duel` and
+// `grenade`: where we and the target stand; `field`: where the full horde is met, and seen from.
+const STATION = {
+  map: null, tag: 'horde', room: 'HRDE',
+  windows: { w_mess_n1: [28.2, 24.6, 26.75, 21.2], w_mess_n2: [31.3, 24.6, 32.75, 21.2], w_mess_e: [33.6, 27.4, 37.3, 26.75] },
+  rebuild: { w_mess_n1: [26.75, 23.5, 26.75, 21.7], w_mess_n2: [32.75, 23.5, 32.75, 21.7], w_mess_e: [35.8, 27.55, 35.8, 25.75] },
+  mortal: (s) => [s.x, s.z + 2.5],
+  duel: { from: [29, 29], target: [29, 24.5] },
+  grenade: { from: [29, 30], target: [29, 24] },
+  field: { stand: [29, 44], from: [44.5, 51], look: [33, 43] },
+};
+const NIGHT = {
+  map: 'longest_night', tag: 'horde-night', room: 'HRDN',
+  windows: { w_diner_w: [41.5, 90.75, 38, 90.75], w_diner_n: [43.75, 88.4, 43.75, 84.8], w_diner_kitchen: [50.75, 101.3, 50.75, 104.8] },
+  rebuild: { w_diner_w: [40.9, 90.75, 39.5, 90.75], w_diner_n: [43.75, 87.3, 43.75, 86], w_diner_kitchen: [50.75, 102.3, 50.75, 103.5] },
+  mortal: () => [49, 91.5],
+  duel: { from: [49, 93.5], target: [49, 89] },
+  grenade: { from: [49, 95.8], target: [49, 89.6] },
+  // Wexler Square, south of the rink; seen from its south-east corner.
+  field: { stand: [70, 79], from: [93, 84], look: [74, 78] },
+};
+const P = process.argv.includes('--night') ? NIGHT : STATION;
+
 (async () => {
-  const env = { ...process.env, PORT: String(port), ZH_DEBUG: '1' };
+  const env = { ...process.env, PORT: String(port), ZH_DEBUG: '1', ZH_MAP: P.map ?? '' };
   const server = spawn('node', ['server/dist/index.js'], { cwd: root, env, stdio: 'inherit' });
   let browser;
   let bots;
@@ -28,14 +55,13 @@ const S = { Approach: 0, Tear: 1, Vault: 2, Chase: 3, Attack: 4, Crawl: 5, Crawl
     const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
     const errors = [];
     page.on('pageerror', (e) => errors.push(String(e)));
-    await page.goto(`http://localhost:${port}/?name=Ada&debug=1&room=HRDE&autostart=1`);
-    await page.waitForFunction(() => window.__zh?.state().phase === 'playing', null, { timeout: 15000 });
+    await page.goto(`http://localhost:${port}/?name=Ada&debug=1&room=${P.room}&autostart=1${P.map ? `&map=${P.map}` : ''}`);
+    await page.waitForFunction(() => window.__zh?.state().phase === 'playing', null, { timeout: 30000 });
     mkdirSync(path.join(root, 'test-results'), { recursive: true });
     const state = () => page.evaluate(() => window.__zh.state());
-    const shot = (name) => page.screenshot({ path: path.join(root, `test-results/horde-${name}.png`) });
+    const shot = (name) => page.screenshot({ path: path.join(root, `test-results/${P.tag}-${name}.png`) });
     const zombies = async () => (await state()).entities.filter((e) => e.kind === 'zombie');
-    // Inside standing spots for the mess hall's windows, and a point outside each to look at.
-    const WINDOWS = { w_mess_n1: [28.2, 24.6, 26.75, 21.2], w_mess_n2: [31.3, 24.6, 32.75, 21.2], w_mess_e: [33.6, 27.4, 37.3, 26.75] };
+    const WINDOWS = P.windows;
     const watch = async (id) => {
       await page.evaluate(([x, z, lx, lz]) => { window.__zh.teleport(x, z, 0); window.__zh.lookAt(lx, 1.45, lz); }, WINDOWS[id]);
       await sleep(250);
@@ -50,7 +76,7 @@ const S = { Approach: 0, Tear: 1, Vault: 2, Chase: 3, Attack: 4, Crawl: 5, Crawl
       }
     };
 
-    // 1. Zombies arrive at the mess hall's windows and tear the planks off.
+    // 1. Zombies arrive at the windows of the room we start in and tear the planks off.
     await page.evaluate(() => { window.__zh.rounds(false); window.__zh.god(true); window.__zh.spawnZombies(6, { interval: 0.4, speed: 2.2 }); });
     await until('a zombie tearing planks', async () => (await zombies()).some((z) => z.state === S.Tear));
     const first = await until('planks torn', async () => (await state()).barricades.find((b) => b.planks <= 3));
@@ -71,7 +97,8 @@ const S = { Approach: 0, Tear: 1, Vault: 2, Chase: 3, Attack: 4, Crawl: 5, Crawl
 
     // 3. Mortal now: they hurt us, the screen reddens, and we cannot walk through them.
     //    (One zombie only: three hits in a row would put a solo player down and end the game.)
-    await page.evaluate(() => { const s = window.__zh.state(); window.__zh.killZombies(); window.__zh.spawnZombies(1, { x: s.x, z: s.z + 2.5, speed: 2.2 }); window.__zh.lookAt(s.x, 1.3, s.z + 2.5); });
+    const [mx, mz] = P.mortal(await state());
+    await page.evaluate(([x, z]) => { window.__zh.killZombies(); window.__zh.spawnZombies(1, { x, z, speed: 2.2 }); window.__zh.lookAt(x, 1.3, z); }, [mx, mz]);
     await until('the lone zombie', async () => (await zombies()).length === 1);
     await page.evaluate(() => window.__zh.god(false));
     await until('getting hurt', async () => (await state()).hurts > 0, 10000);
@@ -85,9 +112,9 @@ const S = { Approach: 0, Tear: 1, Vault: 2, Chase: 3, Attack: 4, Crawl: 5, Crawl
 
     // 4. Rebuild the barricade by holding F at the window.
     const broken = (await state()).barricades.find((b) => b.planks === 0);
-    const at = { w_mess_n1: [26.75, 22.7], w_mess_n2: [32.75, 22.7], w_mess_e: [35.8, 26.75] }[broken.id];
+    const at = P.rebuild[broken.id];
     assert(at, `unexpected window ${broken.id}`);
-    await page.evaluate(([x, z]) => { window.__zh.teleport(x, z + 0.8, 0); window.__zh.lookAt(x, 1.5, z - 1); }, at);
+    await page.evaluate(([x, z, lx, lz]) => { window.__zh.teleport(x, z, 0); window.__zh.lookAt(lx, 1.5, lz); }, at);
     await until('the rebuild prompt', async () => (await state()).prompt.includes('rebuild'), 3000);
     await shot('rebuild-prompt');
     await page.evaluate(() => window.__zh.key('KeyF', true));
@@ -103,7 +130,7 @@ const S = { Approach: 0, Tear: 1, Vault: 2, Chase: 3, Attack: 4, Crawl: 5, Crawl
     await shot('rebuilt');
 
     // 5. Shoot one: body shots, then a headshot kill. Hit zones come from the zombie's own boxes.
-    await page.evaluate(() => { window.__zh.teleport(29, 29, 0); window.__zh.spawnZombies(1, { x: 29, z: 24.5, speed: 0.4, hp: 150 }); });
+    await page.evaluate((d) => { window.__zh.teleport(d.from[0], d.from[1], 0); window.__zh.spawnZombies(1, { x: d.target[0], z: d.target[1], speed: 0.4, hp: 150 }); }, P.duel);
     const target = await until('the target zombie', async () => (await zombies())[0]);
     const aimAt = async (y) => {
       await page.evaluate(([id, y]) => { const e = window.__zh.state().entities.find((e) => e.id === id); window.__zh.key('Mouse2', true); window.__zh.lookAt(e.x, y, e.z); }, [target.id, y]);
@@ -130,7 +157,7 @@ const S = { Approach: 0, Tear: 1, Vault: 2, Chase: 3, Attack: 4, Crawl: 5, Crawl
     await shot('death');
 
     // 6. A grenade that does not kill leaves a crawler.
-    await page.evaluate(() => { window.__zh.killZombies(); window.__zh.teleport(29, 30, 0); window.__zh.spawnZombies(2, { x: 29, z: 24, speed: 0.05, hp: 1500 }); });
+    await page.evaluate((d) => { window.__zh.killZombies(); window.__zh.teleport(d.from[0], d.from[1], 0); window.__zh.spawnZombies(2, { x: d.target[0], z: d.target[1], speed: 0.05, hp: 1500 }); }, P.grenade);
     await until('two tough zombies', async () => (await zombies()).length === 2);
     await page.evaluate(() => { window.__zh.look(0, 0.12); window.__zh.press('KeyG'); });
     await until('a crawler', async () => (await zombies()).some((z) => z.state === S.Crawl || z.state === S.CrawlAttack), 8000);
@@ -140,15 +167,15 @@ const S = { Approach: 0, Tear: 1, Vault: 2, Chase: 3, Attack: 4, Crawl: 5, Crawl
 
     // 7. Full horde: three bots join, every door opens, 32 zombies (the 4-player cap).
     await page.evaluate(() => { window.__zh.killZombies(); window.__zh.openAllDoors(); });
-    bots = spawn('npx', ['tsx', 'server/src/bot.ts', 'HRDE', '3', `ws://localhost:${port}/ws`], { cwd: root, env, stdio: 'inherit' });
+    bots = spawn('npx', ['tsx', 'server/src/bot.ts', P.room, '3', `ws://localhost:${port}/ws`], { cwd: root, env, stdio: 'inherit' });
     await until('three bots', async () => (await state()).remotes.length === 3, 20000);
-    await page.evaluate(() => { window.__zh.teleport(29, 44, 0); window.__zh.spawnZombies(64, { interval: 0.25 }); });
+    await page.evaluate((f) => { window.__zh.teleport(f.stand[0], f.stand[1], 0); window.__zh.spawnZombies(64, { interval: 0.25 }); }, P.field);
     await until('32 zombies', async () => (await zombies()).length >= 32, 90000);
     await until('most of them inside', async () => (await zombies()).filter((z) => z.state >= S.Chase).length >= 20, 90000);
     await sleep(2500);
     const full = await state();
-    // Step back to the far corner of the yard for a wide look at them coming.
-    await page.evaluate(() => { window.__zh.teleport(44.5, 51, 0); window.__zh.lookAt(33, 0, 43); });
+    // Step back to a far corner for a wide look at them coming.
+    await page.evaluate((f) => { window.__zh.teleport(f.from[0], f.from[1], 0); window.__zh.lookAt(f.look[0], 0, f.look[1]); }, P.field);
     await sleep(1600);
     await shot('32');
     // Look straight at whichever zombies are nearest for a close-up of the pack.
@@ -158,7 +185,7 @@ const S = { Approach: 0, Tear: 1, Vault: 2, Chase: 3, Attack: 4, Crawl: 5, Crawl
     console.log(`[horde] 32 zombies + 4 players: ${full.fps} fps, ${full.drawCalls} draw calls, ${full.triangles} triangles (headless software rendering)`);
     assert(full.drawCalls < 150, `draw calls ${full.drawCalls} >= 150`);
     assert(errors.length === 0, `page errors:\n${errors.join('\n')}`);
-    console.log('[horde] ok');
+    console.log(`[horde] ok${P.map ? ` (${P.map})` : ''}`);
   } catch (e) {
     console.error('[horde] FAILED:', e.message);
     process.exitCode = 1;

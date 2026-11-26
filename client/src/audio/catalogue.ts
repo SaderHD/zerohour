@@ -2,7 +2,7 @@
 // one, and `npm run audio` renders each offline to check that it is there and does not clip.
 import { PERK_LIST, POWERUP_LIST, WEAPON_LIST, FLOOR_STYLES, weaponStats } from '@zh/shared';
 import type { GunSounds } from './guns';
-import type { Music } from './music';
+import { CAROLS, type Music } from './music';
 import type { Sfx } from './sfx';
 
 export interface Lib {
@@ -82,4 +82,9 @@ export const CATALOGUE: readonly Entry[] = [
   e('round-end', 4.4, (l) => l.music.roundEnd()),
   e('game-over', 9.5, (l) => l.music.gameOver()),
   e('mate-down', 1.2, (l) => l.music.mateDown()),
+  e('far-siren', 10, (l) => l.sfx.distantSiren()),
+  ...CAROLS.flatMap((c, i) => [
+    e(`carol-${c.name}`, 12, (l) => void l.music.carol('jukebox', i, 0)),
+    e(`carol-${c.name}-box`, 14, (l) => void l.music.carol('box', i, 0)),
+  ]),
 ];

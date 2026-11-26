@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import {
-  MAX_CHAT_LENGTH, MAX_NAME_LENGTH, MAX_PLAYERS, MAX_ROOMS, RECONNECT_GRACE_MS, ROOM_CODE_LENGTH, ROOM_IDLE_MS, ROOM_UNUSED_MS, sanitizeText,
+  MAX_CHAT_LENGTH, MAX_NAME_LENGTH, MAX_PLAYERS, MAX_ROOMS, RECONNECT_GRACE_MS, ROOM_CODE_LENGTH, ROOM_IDLE_MS, ROOM_UNUSED_MS, compiledMap, isMapId, mapChoices, sanitizeText,
   type ClientMsg, type ErrorCode, type PlayerId, type RoomPhase, type ServerMsg,
 } from '@zh/shared';
 import { Game } from './game/Game';
@@ -27,7 +27,7 @@ export class Room {
   emptySince: number | null = null;
 
   /** `usedAt`: when a member last did anything here (a lobby nobody touches is closed in the end). */
-  constructor(readonly code: string, public usedAt: number) {}
+  constructor(readonly code: string, public usedAt: number, public map: string, readonly maps: string[]) {}
 
   broadcast(msg: ServerMsg): void {
     for (const m of this.members.values()) m.peer?.send(msg);
@@ -37,12 +37,14 @@ export class Room {
     const players = [...this.members.values()].map((m) => ({
       id: m.id, name: m.name, ready: m.ready, host: m.id === this.hostId, connected: m.peer !== null,
     }));
-    for (const m of this.members.values()) m.peer?.send({ t: 'room', code: this.code, phase: this.phase, players, you: m.id });
+    for (const m of this.members.values()) m.peer?.send({ t: 'room', code: this.code, phase: this.phase, players, you: m.id, map: this.map, maps: this.maps });
   }
 }
 
 export interface LobbyOpts {
   debug: boolean;
+  /** The map a new room is on until its host picks another (default: the station). */
+  map?: string;
   now?: () => number;
   /** Tests pass false so games are stepped by hand instead of on a timer. */
   autoTick?: boolean;
@@ -56,8 +58,16 @@ export class Lobby {
   /** Wall clock, ms. */
   readonly now: () => number;
 
+  /** The maps a host may choose, and the one a room starts on. */
+  private readonly maps: string[];
+  private readonly firstMap: string;
+
   constructor(private readonly opts: LobbyOpts) {
     this.now = opts.now ?? Date.now;
+    this.maps = mapChoices(opts.debug);
+    this.firstMap = isMapId(opts.map) ? opts.map : this.maps[0]!;
+    // A server set up for a map nobody is offered (ZH_MAP=stacks) still plays it.
+    if (!this.maps.includes(this.firstMap)) this.maps.push(this.firstMap);
   }
 
   /** Handshake. A known token resumes that seat (taking it over if it is still connected). */
@@ -114,7 +124,7 @@ export class Lobby {
         if (s.room) this.leave(s);
         const wanted = this.opts.debug && typeof msg.code === 'string' ? msg.code.toUpperCase() : '';
         const code = /^[A-Z]{4}$/.test(wanted) && !this.rooms.has(wanted) ? wanted : this.newCode();
-        const room = new Room(code, this.now());
+        const room = new Room(code, this.now(), this.firstMap, this.maps);
         this.rooms.set(code, room);
         this.enter(s, room);
         return;
@@ -138,6 +148,18 @@ export class Lobby {
         s.ready = msg.ready === true;
         s.room.sendState();
         return;
+      case 'map': {
+        const room = s.room;
+        if (!room) return fail('not_in_room');
+        if (room.hostId !== s.id) return fail('not_host');
+        // Only between games, and only a map this server offers: anything else changes nothing.
+        if (room.phase !== 'lobby' || !room.maps.includes(msg.id) || room.map === msg.id) return room.sendState();
+        room.map = msg.id;
+        // A different map is a different game to agree to.
+        for (const m of room.members.values()) m.ready = false;
+        room.sendState();
+        return;
+      }
       case 'start': {
         const room = s.room;
         if (!room) return fail('not_in_room');
@@ -250,7 +272,7 @@ export class Lobby {
         broadcast: (msg) => room.broadcast(msg),
       },
       {
-        debug: this.opts.debug, seed: randomBytes(4).readUInt32LE(0),
+        debug: this.opts.debug, seed: randomBytes(4).readUInt32LE(0), map: compiledMap(room.map),
         onOver: () => {
           game.stop();
           room.phase = 'gameover';

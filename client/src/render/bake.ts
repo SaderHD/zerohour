@@ -9,7 +9,6 @@ import { lightLevels, linear } from './materials';
 
 const AMBIENT_GAIN = 2.6;
 const LIGHT_GAIN = 2.4;
-const OUTDOOR_AMBIENT = 0x1c2638;
 
 export type RGB = [number, number, number];
 /**
@@ -37,6 +36,49 @@ export class Bucket {
 
   get triangles(): number {
     return this.pos.length / 9;
+  }
+
+  /**
+   * The same triangles sorted into buckets by where they are: one mesh for the whole of a long
+   * street is in view from anywhere on it, and all of it is drawn. The tiles are laid over the
+   * mesh's own extent, as few and as equal as keep each within `tile` metres a side: a room that
+   * fits in one is left whole wherever on the map it stands. And never more than `most` of them:
+   * a mesh that is spread thin (the far faces of a city) is not worth a draw call every forty metres.
+   */
+  split(tile: number, most = Infinity): Bucket[] {
+    let [x0, x1, z0, z1] = [Infinity, -Infinity, Infinity, -Infinity];
+    const mid = (t: number, k: number): number => (this.pos[t + k]! + this.pos[t + k + 3]! + this.pos[t + k + 6]!) / 3;
+    for (let t = 0; t < this.pos.length; t += 9) {
+      const [x, z] = [mid(t, 0), mid(t, 2)];
+      x0 = Math.min(x0, x);
+      x1 = Math.max(x1, x);
+      z0 = Math.min(z0, z);
+      z1 = Math.max(z1, z);
+    }
+    let nx = Math.max(1, Math.ceil((x1 - x0) / tile));
+    let nz = Math.max(1, Math.ceil((z1 - z0) / tile));
+    while (nx * nz > Math.max(1, most)) {
+      if ((x1 - x0) / nx < (z1 - z0) / nz) nz--;
+      else nx--;
+    }
+    if (nx * nz === 1) return [this];
+    const parts = new Map<number, Bucket>();
+    for (let t = 0; t < this.pos.length; t += 9) {
+      const tx = Math.min(nx - 1, Math.floor(((mid(t, 0) - x0) / (x1 - x0 || 1)) * nx));
+      const tz = Math.min(nz - 1, Math.floor(((mid(t, 2) - z0) / (z1 - z0 || 1)) * nz));
+      const key = tx * 4096 + tz;
+      const b = parts.get(key) ?? parts.set(key, new Bucket()).get(key)!;
+      const v = t / 3;
+      for (let k = 0; k < 9; k++) {
+        b.pos.push(this.pos[t + k]!);
+        b.col.push(this.col[t + k]!);
+        b.lp.push(this.lp[t + k]!);
+        b.la.push(this.la[t + k]!);
+        b.lb.push(this.lb[t + k]!);
+      }
+      for (let k = 0; k < 6; k++) b.uv.push(this.uv[v * 2 + k]!);
+    }
+    return [...parts.values()];
   }
 
   toGeometry(): THREE.BufferGeometry {
@@ -106,7 +148,7 @@ export class Baker {
 
   private ambientOf(i: number): RGB {
     const zi = this.map.zone[i]!;
-    const a = linear(zi === NO_ZONE ? OUTDOOR_AMBIENT : this.map.zones[zi]!.ambient);
+    const a = linear(zi === NO_ZONE ? this.map.def.scene.outside : this.map.zones[zi]!.ambient);
     return [a[0] * AMBIENT_GAIN, a[1] * AMBIENT_GAIN, a[2] * AMBIENT_GAIN];
   }
 
@@ -148,9 +190,18 @@ export class Baker {
     return o;
   }
 
+  /** The baked colours of a quad's four corners (twelve numbers each: see `shade`), for whoever wants to look at them before emitting it. */
+  colours(v: readonly Vert[], n: [number, number, number], cell: number, tint: RGB): number[][] {
+    return v.map((q) => Array.from(this.shade(q.p, n, cell, tint, q.ao)));
+  }
+
   /** Emit a lit quad (CCW seen from the front). */
   quad(b: Bucket, v: [Vert, Vert, Vert, Vert], n: [number, number, number], cell: number, tint: RGB): void {
-    const c = v.map((q) => Array.from(this.shade(q.p, n, cell, tint, q.ao)));
+    this.emit(b, v, this.colours(v, n, cell, tint));
+  }
+
+  /** Emit a quad whose corners' colours are already worked out (`colours`). */
+  emit(b: Bucket, v: readonly Vert[], c: readonly number[][]): void {
     for (const k of ORDER) {
       const s = c[k]!;
       b.pos.push(...v[k]!.p);

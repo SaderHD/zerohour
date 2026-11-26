@@ -112,6 +112,53 @@ describe('lobby', () => {
     expect(lobby.rooms.has(code)).toBe(false);
   });
 
+  it('the host picks the map in the lobby; the game is played on it', () => {
+    const { join, lobby } = setup();
+    const host = join('Host');
+    host.send({ t: 'create' });
+    const first = host.peer.last('room')!;
+    expect(first.map).toBe('harrow_ridge');
+    // A debug server offers the proving grounds as well as the maps people play.
+    expect(first.maps).toEqual(['harrow_ridge', 'longest_night', 'stacks', 'corner']);
+    const mate = join('Mate');
+    mate.send({ t: 'join', code: first.code });
+    mate.send({ t: 'ready', ready: true });
+
+    mate.send({ t: 'map', id: 'stacks' });
+    expect(mate.peer.last('error')?.code).toBe('not_host');
+    host.send({ t: 'map', id: 'nowhere' });
+    expect(host.peer.last('room')!.map).toBe('harrow_ridge');
+    expect(host.peer.last('room')!.players.find((p) => !p.host)!.ready).toBe(true);
+
+    host.send({ t: 'map', id: 'stacks' });
+    const room = mate.peer.last('room')!;
+    expect(room.map).toBe('stacks');
+    // A different map is a different game: whoever had said yes is asked again.
+    expect(room.players.find((p) => !p.host)!.ready).toBe(false);
+    mate.send({ t: 'ready', ready: true });
+    host.send({ t: 'start' });
+    const game = lobby.rooms.get(first.code)!.game!;
+    expect(game.map.def.id).toBe('stacks');
+    expect(host.peer.last('sync')!.map).toBe('stacks');
+    // Not once the game is on.
+    host.send({ t: 'map', id: 'harrow_ridge' });
+    expect(host.peer.last('room')!.map).toBe('stacks');
+  });
+
+  it('offers only the maps people play unless it is a debug server, and starts rooms on the one it was set up for', () => {
+    const open = (opts: { debug: boolean; map?: string }) => {
+      const lobby = new Lobby({ ...opts, autoTick: false });
+      const peer = new FakePeer();
+      const { session } = lobby.connect(peer, 'A');
+      lobby.handle(session, { t: 'create' });
+      lobby.handle(session, { t: 'map', id: 'stacks' });
+      return peer.last('room')!;
+    };
+    expect(open({ debug: false })).toMatchObject({ map: 'harrow_ridge', maps: ['harrow_ridge', 'longest_night'] });
+    expect(open({ debug: false, map: 'stacks' })).toMatchObject({ map: 'stacks', maps: ['harrow_ridge', 'longest_night', 'stacks'] });
+    expect(open({ debug: false, map: 'nowhere' })).toMatchObject({ map: 'harrow_ridge', maps: ['harrow_ridge', 'longest_night'] });
+  });
+
   it('sanitises names', () => {
     const { join } = setup();
     expect(join('  <b>very\nlong name indeed</b>  ').session.name).toBe('<b>very long nam');

@@ -62,7 +62,7 @@ const http = createServer((req, res) => {
 });
 
 const wss = new WebSocketServer({ server: http, path: '/ws', maxPayload: MAX_MSG_BYTES });
-const lobby = new Lobby({ debug: process.env.ZH_DEBUG === '1' });
+const lobby = new Lobby({ debug: process.env.ZH_DEBUG === '1', map: process.env.ZH_MAP });
 setInterval(() => lobby.sweep(), 5000).unref();
 const connections = new Set<Connection>();
 wss.on('connection', (socket) => {

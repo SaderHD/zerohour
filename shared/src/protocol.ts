@@ -75,6 +75,8 @@ export type ClientMsg =
   | { t: 'join'; code: string; name?: string }
   | { t: 'leave' }
   | { t: 'ready'; ready: boolean }
+  /** The host, in the lobby: play the next game on this map. */
+  | { t: 'map'; id: string }
   | { t: 'start' }
   | { t: 'again' } // after a game over: take the room back to the lobby
   /** `y` is the height of the floor underfoot. */
@@ -272,7 +274,8 @@ export type GameEvent =
 export type ServerMsg =
   | { t: 'welcome'; v: number; id: PlayerId; token: string; time: number; resumed: boolean }
   | { t: 'error'; code: ErrorCode; msg?: string }
-  | { t: 'room'; code: string; phase: RoomPhase; players: LobbyPlayer[]; you: PlayerId }
+  /** `map` is the one the room is on; `maps` what its host may change it to. */
+  | { t: 'room'; code: string; phase: RoomPhase; players: LobbyPlayer[]; you: PlayerId; map: string; maps: string[] }
   | { t: 'left' }
   | ({ t: 'sync' } & SyncState)
   | Snapshot

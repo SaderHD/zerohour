@@ -4,7 +4,7 @@
 // *mean* (is that zombie alive, is that door for sale) is still each handler's business.
 import type { ClientMsg } from './protocol';
 
-/** Nothing in the world is further out than this (the map is 70 m across). */
+/** Nothing in the world is further out than this (the largest map is 150 m across). */
 const MAX_COORD = 1000;
 const MAX_ANGLE = 1000;
 const MAX_SEQ = 2 ** 31;
@@ -41,6 +41,7 @@ const CHECKS: { [T in ClientMsg['t']]: (m: Rec) => boolean } = {
   join: (m) => id(m.code) && opt(m.name, text),
   leave: () => true,
   ready: (m) => bool(m.ready),
+  map: (m) => id(m.id),
   start: () => true,
   again: () => true,
   move: (m) => int(m.seq, 0, MAX_SEQ) && num(m.x, MAX_COORD) && num(m.y, MAX_COORD) && num(m.z, MAX_COORD) && num(m.yaw, MAX_ANGLE) && num(m.pitch, MAX_ANGLE) && int(m.state, 0, 4),

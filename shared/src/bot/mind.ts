@@ -6,6 +6,7 @@ import { FLOOR_GAP, INTERACT_RANGE, PLAYER_RADIUS } from '../constants';
 import { weaponSlotsWith } from '../data/perks';
 import { weaponStats } from '../data/weapons';
 import { DIR_VEC, type CompiledMap } from '../map/compile';
+import { rulesOf } from '../map/maps';
 import type { Interactable, Opening } from '../map/types';
 import { openingDistance } from '../map/windows';
 import type { Rng } from '../math/rng';
@@ -13,7 +14,7 @@ import { circleFits, moveCircle } from '../nav/collide';
 import { FlowField, UNREACHABLE } from '../nav/flowfield';
 import { lineOfSight, lineWalkable } from '../nav/los';
 import { DeadEnds } from './deadends';
-import { base, listResupply, listWants, rank, type BotIntent, type BotTarget, type BotView } from './wants';
+import { base, listResupply, listWants, rank, wallFor, type BotIntent, type BotTarget, type BotView } from './wants';
 
 export type { BotIntent, BotTarget, BotView } from './wants';
 
@@ -101,6 +102,8 @@ export class BotMind {
     for (const it of map.def.interactables) this.things.set(it.id, it);
     this.guns = [index % 2 === 0 ? 'farrow' : 'pike', 'stitch', 'kestrel', 'brakeman'];
   }
+
+  private readonly heightOf = (it: Interactable): number => this.map.mountHeight(it);
 
   /** Forget the route (we were put somewhere else). */
   reset(): void {
@@ -248,7 +251,7 @@ export class BotMind {
       };
       // Points spoken for by something wanted more that has to wait for a quieter moment.
       let held = 0;
-      for (const w of listWants(v, this.things, this.guns, this.all.length, handy, this.goal?.key)) {
+      for (const w of listWants(v, this.things, this.guns, this.all.length, handy, this.goal?.key, rulesOf(this.map.def).forgeCost, this.heightOf)) {
         if ((this.blocked.get(w.key) ?? 0) > v.time) continue;
         const s = this.spot(w.it);
         const way = this.doorsTo(zone, this.map.zoneAt(s.x, s.y, s.z) ?? '', v);
@@ -284,7 +287,7 @@ export class BotMind {
     // Nothing to do: back to the wall our best gun came off, where ammunition is a step away and
     // the others (who mostly carry the same) will be too.
     if (zone && top) {
-      const wall = this.things.get(`wb_${top.id}`);
+      const wall = wallFor(this.things, top.id, v, this.heightOf);
       const s = wall && this.spot(wall);
       if (s && (gap(s, v) > HOME_RANGE || this.goal?.key === 'home') && gap(s, v) > HOME_RANGE / 2 && this.doorsTo(zone, this.map.zoneAt(s.x, s.y, s.z) ?? '', v)?.cost === 0) {
         return { key: 'home', x: s.x, y: s.y, z: s.z, reach: HOME_RANGE / 2, doors: [] };

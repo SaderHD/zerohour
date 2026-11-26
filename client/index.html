@@ -48,7 +48,7 @@
 
       <div id="menu" class="screen">
         <h1>ZERO HOUR</h1>
-        <p class="sub">Harrow Ridge Station · 1–4 survivors</p>
+        <p class="sub">1–4 survivors</p>
         <label>Name <input id="name" maxlength="16" autocomplete="off" spellcheck="false" /></label>
         <button id="create">Create game</button>
         <div class="row">
@@ -67,6 +67,8 @@
         <p class="sub">Room code</p>
         <h1 id="lobby-code"></h1>
         <button id="copy-link" class="quiet">Copy invite link</button>
+        <label class="sub" for="lobby-map">Map</label>
+        <select id="lobby-map" aria-label="Map"></select>
         <ul id="lobby-players"></ul>
         <p id="lobby-note" class="sub"></p>
         <div id="lobby-chat" class="chatlog"></div>

@@ -1,7 +1,7 @@
 import {
   SIREN_DAMAGE, SIREN_RADIUS, SIREN_SECONDS, chainTargets,
   FIRE_RATE_SLACK, FLOOR_GAP, GRENADE_COOLDOWN, GRENADE_DAMAGE, GRENADE_FUSE, GRENADE_LOFT, GRENADE_RADIUS, GRENADE_SPEED,
-  HIT_DIST_SLACK, KNIFE_COOLDOWN, MoveState, KNIFE_DAMAGE, KNIFE_RANGE, KNIFE_RANGE_SLACK, PLAYER_EYE_HEIGHT, SWAP_SECONDS,
+  HIT_DIST_SLACK, KNIFE_COOLDOWN, MoveState, KNIFE_DAMAGE, KNIFE_RANGE, KNIFE_RANGE_SLACK, PLAYER_EYE_HEIGHT, SIGHT_HEIGHT, SWAP_SECONDS,
   aimDir, fireInterval, fireRateMultWith, hitDamage, isFiniteNum, lineOfSight, maxHitsPerShot, reloadMultWith, weaponSlotsWith, weaponStats,
   type ClientMsg, type HitZone, type WeaponDef, type WeaponId, type WeaponState,
 } from '@zh/shared';
@@ -85,7 +85,12 @@ export function onFire(g: Game, p: PlayerState, m: Msg<'fire'>): void {
     // The client reports how far along the shot the body was: over the floor, and up or down to its storey.
     const actual = Math.hypot(z.x - p.x, z.z - p.z, z.y - p.y);
     if (Math.abs(h.dist - actual) > HIT_DIST_SLACK || actual > def.range + HIT_DIST_SLACK) continue;
-    if (!lineOfSight(g.map, p.x, p.y, p.z, z.x, z.y, z.z, g.openDoors)) continue;
+    // Chest to chest, as bodies see each other; or from the eye, where the shot leaves: over a
+    // roof's parapet the eye sees into the street when the chest does not, and the client scored it.
+    if (
+      !lineOfSight(g.map, p.x, p.y, p.z, z.x, z.y, z.z, g.openDoors) &&
+      !lineOfSight(g.map, p.x, p.y + PLAYER_EYE_HEIGHT - SIGHT_HEIGHT, p.z, z.x, z.y, z.z, g.openDoors)
+    ) continue;
     if (def.wonder?.kind === 'arclight') return arc(g, p, z, def);
     damageZombie(g, z, hitDamage(def, h.zone, Math.min(h.dist, def.range)), p.pub.id, h.zone, 'bullet');
   }

@@ -1,5 +1,5 @@
 import {
-  FLOOR_GAP, HOWLER_MAX_DIST, HOWLER_MIN_DIST, HOWLER_TELL_SECONDS, MAX_ALIVE_CAP, MAX_ALIVE_PER_EXTRA_PLAYER, MAX_ALIVE_SOLO, ZOMBIE_QUEUE_GAP, ZOMBIE_RADIUS, circleFits,
+  FLOOR_GAP, HOWLER_MAX_DIST, HOWLER_MIN_DIST, HOWLER_TELL_SECONDS, MAX_ALIVE_CAP, MAX_ALIVE_PER_EXTRA_PLAYER, MAX_ALIVE_SOLO, ZOMBIE_QUEUE_GAP, ZOMBIE_RADIUS, circleFits, rulesOf,
 } from '@zh/shared';
 import type { Game } from './Game';
 import { spawnZombie } from './zombies';
@@ -73,6 +73,28 @@ export function activeZones(g: Game): Set<string> {
   return zones;
 }
 
+/** How far the nearest player has to be walked to from where a window lets the dead in, metres. */
+function walkFrom(g: Game, win: { inX: number; y: number; inZ: number }): number {
+  let best = Infinity;
+  for (const p of g.players.values()) {
+    if (!g.targetable(p)) continue;
+    const cost = g.nav.fieldTo(p.pub.id)?.costAt(win.inX, win.y, win.inZ) ?? Infinity;
+    best = Math.min(best, cost / COST_PER_METRE);
+  }
+  return best;
+}
+
+/** The windows no further from a player than the map lets the dead come from (`MapRules.spawnReach`): failing any, the nearest. */
+function withinReach<B extends { win: { inX: number; y: number; inZ: number } }>(g: Game, offered: B[]): B[] {
+  const reach = rulesOf(g.map.def).spawnReach;
+  if (reach === Infinity || offered.length === 0) return offered;
+  const far = offered.map((b) => walkFrom(g, b.win));
+  const near = offered.filter((_, i) => far[i]! <= reach);
+  if (near.length) return near;
+  const least = Math.min(...far);
+  return offered.filter((_, i) => far[i] === least);
+}
+
 /** Release queued zombies one at a time at the windows of active zones. */
 export function updateSpawner(g: Game): void {
   for (let i = g.arrivals.length - 1; i >= 0; i--) {
@@ -94,8 +116,8 @@ export function updateSpawner(g: Game): void {
     return;
   }
   const zones = activeZones(g);
-  const free = [...g.barricades.values()].filter((b) => {
-    if (!zones.has(b.win.zone)) return false;
+  // (A window with one of them still standing at it waits its turn: where few windows are in reach, so does the round.)
+  const free = withinReach(g, [...g.barricades.values()].filter((b) => zones.has(b.win.zone))).filter((b) => {
     for (const z of g.zombies.values()) if (Math.abs(z.y - b.win.y) < FLOOR_GAP && Math.hypot(z.x - b.win.spawnX, z.z - b.win.spawnZ) < ZOMBIE_QUEUE_GAP) return false;
     return true;
   });

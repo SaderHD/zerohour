@@ -58,6 +58,56 @@ const TONIC: Record<string, Phrase> = {
   packmule: { notes: [[41, 1], [45, 0.5], [41, 0.5], [48, 1], [53, 1.5]], bpm: 120, type: 'sawtooth', g: 0.5, gate: 0.8, filter: { type: 'lowpass', f: 700 } },
 };
 
+/**
+ * The carols of The Longest Night (PLAN 4.12): tunes some centuries old, which belong to nobody,
+ * set down here as notes a phrase at a time. The diner's jukebox and the music box in the grotto
+ * play them a phrase at a time, a little slow and a little flat.
+ */
+export const CAROLS: readonly { name: string; bpm: number; phrases: readonly (readonly Note[])[] }[] = [
+  {
+    // "God rest ye merry, gentlemen" (English, traditional), in E minor.
+    name: 'gentlemen', bpm: 104,
+    phrases: [
+      [[64, 1], [64, 1], [71, 1], [71, 1], [69, 1], [67, 1], [66, 1], [64, 1], [62, 1], [64, 1], [66, 1], [67, 1], [69, 1], [71, 3]],
+      [[64, 1], [64, 1], [71, 1], [71, 1], [69, 1], [67, 1], [66, 1], [64, 1], [62, 1], [64, 1], [66, 1], [67, 1], [69, 1], [71, 3]],
+      [[71, 1], [72, 1], [69, 1], [71, 1], [72, 1], [74, 1], [76, 1], [71, 1], [69, 1], [67, 1], [64, 1], [66, 1], [67, 1], [69, 3]],
+      [[67, 0.5], [69, 0.5], [71, 2], [72, 1], [71, 1], [71, 1], [69, 1], [67, 1], [66, 1], [64, 2], [67, 0.5], [66, 0.5], [64, 1], [69, 2], [67, 1], [69, 1], [71, 1], [72, 1], [74, 1], [76, 1], [71, 1], [69, 1], [67, 1], [66, 1], [64, 4]],
+    ],
+  },
+  {
+    // The Coventry Carol (English, sixteenth century), in G minor, three in a bar.
+    name: 'coventry', bpm: 92,
+    phrases: [
+      [[67, 1], [67, 1], [66, 1], [67, 2], [70, 1], [69, 2], [67, 1], [66, 3]],
+      [[67, 1], [69, 1], [70, 1], [72, 2], [69, 1], [67, 3], [0, 1]],
+      [[74, 1], [72, 2], [70, 1], [69, 2], [70, 1], [69, 1], [67, 1], [66, 1], [67, 3]],
+      [[67, 1], [69, 1], [70, 1], [72, 2], [69, 1], [71, 5]],
+    ],
+  },
+  {
+    // The tune called Greensleeves (English, sixteenth century), in A minor.
+    name: 'greensleeves', bpm: 132,
+    phrases: [
+      [[69, 1], [72, 2], [74, 1], [76, 1.5], [77, 0.5], [76, 1], [74, 2], [71, 1], [67, 1.5], [69, 0.5], [71, 1], [72, 2], [69, 1], [69, 1.5], [68, 0.5], [69, 1], [71, 2], [68, 1], [64, 2]],
+      [[69, 1], [72, 2], [74, 1], [76, 1.5], [77, 0.5], [76, 1], [74, 2], [71, 1], [67, 1.5], [69, 0.5], [71, 1], [72, 1.5], [71, 0.5], [69, 1], [68, 1.5], [66, 0.5], [68, 1], [69, 5]],
+      [[79, 3], [79, 1.5], [78, 0.5], [76, 1], [74, 2], [71, 1], [67, 1.5], [69, 0.5], [71, 1], [72, 2], [69, 1], [69, 1.5], [68, 0.5], [69, 1], [71, 2], [68, 1], [64, 3]],
+      [[79, 3], [79, 1.5], [78, 0.5], [76, 1], [74, 2], [71, 1], [67, 1.5], [69, 0.5], [71, 1], [72, 1.5], [71, 0.5], [69, 1], [68, 1.5], [66, 0.5], [68, 1], [69, 5]],
+    ],
+  },
+  {
+    // "O come, O come, Emmanuel" (the plainsong Veni Emmanuel, fifteenth century), in E minor.
+    name: 'emmanuel', bpm: 84,
+    phrases: [
+      [[64, 1], [67, 1], [71, 1], [71, 1], [71, 1], [69, 1], [72, 1], [71, 1], [69, 1], [67, 3]],
+      [[69, 1], [71, 1], [67, 1], [64, 1], [67, 1], [69, 1], [66, 1], [64, 1], [62, 1], [64, 3]],
+      [[69, 1], [69, 1], [64, 1], [64, 1], [66, 1], [67, 2], [66, 1], [64, 1], [62, 3]],
+      [[74, 2], [74, 1], [71, 2], [71, 1], [71, 1], [69, 1], [72, 1], [71, 1], [69, 1], [67, 3], [69, 1], [71, 1], [67, 1], [64, 1], [67, 1], [69, 1], [66, 1], [64, 1], [62, 1], [64, 4]],
+    ],
+  },
+];
+/** How flat the old machines play: a little under a third of a semitone. */
+const FLAT = -0.3;
+
 /** The Cache's music box: a pentatonic wander that never quite repeats. */
 const BOX_SCALE = [74, 76, 79, 81, 84, 86, 88, 91];
 
@@ -74,6 +124,44 @@ export class Music {
     for (let i = 0; i < 3; i++) v.tone({ t: 0.35 + i * 0.2, f: 190 - i * 14, f1: 120, d: 0.09, g: 0.5 });
     play(v, p, 0.95);
     if (id === 'packmule') for (let i = 0; i < 4; i++) v.noise({ t: 0.95 + i * 0.5, d: 0.04, g: 0.35, filter: { type: 'bandpass', f: 1300, q: 3 } });
+  }
+
+  /**
+   * One phrase of a carol, from the diner's jukebox (a worn record: a reedy lead over its own
+   * bass, the needle's crackle) or the music box in the grotto (a comb of steel, an octave up,
+   * slower still). Returns how long the phrase lasts, so whoever plays it knows when the next is due.
+   */
+  carol(player: 'jukebox' | 'box', tune: number, phrase: number, at?: At): number {
+    const c = CAROLS[tune % CAROLS.length]!;
+    const notes = c.phrases[phrase % c.phrases.length]!;
+    const box = player === 'box';
+    const bpm = c.bpm * (box ? 0.8 : 0.9);
+    const seconds = notes.reduce((n, [, beats]) => n + beats, 0) * (60 / bpm);
+    const v = this.s.voice({ gain: box ? 0.3 : 0.2, priority: 0, bus: 'music', at, range: box ? 24 : 30, ref: box ? 5 : 6, reverb: box ? 0.5 : 0.3 });
+    if (v.dead) return seconds;
+    const shifted = (by: number): Note[] => notes.map(([n, beats]) => [n ? n + by : 0, beats] as const);
+    if (box) {
+      play(v, { notes: shifted(12 + FLAT), bpm, type: 'sine', g: 0.5, pluck: true, layer: [12, 0.2] });
+      // The comb's own tick, and the drum turning.
+      let t = 0;
+      for (const [n, beats] of notes) {
+        if (n) v.noise({ t, d: 0.012, g: 0.25, filter: { type: 'highpass', f: 5000 } });
+        t += beats * (60 / bpm);
+      }
+    } else {
+      play(v, { notes: shifted(FLAT), bpm, type: 'triangle', g: 0.42, gate: 0.95, layer: [12.06, 0.22], filter: { type: 'lowpass', f: 2200 } });
+      // The bass plods along under it on the first of every three beats, a fifth and an octave down.
+      let t = 0;
+      let beat = 0;
+      for (const [n, beats] of notes) {
+        if (n && Math.floor(beat / 3) !== Math.floor((beat - 0.01) / 3)) v.tone({ t, type: 'sine', f: midi(n - 19 + FLAT), d: 0.5, g: 0.3, a: 0.02, r: 0.2 });
+        t += beats * (60 / bpm);
+        beat += beats;
+      }
+      v.noise({ d: seconds, g: 0.035, a: 0.05, r: 0.1, filter: { type: 'highpass', f: 4200 } });
+      for (let i = 0; i < seconds * 2.2; i++) v.noise({ t: Math.random() * seconds, d: 0.006, g: 0.18 + Math.random() * 0.2, filter: { type: 'bandpass', f: 2500 + Math.random() * 3000, q: 1.5 } });
+    }
+    return seconds;
   }
 
   /** The Cache rolling: a music box winding down over `seconds`, the slower the nearer it is to choosing. */

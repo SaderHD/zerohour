@@ -195,4 +195,10 @@ export class LocalPlayer {
     this.freeCam = on;
     this.flyY = this.y + PLAYER_EYE_HEIGHT;
   }
+
+  /** Put the free camera at a point in the air, looking a given way (for pictures from where nobody can stand). */
+  flyTo(x: number, y: number, z: number, yaw: number, pitch: number): void {
+    this.freeCam = true;
+    [this.x, this.flyY, this.z, this.yaw, this.pitch] = [x, y, z, yaw, pitch];
+  }
 }

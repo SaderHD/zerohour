@@ -1,4 +1,4 @@
-import type { ErrorCode } from '@zh/shared';
+import { MAPS, type ErrorCode } from '@zh/shared';
 import type { Net, Notice, RoomInfo } from '../net/net';
 
 const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -24,7 +24,7 @@ const NOTICES: Record<Notice, string> = {
 
 const NAME_KEY = 'zh_name';
 
-/** Main menu (name, create, join, rejoin) and lobby (code, invite link, roster, ready, start). */
+/** Main menu (name, create, join, rejoin) and lobby (code, invite link, map, roster, ready, start). */
 export class Menu {
   private readonly name = el<HTMLInputElement>('name');
   private readonly code = el<HTMLInputElement>('code');
@@ -36,6 +36,7 @@ export class Menu {
   private readonly readyBtn = el<HTMLButtonElement>('ready');
   private readonly startBtn = el<HTMLButtonElement>('start');
   private readonly rejoinBtn = el<HTMLButtonElement>('rejoin');
+  private readonly mapPick = el<HTMLSelectElement>('lobby-map');
 
   constructor(private readonly net: Net, initialName: string | null, initialCode: string | null) {
     let saved: string | null = null;
@@ -68,6 +69,7 @@ export class Menu {
     this.name.onkeydown = (e) => e.key === 'Enter' && (this.code.value.trim() ? join() : el('create').click());
     this.readyBtn.onclick = () => net.ready(!this.me()?.ready);
     this.startBtn.onclick = () => net.startGame();
+    this.mapPick.onchange = () => net.setMap(this.mapPick.value);
     el('leave').onclick = () => net.leave();
     this.rejoinBtn.onclick = () => {
       this.setError('');
@@ -128,6 +130,13 @@ export class Menu {
     );
     const me = this.me();
     const host = !!me?.host;
+    // The map: the host's to choose where the server offers more than one, everyone's to see.
+    if (this.mapPick.dataset.maps !== room.maps.join()) {
+      this.mapPick.dataset.maps = room.maps.join();
+      this.mapPick.replaceChildren(...room.maps.map((id) => new Option(MAPS[id]?.name ?? id, id)));
+    }
+    this.mapPick.value = room.map;
+    this.mapPick.disabled = !host || room.maps.length < 2;
     const waiting = room.players.filter((p) => !p.host && p.connected && !p.ready).length;
     this.readyBtn.style.display = host ? 'none' : '';
     this.startBtn.style.display = host ? '' : 'none';

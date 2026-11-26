@@ -1,14 +1,15 @@
-// Validates the map and writes the top-down ASCII dump to docs/MAP.txt. Usage: npm run map
+// Validates a map and prints its top-down ASCII dump. Usage: npm run map [-- <map id>]
+// The station (the default) is also written to docs/MAP.txt; any other map is only checked and printed.
 import { writeFileSync } from 'node:fs';
-import { asciiLevels, compileMap, harrowRidge, mapLegend, stacks, validateMap } from '@zh/shared';
+import { DEFAULT_MAP, MAPS, asciiLevels, compileMap, isMapId, mapById, mapLegend, validateMap } from '@zh/shared';
 
-// `npm run map -- stacks` checks and prints the height proving ground instead (nothing is written).
-const proving = process.argv[2] === 'stacks';
-const def = proving ? stacks : harrowRidge;
+const id = process.argv[2] ?? DEFAULT_MAP;
+if (!isMapId(id)) throw new Error(`no map called ${id}: ${Object.keys(MAPS).join(', ')}`);
+const def = mapById(id);
 const map = compileMap(def);
 const { errors, warnings } = validateMap(map);
 const text = `${def.name} — ${def.size.w} x ${def.size.d} m, north is up, 1 char = 0.5 m wide x 1 m tall\n${mapLegend(map)}\n\n${asciiLevels(map)}\n`;
-if (!proving) writeFileSync(new URL('../docs/MAP.txt', import.meta.url), text);
+if (id === DEFAULT_MAP) writeFileSync(new URL('../docs/MAP.txt', import.meta.url), text);
 console.log(text);
 for (const w of warnings) console.log(`warning: ${w}`);
 for (const e of errors) console.error(`ERROR: ${e}`);

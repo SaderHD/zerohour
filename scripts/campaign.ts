@@ -1,11 +1,11 @@
 // A whole game played by bots on a fake clock, as fast as the machine will step it.
-// Usage: npm run campaign -- [rounds=25] [--god] [--players=4] [--seed=1] [--runs=1] [--accuracy=0.75] [--head=0.2] [--downs] [--trace] [--ledger]
+// Usage: npm run campaign -- [rounds=25] [--god] [--players=4] [--seed=1] [--runs=1] [--accuracy=0.75] [--head=0.2] [--map=id] [--downs] [--trace] [--ledger]
 //   --god   nothing hurts the bots: the endurance run (fails on a stuck zombie or a slow tick)
 //   without it the bots are mortal and the run is a balance report: how far a team gets.
 //   --trace  every ten seconds: where the horde is (inside by zone, and still outside), where each bot is, its health and what it is after
 //   --ledger the points each team earned and spent, by reason
 //   --downs  also count what each bot was doing, and where, when it went down (goal zone weapon zombies-within-3-m; weapon is loaded, empty (the magazine in hand) or dry (nothing left in any gun))
-import { SNAPSHOT_BUDGET_BYTES, TICK_BUDGET_MS } from '@zh/shared';
+import { MAPS, SNAPSHOT_BUDGET_BYTES, TICK_BUDGET_MS, isMapId } from '@zh/shared';
 import { runCampaign } from '../server/src/game/campaign';
 
 const args = process.argv.slice(2);
@@ -15,6 +15,8 @@ const god = args.includes('--god');
 const players = flag('players', 4);
 const runs = flag('runs', 1);
 const accuracy = flag('accuracy', 0.75);
+const mapId = args.find((a) => a.startsWith('--map='))?.split('=')[1];
+if (mapId !== undefined && !isMapId(mapId)) throw new Error(`no map called ${mapId}: ${Object.keys(MAPS).join(', ')}`);
 const IDLE_LIMIT = 10;
 const mmss = (s: number): string => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
@@ -24,10 +26,10 @@ const reached: number[] = [];
 for (let run = 0; run < runs; run++) {
   const seed = flag('seed', 1) + run;
   const quiet = runs > 1;
-  console.log(`[campaign] seed ${seed}: ${players} bot(s), to round ${rounds}${god ? ', god mode' : ''}, accuracy ${accuracy}`);
+  console.log(`[campaign] seed ${seed}${mapId ? ` on ${mapId}` : ''}: ${players} bot(s), to round ${rounds}${god ? ', god mode' : ''}, accuracy ${accuracy}`);
   const began = Date.now();
   const r = runCampaign({
-    seed, players, rounds, god, skill: { accuracy, head: flag('head', 0.2) },
+    seed, players, rounds, god, map: mapId, skill: { accuracy, head: flag('head', 0.2) },
     onTrace: args.includes('--trace') ? (line) => console.log(`  ${line}`) : undefined,
     onDown: args.includes('--downs') ? (what) => void downs.set(what, (downs.get(what) ?? 0) + 1) : undefined,
     onRound: (o) => {

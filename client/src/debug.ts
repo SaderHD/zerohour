@@ -34,6 +34,8 @@ export interface DebugState {
   sprinting: boolean;
   freeCam: boolean;
   drawCalls: number;
+  /** How long the world took to build and bake when the page loaded, ms. */
+  worldBuildMs: number;
   triangles: number;
   worldTriangles: number;
   /** World parts that move by themselves (fans, flywheels, swinging lamps). */
@@ -123,6 +125,10 @@ export interface ZhDebug {
   look(yaw: number, pitch?: number): void;
   /** What is drawn under the crosshair: the mesh's name (with its parents'), how far off, and where. For finding what a stray surface belongs to. */
   pick(): { name: string; dist: number; at: [number, number, number] } | null;
+  /** Every mesh in the scene, biggest first: its triangles, whether the view's frustum takes it in, and the sphere it is culled by (x, y, z, radius). For finding what a frame is made of: `meshes('glow|props')` also hides the ones whose name matches, until the next call. */
+  meshes(hide?: string): { name: string; triangles: number; seen: boolean; at: number[] }[];
+  /** `cull(false)` draws every zone whether or not it can be seen from here. */
+  cull(on: boolean): void;
   /** Aim the view at a world point. */
   lookAt(x: number, y: number, z: number): void;
   /** `give('pike')` hands over a weapon (`give('pike', true)` its Forge upgrade), `give('ironhide')` a tonic, `give('siren')` decoys, `give(500)` points (debug servers only). */
@@ -144,6 +150,8 @@ export interface ZhDebug {
   /** Tap a key for one frame, e.g. press('Mouse0') to fire once. */
   press(code: string): void;
   freeCam(on?: boolean): void;
+  /** The free camera, put at a point in the air: `fly(24, 30, 20, 0, -1.2)` looks down on the map from 30 m. */
+  fly(x: number, y: number, z: number, yaw?: number, pitch?: number): void;
   openAllDoors(): void;
   openDoor(id: string): void;
   /** Throw the master switch (debug servers only). */
@@ -175,7 +183,7 @@ declare global {
 export const debugState: DebugState = {
   phase: 'connecting', connected: false, playerId: null, room: null, isHost: false, pingMs: null, frames: 0, fps: 0,
   x: 0, y: 0, eyeY: 0, z: 0, yaw: 0, pitch: 0, zone: null, map: '', stamina: 0, sprinting: false, freeCam: false,
-  drawCalls: 0, triangles: 0, worldTriangles: 0, movers: 0, resolution: [0, 0], openDoors: [], power: false, mapErrors: [],
+  drawCalls: 0, worldBuildMs: 0, triangles: 0, worldTriangles: 0, movers: 0, resolution: [0, 0], openDoors: [], power: false, mapErrors: [],
   remotes: [], corrections: 0,
   weapon: null, weapons: [], upgraded: [], perks: [], maxHp: 100, forge: 'idle', slot: 0, mag: 0, reserve: 0, grenades: 0, reloading: false, aim: 0, shots: 0,
   entities: [], hp: 100, hurts: 0, round: 0, roundPhase: 'intermission', zombiesLeft: 0, points: 0, life: 'alive', roster: [], over: false, barricades: [], prompt: '', hits: [], kills: 0, explosions: 0, tacticals: 0, powerups: [], effects: [], powerupsTaken: [], cache: { home: '', boxes: [] }, chains: [], strikes: 0, lastStrike: null, audio: null, shake: 0, damageArcs: [], fx: { particles: 0, tracers: 0, projectiles: 0, bolts: 0, kinds: [] },
@@ -197,12 +205,16 @@ export interface DebugWiring {
   ping(): void;
   autopilot: { on: boolean };
   pick: ZhDebug['pick'];
+  meshes: ZhDebug['meshes'];
+  cull: ZhDebug['cull'];
 }
 
 /** Install window.__zh. Anything that changes the game is a debug message to the server. */
-export function wireDebug({ map, player, input, socket: s, playing, renderer, resize, audio, settings, screens, chat, ping, autopilot, pick }: DebugWiring): void {
+export function wireDebug({ map, player, input, socket: s, playing, renderer, resize, audio, settings, screens, chat, ping, autopilot, pick, meshes, cull }: DebugWiring): void {
   const api: Omit<ZhDebug, 'state'> = {
     pick,
+    meshes,
+    cull,
   audio, settings, screens, chat, ping,
   teleport: (x, z, yaw, y) => {
     const floor = map.nearestFloor(x, y ?? player.y, z, 'all');
@@ -245,6 +257,7 @@ export function wireDebug({ map, player, input, socket: s, playing, renderer, re
     requestAnimationFrame(() => requestAnimationFrame(() => input.setKey(code, false)));
   },
   freeCam: (on) => player.setFreeCam(on ?? !player.freeCam),
+  fly: (x, y, z, yaw = 0, pitch = 0) => player.flyTo(x, y, z, yaw, pitch),
   openAllDoors: () => s.send({ t: 'debug', cmd: 'openAllDoors' }),
   openDoor: (id) => s.send({ t: 'debug', cmd: 'openDoor', id }),
   powerOn: () => s.send({ t: 'debug', cmd: 'powerOn' }),

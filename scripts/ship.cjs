@@ -2,9 +2,11 @@
 // server: no debug commands), then four browser players - the autopilot at the controls of each,
 // pressing the same keys a person would - must clear ten rounds with nothing in the browser
 // consoles or the server's log that looks like an error.
-// Usage: npm run ship [-- --here] [--rounds=10]
+// Usage: npm run ship [-- --here] [--rounds=10] [--map=longest_night]
 //   --here   skip the clone and the install: use this checkout (run `npm run build` first)
-// Writes test-results/ship-*.png. The clone is of the last commit: commit before you run it.
+//   --map    the host picks this map in the lobby, as a person would (the station when there is none)
+// Writes test-results/ship-*.png (ship-<map>-*.png on another map). The clone is of the last commit:
+// commit before you run it.
 const { spawn, execFileSync } = require('node:child_process');
 const { mkdirSync, mkdtempSync, rmSync } = require('node:fs');
 const os = require('node:os');
@@ -15,6 +17,9 @@ const root = path.resolve(__dirname, '..');
 const args = process.argv.slice(2);
 const here = args.includes('--here');
 const rounds = Number(args.find((a) => a.startsWith('--rounds='))?.split('=')[1] ?? 10);
+const mapId = args.find((a) => a.startsWith('--map='))?.split('=')[1] ?? null;
+/** What this run's pictures are called. */
+const tag = mapId ? `ship-${mapId}` : 'ship';
 const port = 21080 + Math.floor(Math.random() * 900);
 const base = `http://localhost:${port}`;
 const PLAYERS = 4;
@@ -79,15 +84,26 @@ const BAD = /error|uncaught|unhandled|failed|exception/i;
     await host.click('#create');
     await host.waitForFunction(() => window.__zh.state().phase === 'lobby');
     const code = (await state(host)).room;
+    if (mapId) {
+      // The host picks the map; the page loads it and comes back to the same lobby.
+      const offered = await host.evaluate(() => [...document.getElementById('lobby-map').options].map((o) => o.value));
+      if (!offered.includes(mapId)) throw new Error(`the lobby does not offer "${mapId}" (it offers ${offered.join(', ')})`);
+      await host.selectOption('#lobby-map', mapId);
+      await host.waitForFunction((id) => { const s = window.__zh?.state(); return s && s.phase === 'lobby' && s.map === id; }, mapId);
+      if ((await state(host)).room !== code) throw new Error('the host lost the room when the map changed');
+    }
     for (let i = 2; i <= PLAYERS; i++) {
       const p = await open(`room=${code}&name=P${i}&auto=1`, `P${i}`);
-      await p.waitForFunction(() => window.__zh?.state().phase === 'lobby');
+      // (On another map the page loads a second time, for that map, before it is in the lobby to stay.)
+      await p.waitForFunction((id) => { const s = window.__zh?.state(); return s && s.phase === 'lobby' && (!id || s.map === id); }, mapId);
       await p.click('#ready');
     }
     await host.waitForFunction((n) => document.querySelectorAll('#lobby-players .mark.ok').length === n, PLAYERS);
     await host.click('#start');
     for (const p of pages) await p.waitForFunction(() => window.__zh.state().phase === 'playing');
-    console.log(`[ship] room ${code}: ${PLAYERS} players in, the autopilot at the controls; going for ${rounds} rounds`);
+    const on = (await Promise.all(pages.map(state))).map((a) => a.map);
+    if (mapId && on.some((id) => id !== mapId)) throw new Error(`the game should be on ${mapId}: the players are on ${on.join(', ')}`);
+    console.log(`[ship] room ${code} on ${on[0]}: ${PLAYERS} players in, the autopilot at the controls; going for ${rounds} rounds`);
 
     mkdirSync(path.join(root, 'test-results'), { recursive: true });
     const began = Date.now();
@@ -116,7 +132,7 @@ const BAD = /error|uncaught|unhandled|failed|exception/i;
       if ([1, Math.ceil(rounds / 2), rounds].includes(s.round) && !shots.has(s.round) && s.entities.length >= 6) {
         shots.add(s.round);
         const who = all.findIndex((a) => a.life === 'alive');
-        await pages[Math.max(0, who)].screenshot({ path: path.join(root, `test-results/ship-round-${s.round}.png`) });
+        await pages[Math.max(0, who)].screenshot({ path: path.join(root, `test-results/${tag}-round-${s.round}.png`) });
       }
       // Who is on the floor, as it happens.
       const down = all.map((a) => a.life[0]).join('');
@@ -129,7 +145,7 @@ const BAD = /error|uncaught|unhandled|failed|exception/i;
       if (s.round > rounds) break;
       if (Date.now() - began > TIMEOUT_MIN * 60000) throw new Error(`still in round ${s.round} after ${TIMEOUT_MIN} minutes`);
     }
-    await pages[0].screenshot({ path: path.join(root, 'test-results/ship-done.png') });
+    await pages[0].screenshot({ path: path.join(root, `test-results/${tag}-done.png`) });
     const roster = (await state(host)).roster;
     console.log(`[ship] ${rounds} rounds cleared in ${mmss(Date.now() - began)}: ${roster.map((r) => `${r.name} ${r.kills} kills, ${r.downs} downs, ${r.revives} revives`).join('; ')}`);
     console.log(`[ship] most draw calls in a frame ${maxCalls}; lowest frame rate ${minFps} fps (headless, software rendering)`);

@@ -208,6 +208,11 @@ export class Net {
     this.socket.send({ t: 'again' });
   }
 
+  /** The host, in the lobby: play on this map. */
+  setMap(id: string): void {
+    this.socket.send({ t: 'map', id });
+  }
+
   startGame(): void {
     this.socket.send({ t: 'start' });
   }

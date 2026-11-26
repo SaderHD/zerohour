@@ -1,9 +1,9 @@
 # Zero Hour
 
 Round-based co-op zombie survival in the browser, for one to four players. First person, retro
-low-poly, set in a snowed-in mountain signals station. Everything you see and hear - models,
-animation, textures, lighting, sound, music - is generated in code: there is not one binary asset
-in the repository.
+low-poly, on two maps: a snowed-in mountain signals station, and a city square on Christmas Eve.
+Everything you see and hear - models, animation, textures, lighting, sound, music - is generated
+in code: there is not one binary asset in the repository.
 
 Hold out against endless rounds. Points for hits and kills buy doors, wall guns and ammunition,
 tonics, a roll of the Cache and a turn at the Forge. Turn the power on. Get your friends back up.
@@ -29,6 +29,20 @@ Open http://localhost:8080, pick a name and press **Create game**. Friends join 
 room code or the invite link from the lobby; anyone on your network can use
 `http://<your address>:8080`. One player is fine too.
 
+The host picks the map in the lobby:
+
+- **Harrow Ridge Station** - the signals station: nine zones on terraces up a mountainside, the
+  generator hall's gallery over them and a vault under the bunker. Close quarters; the Forge is at
+  the end of a dead end.
+- **The Longest Night** - Wexler Square, deep in a big old city, snowing, every decoration still
+  lit. About four times the station's floor on five storeys: the square, an avenue and an alley;
+  a diner, a tenement, a department store, a cinema and a chapel to go through; two roofs joined
+  by a plank bridge; a subway underneath with a stalled train. The master switch is on the
+  store's roof and the Forge is down in the signal room. A team splits up here without meaning
+  to, and rounds run longer.
+
+Weapons, tonics, the Cache, the Forge and the rounds are the same on both.
+
 | | |
 |---|---|
 | Move / sprint | `W A S D` / `Shift` |
@@ -51,6 +65,7 @@ One process serves the built client and the game's WebSocket (`/ws`) on one port
 |---|---|---|
 | `PORT` | `8080` | port to listen on |
 | `CLIENT_DIST` | `client/dist` next to the server | where the built client is |
+| `ZH_MAP` | `harrow_ridge` | the map a new room starts on (`longest_night` for the city); the host can still change it |
 | `ZH_DEBUG` | unset | `1` enables the debug commands (`window.__zh` cheats). Leave it off in public. |
 
 `GET /healthz` answers `ok` for health checks. Stop it with `SIGTERM` or `SIGINT`.
@@ -98,10 +113,12 @@ That runs the game server (port 8080, debug commands on) and Vite on http://loca
 |---|---|
 | `npm run typecheck` / `npm run lint` / `npm test` | types, ESLint, unit and simulation tests |
 | `npm run campaign -- 25 --god` | four bots play a whole game on a fake clock, to round 25 |
-| `npm run campaign -- 40 --runs=32` | the same, mortal: how far does a team get (the balance report) |
+| `npm run campaign -- 40 --runs=32` | the same, mortal: how far does a team get (the balance report); `--map=longest_night` for the city |
 | `npm run soak` | four bots and a full horde over real sockets for five minutes |
-| `npm run ship` | fresh clone, production build, four browser players through ten rounds |
-| `npm run smoke`, `e2e`, `rounds`, `economy`, `horde`, `wonders`, `audio`, `ux`, `tour` | browser walk-throughs of each feature, with screenshots in `test-results/` (after a build) |
+| `npm run ship` | fresh clone, production build, four browser players through ten rounds (`-- --map=longest_night`: the host picks the city) |
+| `npm run smoke`, `e2e`, `rounds`, `economy`, `horde`, `wonders`, `audio`, `ux`, `maps`, `tour` | browser walk-throughs of each feature, with screenshots in `test-results/` (after a build); `economy`, `horde`, `wonders` and `tour` take `-- --night` for the city |
+| `npm run site`, `npm run city` | one browser player over every slope and stair of the station, and of the city |
+| `npm run map` / `npm run map -- longest_night` | validate a map and print it as text |
 | `npm run bot -- ROOM 3` | three bot players join your room |
 
 The browser scripts use a globally installed Playwright. `?auto=1` (or `__zh.auto(true)` in the

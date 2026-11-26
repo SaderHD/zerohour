@@ -1,13 +1,15 @@
 import * as THREE from 'three';
-import { CELL_SIZE, Cell, FLOOR_STYLES, NO_ZONE, WALL_STYLES, WINDOW_SILL, propDef, type CompiledMap, type FloorStyle, type WallStyle } from '@zh/shared';
+import { CELL_SIZE, Cell, DECK, FLOOR_STYLES, WALL_STYLES, WINDOW_SILL, doorInSight, massing, propDef, seenFrom, visibility, type CompiledMap, type FloorStyle, type WallStyle } from '@zh/shared';
 import { PROP_BUILDERS, Kit, fixture } from '../models/props';
 import type { PropOut } from '../models/props/kit';
 import { Ambient } from './ambient';
 import { Baker, Bucket, type RGB, type Vert } from './bake';
+import { buildCity } from './city';
 import { Doors } from './doors';
 import { buildExterior } from './exterior';
 import { glowMaterial, linear, propMaterial, setLightLevels, signMaterial, surfaceMaterial } from './materials';
 import { signTexture } from './signs';
+import { buildTowers } from './towers';
 
 // Turns the compiled map into meshes: for each zone one per surface style for its cells and one
 // for its props, so the renderer can leave out the zones that are not in
@@ -16,6 +18,12 @@ import { signTexture } from './signs';
 
 const S = CELL_SIZE;
 const TEX_METRES = 2; // one texture repeat covers 2 m
+/**
+ * A mesh of more triangles than this is cut into tiles, each culled by itself: no more than this
+ * many metres across, and no more of them than leaves each about this many triangles.
+ */
+const SPLIT_OVER = 6000;
+const TILE = 40;
 /** Seconds for the lights to come up when the power is switched on. */
 const POWER_UP_SECONDS = 1.6;
 
@@ -30,6 +38,10 @@ export interface World {
   update(dt: number, time: number): void;
   /** Baked light level at a point, for tinting dynamic models so they sit in the scene. */
   lightAt(x: number, y: number, z: number): [number, number, number];
+  /** Where the eye is: whatever no line from there (or from anywhere in the zones about it) could reach is left undrawn. */
+  view(x: number, y: number, z: number): void;
+  /** Draw everything whatever can be seen (`false`), for telling what the culling costs or hides. */
+  setCull(on: boolean): void;
   triangles: number;
   /** Parts that move by themselves (fans, flywheels, swinging lamps). */
   movers: number;
@@ -54,7 +66,9 @@ export function buildWorld(map: CompiledMap): World {
   const quad = (b: Bucket, v: [Vert, Vert, Vert, Vert], n: [number, number, number], cell: number, tint: RGB) => baker.quad(b, v, n, cell, tint);
 
   /** The zone a cell's surfaces are drawn with (window pockets and the like share one). */
-  const zoneOf = (i: number): string => (map.zone[i] === NO_ZONE ? 'out' : map.zones[map.zone[i]!]!.id);
+  // (Whatever is drawn with a zone is left out when nothing of that zone can be seen: `view`.)
+  const vis = visibility(map);
+  const zoneOf = (i: number): string => vis.regions[vis.label[i]!] ?? 'out';
   /** Is there open space beside a floor at height `y`: something to stand in, or a window to look through? */
   const open = (cx: number, cz: number, y: number): boolean => map.holdAt(cx, cz, y + 0.5) >= 0 || map.holdAt(cx, cz, y + 1.2) >= 0;
   /** Corner AO: darker where a floor/ceiling corner touches solid (or a ledge), or (floors) furniture. */
@@ -82,6 +96,8 @@ export function buildWorld(map: CompiledMap): World {
   ] as const;
   /** A face lower than this is a step or a kerb: it is drawn as floor, not as wall. */
   const STEP_FACE = 0.35;
+  /** In a city the solid has a height: a wall stops where the building behind it does. */
+  const mass = massing(map);
 
   let triangles = 0;
   for (let i = 0; i < map.kind.length; i++) {
@@ -114,6 +130,28 @@ export function buildWorld(map: CompiledMap): World {
         quad(wallB, [C(x0, z0, cx, cz), C(x1, z0, cx + 1, cz), C(x1, z1, cx + 1, cz + 1), C(x0, z1, cx, cz + 1)], [0, -1, 0], i, tint);
       }
 
+      // A floor that hangs in the air (a bridge over a street, a ledge outside a window) has an
+      // underside, and an edge wherever there is air beside it.
+      const hangs = map.deck[i] === 1 && kind !== Cell.Window;
+      if (hangs) {
+        const y0 = lo - DECK;
+        let under = i;
+        for (let j = i - map.plane; j >= 0; j -= map.plane) {
+          if (map.kind[j] === Cell.Solid) continue;
+          under = j;
+          break;
+        }
+        const U = (x: number, z: number): Vert => ({ p: [x, y0, z], uv: [x / t, z / t], ao: 0.7 });
+        quad(floorB, [U(x0, z0), U(x1, z0), U(x1, z1), U(x0, z1)], [0, -1, 0], under, tint);
+        for (const side of SIDES) {
+          const [nx, nz] = [cx + side.dx, cz + side.dz];
+          if (map.holdAt(nx, nz, lo - DECK / 2) < 0 && !map.aloft(nx, nz, lo - DECK / 2)) continue;
+          const [ax, az, bx, bz] = side.edge(cx, cz);
+          const E = (x: number, y: number, z: number): Vert => ({ p: [x, y, z], uv: [(x + z) / t, y / t], ao: 0.85 });
+          quad(floorB, [E(bx, y0, bz), E(ax, y0, az), E(ax, lo, az), E(bx, lo, bz)], [-side.n[0], 0, -side.n[2]], i, tint);
+        }
+      }
+
       // Walls: wherever this cell's open interval is not matched by anything open in the column
       // beside it (this one rule yields walls, lintels, sills, stair risers, the faces of ledges
       // and the edges of the slabs between storeys).
@@ -132,7 +170,8 @@ export function buildWorld(map: CompiledMap): World {
             const na = floorAt(j, ax, az);
             const nb = floorAt(j, bx, bz);
             const nlo = Math.min(na, nb);
-            const nhi = map.hi[j]!;
+            // (Open sky has no top: a roof's edge over a street is a drop, not a wall.)
+            const nhi = map.cap[j]!;
             if (na !== nb && nlo >= bottom - 1e-4 && Math.max(na, nb) <= hi + 1e-4) skirts.push([nlo, na, nb]);
             const next: [number, number][] = [];
             for (const [s0, s1] of spans) {
@@ -144,6 +183,9 @@ export function buildWorld(map: CompiledMap): World {
             }
             spans = next;
           }
+          const col = nz * cols + nx;
+          // (What hangs over a street has the building's own wall behind it, drawn from the street up: city.ts.)
+          if (mass && !mass.open[col]) spans = hangs && mass.open[i % map.plane] ? [] : spans.filter(([s0]) => s0 < mass.top[col]!).map(([s0, s1]) => [s0, Math.min(s1, mass.top[col]!)]);
         }
         const u0 = (side.dx !== 0 ? az : ax) / t;
         const u1 = (side.dx !== 0 ? bz : bx) / t;
@@ -169,28 +211,52 @@ export function buildWorld(map: CompiledMap): World {
 
   const group = new THREE.Group();
   group.name = 'world';
+  /** What is drawn with each zone (a mesh named `...|zone`), and with the outside. */
+  const drawnWith = new Map<string, THREE.Object3D[]>();
+  const with_ = (zone: string, o: THREE.Object3D): void => void (drawnWith.get(zone) ?? drawnWith.set(zone, []).get(zone)!).push(o);
   const addMesh = (name: string, b: Bucket, mat: THREE.Material): void => {
     if (!b.pos.length) return;
+    // (A big mesh goes in tiles, so that the part of a street behind the eye is not drawn.)
+    if (b.triangles > SPLIT_OVER) {
+      const parts = b.split(TILE, Math.ceil(b.triangles / SPLIT_OVER));
+      if (parts.length > 1) return parts.forEach((part) => addMesh(name, part, mat));
+    }
     const mesh = new THREE.Mesh(b.toGeometry(), mat);
     mesh.name = name;
     mesh.matrixAutoUpdate = false;
     group.add(mesh);
     triangles += b.triangles;
+    const zone = name.split('|')[1];
+    if (zone) with_(zone, mesh);
   };
-  for (const [key, b] of buckets) {
-    const [kind, style] = key.split('|')[0]!.split(':') as ['floor' | 'wall', FloorStyle | WallStyle];
-    addMesh(key, b, surfaceMaterial(kind, style));
-  }
-
   // Props and lamp fixtures, merged into three meshes a zone.
-  const all: PropOut = { baker, prop: new Bucket(), glow: new Bucket(), sign: new Bucket(), movers: [], drips: [] };
+  const all: PropOut = { baker, prop: new Bucket(), glow: new Bucket(), sign: new Bucket(), movers: [], drips: [], steams: [] };
+
   const outs = new Map<string, PropOut>();
   const outFor = (cell: number): PropOut => {
     const zone = zoneOf(cell);
     let o = outs.get(zone);
-    if (!o) outs.set(zone, (o = { ...all, prop: new Bucket() }));
+    if (!o) outs.set(zone, (o = { ...all, prop: new Bucket(), glow: new Bucket() }));
     return o;
   };
+
+  // What stands outside the walls. A station's huts and pines are a mesh of their own; a city's
+  // buildings go on in the surfaces of the street they stand over.
+  const city = map.def.scene.built === 'city';
+  const exterior = city ? new Bucket() : buildExterior(map, baker);
+  const NOWHERE = map.idx(0, 0);
+  if (city) {
+    buildCity(map, baker, {
+      surface: (kind, style, cell = NOWHERE) => bucket(`${kind}:${style}|${zoneOf(cell)}`),
+      prop: (cell = NOWHERE) => (zoneOf(cell) === 'out' ? exterior : outFor(cell).prop),
+      glow: (cell = NOWHERE) => outFor(cell).glow,
+    });
+  }
+
+  for (const [key, b] of buckets) {
+    const [kind, style] = key.split('|')[0]!.split(':') as ['floor' | 'wall', FloorStyle | WallStyle];
+    addMesh(key, b, surfaceMaterial(kind, style));
+  }
   for (const p of map.def.props) {
     const layer = Math.max(0, map.layerOf(p.level ?? 0));
     const cellOf = (x: number, z: number): number => map.idx(Math.floor(x / S), Math.floor(z / S), layer);
@@ -213,17 +279,31 @@ export function buildWorld(map: CompiledMap): World {
     const top = map.sky[cell] ? l.y + 0.2 : map.hi[cell]!;
     fixture(Kit.at(outFor(cell), { type: 'light', x: l.x, z: l.z, rot: l.fixture === 'tube' ? Math.round(l.x + l.z) * 90 : 0 }, cell, top - base, base), { ...l, y: l.y - base }, l.rgb, l.mode);
   }
-  for (const [zone, o] of outs) addMesh(`props|${zone}`, o.prop, propMaterial());
-  // Lamps' glow and lettering are little: one mesh each for the whole map costs fewer draw calls than culling saves.
-  addMesh('glow', all.glow, glowMaterial);
+  for (const [zone, o] of outs) {
+    addMesh(`props|${zone}`, o.prop, propMaterial());
+    addMesh(`glow|${zone}`, o.glow, glowMaterial);
+  }
+  // Lettering is little: one mesh for the whole map costs fewer draw calls than culling saves.
   addMesh('signs', all.sign, signMaterial(signTexture()));
 
-  addMesh('exterior', buildExterior(map, baker), propMaterial());
+  addMesh('exterior|out', exterior, propMaterial());
+  const towers = buildTowers(map);
+  if (towers) {
+    group.add(towers);
+    with_('out', towers);
+    triangles += towers.geometry.getAttribute('position').count / 3;
+  }
 
   // Whatever moves by itself: fans, flywheels, swinging lamps, drips, mist.
-  const ambient = new Ambient(map, baker, all.movers!, all.drips!);
+  const ambient = new Ambient(map, baker, all.movers!, all.drips!, all.steams!);
   group.add(ambient.group);
   triangles += ambient.triangles;
+  // (Each turning part is a draw call or two: it goes with the zone it stands in.)
+  for (const m of ambient.group.children) {
+    if (!m.name.startsWith('mover:')) continue;
+    const i = map.holdAt(Math.floor(m.position.x / S), Math.floor(m.position.z / S), m.position.y);
+    if (i >= 0) with_(zoneOf(i), m);
+  }
 
   const doors = new Doors(map, baker);
   group.add(doors.group);
@@ -233,8 +313,51 @@ export function buildWorld(map: CompiledMap): World {
   let powerT = 0;
   setLightLevels(0, 1, 0);
 
+  // Which zones the eye is in or within a metre of, and so what is drawn.
+  let cull = true;
+  let stale = true;
+  const last = { x: NaN, y: NaN, z: NaN, within: '' };
+  const seen = new Uint8Array(vis.regions.length);
+  /** The eye has to move this far before what it sees is worked out again (`seenFrom` allows for more). */
+  const LOOK_AGAIN = 0.2;
+  /** The doors that are open: a line of sight goes through them. */
+  const openNow = new Set<string>();
+  const view = (x: number, y: number, z: number): void => {
+    const [cx, cz] = [Math.floor(x / S), Math.floor(z / S)];
+    const at = map.holdAt(cx, cz, y);
+    const within = new Set<number>();
+    // (High in the air, or in no room at all: the free camera. It sees what it sees.)
+    if (cull && at >= 0 && y - map.lo[at]! < 3.5) {
+      for (let dz = -2; dz <= 2; dz++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          for (const h of [y, y - 1]) {
+            const i = map.holdAt(cx + dx, cz + dz, h);
+            if (i >= 0 && vis.label[i]! >= 0) within.add(vis.label[i]!);
+          }
+        }
+      }
+    }
+    const key = [...within].sort().join();
+    if (!stale && key === last.within && (!within.size || Math.hypot(x - last.x, y - last.y, z - last.z) < LOOK_AGAIN)) return;
+    Object.assign(last, { x, y, z, within: key });
+    stale = false;
+    const out = within.size === 0 || seenFrom(map, vis, within, x, y, z, seen);
+    for (const [zone, things] of drawnWith) {
+      const r = vis.regions.indexOf(zone);
+      const show = within.size === 0 || (r < 0 ? out : seen[r] === 1);
+      for (const o of things) o.visible = show;
+    }
+    // A shut door is small and stands in a wall: it is drawn while a line from here reaches one of its faces.
+    for (const [id, points] of doors.sights) doors.show(id, within.size === 0 || doors.isOpen(id) || doorInSight(map, openNow, points, x, y, z));
+  };
+
   return {
     group,
+    view,
+    setCull: (on) => {
+      cull = on;
+      stale = true;
+    },
     triangles,
     movers: ambient.movers,
     drips: all.drips!,
@@ -242,8 +365,15 @@ export function buildWorld(map: CompiledMap): World {
     setDoors: (open) => {
       const want = new Set(open);
       for (const o of map.def.openings) if (o.kind === 'door') doors.set(o.id, want.has(o.id));
+      openNow.clear();
+      for (const id of want) openNow.add(id);
+      stale = true;
     },
-    openDoor: (id) => doors.set(id, true, true),
+    openDoor: (id) => {
+      doors.set(id, true, true);
+      openNow.add(id);
+      stale = true;
+    },
     setPower: (on, animate = false) => {
       power = on;
       if (!animate || !on) powerT = on ? 1 : 0;

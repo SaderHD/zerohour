@@ -110,6 +110,8 @@ zerohour/
   No realtime lights for the world. Emissive faces for lamps, screens, specimen tanks and embers
   follow the same three levels.
 - **Characters:** hierarchical box rigs (`rig.ts`): pelvis, torso, head, 2-segment arms and legs.
+  (A teammate's eleven parts are one mesh: the joints are empty groups and the vertices are put
+  where they say each frame, `PlayerModel.pose` - a draw call a body. Zombies are instanced.)
   Animation is procedural (`anim.ts`) — sine-driven walk/run/shamble cycles keyed off movement
   speed, additive attack swing, hit flinch, vault, crawl, and a short tween-to-ground death then
   fade. Zombies get per-instance variation from a seed (height, palette, missing arm, head tilt,
@@ -320,6 +322,266 @@ Props that are ≥0.5 m tall block movement (and bullets if tall); small clutter
 Keep every lane ≥1.5 m wide. Varied ceiling heights, skybox gradient with mountains silhouette and
 aurora for the outdoor zone.
 
+### 4.12 Map — "The Longest Night" (second map; built, and offered in every lobby since M10)
+Wexler Square, in the middle of a big, old, fictional American city, Christmas Eve in the early 1990s.
+Deep in the canyons between the towers, snowing, every decoration still lit and nobody left to look
+at them. Chosen by the host in the lobby; Harrow Ridge stays as it is. Same weapons, tonics, Cache,
+Forge, power, zombies and rounds: only where things stand and what they cost belong to the map.
+
+The city, its streets, shops and signs are all invented (section 1): no real landmark, brand or
+address, and nothing taken from any other game's map - the brief is a *kind* of place (streets you
+fight along, buildings you go through, roofs you cross, a subway underneath), not a layout.
+
+**Size.** 150 × 120 m and five storeys, against Harrow Ridge's 70 × 70 and three: about four times
+the floor to walk on, fourteen zones for nine. Big enough that a team splits up without meaning to
+and a round is fought across a block, not a room.
+
+| Storey | Height | What is on it |
+|---|---|---|
+| Roofs (level 2) | +8 m | Abelard's roof (plant room, the master switch), the tenement roof (water tank), the plank bridge between them |
+| Upstairs (level 1) | +4 m | Abelard's upper floor round its atrium, the tenement flat, the Lyric's balcony |
+| Street (level 0) | 0 | the square, Dray Avenue, Tallow Lane, the diner, the chapel, every ground floor |
+| Mezzanine (level -1) | -4 m | the subway's ticket hall, under the square's north-east corner |
+| Platform (level -2) | -8 m | the platform and the stalled train under the avenue, the service tunnel, the signal room |
+
+Nobody jumps, falls or climbs (6.2), so every change of height is something walked: the tenement's
+stairwell and its fire escape (an outdoor staircase down into the lane), Abelard's two dead
+escalators, the subway's stairs, the plank bridge. Roofs are railed. No ziplines or drops: either
+would be new movement code and is not part of this map.
+
+```
+        [St Audra's chapel]                                    (north of the avenue)
+               ||1000
+   ============ DRAY AVENUE ====1250==(stairs down)============  cars, a bus, the far subway entrance
+      ||1000 (fire exit)        |debris 1000|
+   [The Lyric]            +------------------+          +----------------------------+
+    lobby, auditorium,=1000=   WEXLER SQUARE  =1000=====  ABELARD'S  ground: toys, grotto
+    balcony upstairs      |  the tree, the rink |        |   upper (escalators, open)  |
+                          |  market stalls   ==1250==v   |   roof =1250= (the switch)  |
+   +---------------+      +------------------+ (subway)  +----------------------------+
+   | STARLIGHT     |=750=======||      ||debris 750          ||1000 (loading bay)  ¦ plank
+   | DINER (spawn) |                 ====== TALLOW LANE (alley) ===============    ¦ bridge
+   +---------------+=750=[TENEMENT stairwell]==750 (fire escape)==/                ¦ 1250
+                          flat upstairs =1000= roof ·······························+
+
+   Below: [Mezzanine] == turnstiles, stairs == [Platform + train] --(power)-- [Service tunnel: FORGE]
+          the service tunnel's far end climbs to a pavement hatch in Tallow Lane (power door)
+```
+
+Three circuits lie over each other and meet at the square: the streets (square, avenue, lane), the
+roofs (tenement, bridge, Abelard's, down the escalators) and the subway (the square's stairs, the
+platform, through the train, up the avenue's). The Forge is not at the end of a dead end here -
+Harrow Ridge keeps that - but both ways to it wait for the power.
+
+| Zone | Approx. size | Dressing | Windows | Contents |
+|---|---|---|---|---|
+| Starlight Diner (spawn) | 16×10 + kitchen | booths, counter and stools, jukebox, pie case, paper chains, plates still laid, a small tinsel tree | 3 | Farrow, Pike, Second Wind |
+| Wexler Square (outdoor) | 44×36 | **the tree** (14 m, lit, visible from every roof), a frozen rink round its foot, market stalls, heaped presents, benches, a bandstand, lamp posts with wreaths, light strings overhead | 4 (street barricades) | Cache start site |
+| Dray Avenue (outdoor) | 100×12 | abandoned cars under snow, a bus across the road, police sawhorses, steam from the gratings, a news kiosk, the towers straight up on both sides | 4 (barricades, a manhole) | Coachman |
+| Tallow Lane (outdoor) | 60×6 | bins, crates, the fire escape, a delivery van, washing lines, a brazier | 3 | Quickhands |
+| Tenement | stairwell + flat 12×9 | mailboxes, a flat with the dinner on the table and presents under the tree, a television showing snow | 3 | Stitch, Marathon |
+| Tenement roof (outdoor) | 14×12 | water tank, chimney pots, pigeon coop, aerials, a plastic reindeer | 2 (over the parapet) | Cache site |
+| Abelard's, ground | 30×24 | toy department, counters, mannequins, the grotto with its throne and a queue of rope posts, a model railway still running when the power is on | 4 (shop windows) | Kestrel |
+| Abelard's, upper | gallery round the atrium | racks, a gift-wrap counter, the atrium's hanging decorations, the escalators | 2 | Hair Trigger, Cache site |
+| Abelard's roof (outdoor) | 30×20 | plant room, vent stacks, the back of the store's lit sign, the bridge | 2 (over the parapet) | **Power switch** |
+| The Lyric | lobby 12×10, auditorium 18×16, balcony | ticket booth, popcorn stand, rows of seats, the projector still throwing a white frame on the screen | 3 | Brakeman, Packmule, Cache site |
+| St Audra's | 14×20 | pews, candles, a nativity with a figure missing, the organ | 2 | Ironhide |
+| Subway mezzanine | 20×12 | token booth, turnstiles, tiled pillars, tinsel on the booth glass | 1 | Cache site |
+| Platform | 50×8 + the train | benches, the stalled train (walked through end to end, doors open), flickering tubes | 2 (the track tunnels) | a second Stitch |
+| Service tunnel | 30×4 + signal room | cable trays, relay cabinets, warning stripes, the Forge in the signal room | 1 | **Forge** |
+
+About 36 windows for Harrow Ridge's 18. On a street a "window" is a barricade the dead tear down;
+on a roof they come over the parapet; in the subway out of the dark of the track tunnel.
+
+**As blocked out (M3; `shared/src/map/longestNight.ts`, `npm run map -- longest_night`).** The
+streets, every ground floor and the subway stand, undressed, with the doors and prices above and
+the street barricades and ground-floor windows. Where the sketch left room, it was decided so: the avenue runs along the north
+(z 30-42), a cut joins it to the square (z 50-86) and a passage joins the square to the lane
+(z 92-98), each with its heap of wreckage in a wall across the middle; the Lyric is the block
+between avenue and square on the west, its fire exit a corridor out of the auditorium; the diner is
+at the square's south-west corner with the kitchen behind it, and the tenement's hall opens off the
+kitchen. The subway's stairs go down from a door in the square's *east* side to the mezzanine,
+which lies under the square's north-east corner and Abelard's front; a passage and the turnstiles
+lead north to a flight down onto the platform's west half. The platform is in two halves under the
+avenue with the roof down between them, and the train stands alongside both: the way from one half
+to the other is through it. From the east half two flights climb in a head house on the avenue's
+north side. The service tunnel runs south from the west half under the square, the signal room off
+it, and comes up two flights to a door in the lane's north wall (the "hatch"). A flight that
+reaches the street always stands inside a building: its head room runs up past street level, and
+the compiler lets no room lie over open sky.
+
+**Upstairs and the roofs (M4).** The tenement is a hall, a stairwell of two flights side by side
+and a flat over the hall; the second flight comes out in a hut on its roof (1000). The fire escape
+is a flight up the tenement's wall from the west end of the lane to a landing at the flat's north
+door (750): the lane's, not the tenement's, and open to it. From the tenement's roof the plank
+bridge (1250, a gate in the parapet) crosses the lane to a walk two metres wide along the lane's
+north side - a setback a storey lower than the building it runs along - which crosses the mouth of
+the passage on two more planks and ends on Abelard's roof. Abelard's has an atrium ten metres
+square open to the upper floor's ceiling, a dead escalator at each side of it (one climbing north,
+one south), a gallery round it upstairs (a zone of its own, "Abelard's, Upstairs", joined at the
+escalators' heads), and stairs in the gallery's north-east corner to a hut on the roof (1250). The
+Lyric's lobby has a flight up its north wall to a landing and the balcony, which hangs over the
+auditorium's back rows and looks down on the rest: the one dead end upstairs. Fourteen zones, 17
+doors, 36 windows of three kinds: a yard behind the wall (the streets' barricades and most ground
+floors), a ledge in the open air (outside the flat, on the diner's roof and the fire escape; outside
+Abelard's upper floor over the square; over the parapets of both roofs, where the window is a gap
+in the parapet), and the dark (the track tunnel at each end of the platform, one off the mezzanine
+and one off the service tunnel; the tenement's cellar; and the stock rooms behind Abelard's four
+ground-floor windows, which were yards until its roof had to lie over them). A walked roof is a
+block with a metre of parapet all round wherever something lower lies beyond; against a taller
+neighbour it runs to that building's wall.
+
+**The streets dressed (M5; `shared/src/map/dressing/nightStreets.ts`).** The tree stands in a
+stone tub in the middle of the square (74, 68), fourteen metres of it, and blocks sight like a
+wall up to its top. The rink is round it: 16 x 12 m of ice inside boards a metre high, a gate in
+the middle of each side, so the tree can be run round and the ring left four ways. Strings of
+bulbs run from the tree down to the square's six lamp posts and across to the Lyric and to
+Abelard's. The market is ten stalls (three with the canopy down, their bulbs still lit) in a row
+along the north side with an alley behind it, down the east side and along the south; the
+bandstand is on the Lyric's side; benches face the ice. Dray Avenue has seven cars nose to tail
+west of the cut, a police line and a patrol car across the road at it, and the bus over the south
+kerb and into the wall east of that: the way past the bus is the north pavement, three metres
+wide, and it is the avenue's one narrow place. Three more cars, a kiosk, a telephone box, steam
+off three gratings and a manhole, eight strings of bulbs from wall to wall. Tallow Lane has the
+van that was unloading at Abelard's, dumpsters, bins, crates, a brazier by the hatch, five lines
+of washing overhead and one string of bulbs; its lamps are bulkheads on the wall, not posts. The
+sketch's manhole as a way in was not built (the avenue's four are barricades).
+
+**The halls dressed (M6; `shared/src/map/dressing/nightHalls.ts`).** *Abelard's.* In at the door
+from the square a toy carousel is still turning, shop dummies in winter coats stand each side of
+it and down the west wall, and the atrium is straight ahead: the model railway on a table in the
+middle of its floor (the train goes round its town only while the mains are on), a star, four
+baubles and two strings of bulbs hung over it from the upper floor's ceiling, garlands on the
+gallery's lip. Toys fill the north side - shelves along the wall between its two windows, two
+gondolas and tables of bears down the floor - and the east; glass counters run along the flank of
+each escalator, which has its balustrades now; tables of gifts along the south. The grotto is the
+south-east corner: the front of a log cabin against the east wall with its windows lit, the big
+red chair in front of it with nobody in it, firs, and two lines of rope on brass posts for the
+queue. Crates in the loading bay. Upstairs is coats: rails round the gallery, dummies on the north
+wall, and the gift-wrap counter against the south wall. The south-west corner of the upper floor
+is one of the Cache's places.
+*The Lyric.* The lobby has the ticket booth and the popcorn stand in its south-east corner by the
+door, a rope, posters in frames of bulbs and a small tree; outside, a canopy over the door with
+the house's name on it and bulbs under it. The auditorium's screen hangs on the west wall over the
+window the dead come through, eleven metres wide, a white frame on it and nothing in the frame:
+it is what lights the hall. Six rows of tip-up seats face it, two metres apart, in two blocks of
+five metres with an aisle down the middle and one along each wall; the last two rows are under
+the balcony. On the balcony a row stands behind a walk along the rail and another against the
+back wall, with the projector between its halves, reels turning.
+*St Audra's.* Six rows of pews each side of a nave two metres wide from the door to the altar,
+which stands under a rose window on the north wall with its six candles lit; the nativity in the
+north-west corner (the crib has straw in it and nothing else), the organ in the north-east, a
+stand of votive candles in each corner of the nave, lancets of coloured glass down both sides.
+On the avenue: a stone doorway with a gable and a cross, a lantern in it, a lancet each side and
+a rose over it. Seats, pews, counters and tables stop nobody's shot; shelves, the booth, the
+cabin and the organ do.
+
+**The rest dressed (M7; `shared/src/map/dressing/nightHomes.ts`, `nightSubway.ts`).** *The
+Starlight.* Six booths, four under the north wall and two under the east, plates still on their
+tables; six metres of counter in front of the kitchen arch with stools along it (the till and
+the urn, then the pie case with its lamp on), a metre and a half behind it and a way round its
+west end; the jukebox lit on the west wall, a tree in the south-east corner, paper chains from
+wall to wall. The middle of the floor is clear: it is where everyone starts. The kitchen has its
+range, sink, refrigerator and shelves down two walls. Outside, over the door on the square: three
+bands of neon and a star on a mast above the roof, the name between them a letter to a box of
+light (one of the nine is dark).
+*The tenement.* The hall has letter boxes, a radiator and somebody's bicycle. The flat is one
+room: the table laid for six in the north half with the bird on it and the candles lit, a
+sideboard with the wireless on; in the south half an armchair and a sofa turned to a television
+showing snow, the tree and its presents in the corner; a bed and a wardrobe against the east wall.
+The fire escape is iron now: tread plate underfoot (it rings), black rails on balusters up both
+sides of the flight, and to the lane a face of flat bars and stays (a wall style of its own,
+`iron`, on a half-metre strip along its foot). Every ledge in the open air has an iron rail round
+its three open sides, and the six that hang clear have brackets back to the wall under them.
+*The roofs.* The tenement's: a timber water tank on iron legs in the south-west (it hides whoever
+is behind it), two chimney stacks, a pigeon coop against the hut, two aerials, bulbs along the
+north parapet and a plastic reindeer, lit, looking over the lane. Abelard's: a glazed lantern six
+metres by eight over the atrium with the store's light coming up through it (a metre high: shot
+across, walked round), the plant room in the north-west corner with its door to the south, two
+condensers whose fans turn with the mains, four vent stacks (three breathing), and along the west
+parapet the back of the store's sign, eight metres of frame with the red of nine letters round
+their cans.
+*The subway.* On the mezzanine the way north to the platform is through a bank of three turnstile
+housings (two lanes, a metre and a half each) fenced off from the hall, the token booth beside it
+with tinsel on its glass; four tiled pillars, benches, posters, two telephones, a stopped clock.
+The platform has a row of pillars down each half, benches under the south wall, a yellow line at
+the edge, rubble where the roof came down; along its north wall wherever the train stands is the
+train's side - steel to the sill, a band of windows (lit a little without the mains, and properly
+with them), the dark over its roof. Inside, the train is three carriages: a bench down each side
+wherever there is no door, two metres between them, a frame across at each carriage end, poles.
+The service tunnel has cable down both walls, pipes overhead and relay cabinets; the signal room
+a lever frame under a lit diagram of the line on its north wall, relays along the south, and the
+Forge against its west wall, straight ahead of whoever comes in. Pillars, the tank, the plant room, the booth, cabinets
+and the wardrobe block sight; booths, counters, benches, seats and the lantern do not.
+
+**What is sold, heard and written (M8; `dressing/nightMounts.ts`, `nightSigns.ts`).** Everything
+in the table above stands where the table says. *The Starlight* sells the Farrow (south wall, by
+the kitchen arch), the Pike (west wall) and Second Wind (east wall, at the end of the booths): a
+team is armed before it buys a door. *The square* has the Cache to begin with, under the south
+wall in sight of the diner's door; its other four places are the tenement's roof (by the hut),
+the south-west corner of Abelard's upper floor, the corner under the Lyric's screen and the
+mezzanine's north wall - one on each storey but the platform's. *The avenue* has the Coachman on
+its south wall just east of the cut; *the lane* Quickhands, between the passage and the hatch.
+*The tenement* has the Stitch in the hall and Marathon in the flat; *Abelard's* the Kestrel on
+the far (east) wall of the ground floor and Hair Trigger in the north-west corner upstairs;
+*the Lyric* the Brakeman on the auditorium's north wall by the fire exit and Packmule at the
+back of the balcony (the dead end); *St Audra's* Ironhide by the door. The second Stitch is on
+the far half of the platform. **The master switch** is a breaker box on the front of the plant
+room on Abelard's roof, a red lamp over it that burns without the mains: three doors and 3000
+points from the diner either way, by the square and up through the store or by the tenement,
+its roof and the plank bridge. **The Forge** is in the signal room; both ways to it open with the
+power. A map's second board for a gun has an id of its own (`wb_stitch_platform`), and whoever
+wants that gun or its ammunition goes to the nearer.
+
+*Sound.* Every zone has an air of its own and none is the station's (`audio/ambience.ts`): wind
+down a canyon of towers in the square and the avenue, the same wind squeezed and whistling in
+the lane, more of it and nothing round it on the roofs; a refrigerator and (on the mains) neon
+in the diner; a big soft room in the store; the projector's clatter in the Lyric; stone in the
+chapel; a radiator in the tenement; a rumble from further down the line in the subway; relays in
+the service tunnel. The city's mains hum at 60, the station's at 50. Outdoors a siren wails a
+long way off every minute or so, from a different quarter each time, and is never nearer. The
+carols are four tunes some centuries old (the one called "God rest ye merry", the Coventry
+Carol, Greensleeves, the plainsong of "O come, O come, Emmanuel"), written out a phrase at a
+time as note lists (`CAROLS` in `audio/music.ts`): the diner's jukebox plays them as a worn
+record does - a reedy lead, a bass under it, the needle's crackle - and the music box by the
+grotto's chair an octave up on a steel comb, both a little slow and a third of a semitone flat,
+each from where it stands and only while someone is near enough to hear. A lamp that wavers and
+is no flame (`LightDef.silent`: the platform's failing tubes, the screen, the television, the
+bus) no longer crackles like a fire.
+
+*Fog.* The streets keep the map's air (10-110 m); the roofs see further (14-135), the lane a
+little less (6-70); indoors it closes in - the store 8-70, the diner 6-60, the tenement 5-50,
+the chapel 4-44, the Lyric 4-42 - and the subway is as it was (36-48).
+
+*Signs.* The Starlight's name is nine boxes of light over its door; ABELARD'S stands in red
+letters two metres tall on the store's roof, facing the square; THE LYRIC is on the canopy. A
+booth says TICKETS or TOKENS, the kiosk NEWS, the cabin THE GROTTO, and the Lyric's four
+posters have titles nobody has heard of. On the walls (`nightSigns.ts`): street names at the
+corners with arrows down the cut and the passage, SUBWAY over both ways down, the station's
+name and EXIT arrows below, what each floor of the store sells, and - in yellow, as on the
+station - POWER with an arrow at the foot of each stair that leads to a roof.
+
+**Its own numbers (M9; `MapDef.rules`).** One: `spawnReach: 40`. The dead come in at the windows
+of the zones the living are in or next to, and here a zone is a street a hundred metres long: from
+round 6 a third of them came in more than 40 m of walking from the nearest player and one in six
+more than 60, some over 100 (on the station nine in ten are within 30 m and the furthest seen in
+four games was 63). Now a window is only used if somebody is within 40 m of walking of it - the nearest
+window when there is none - and a window with one of them still standing at it waits its turn.
+Everything else (round tables, prices, the Forge's cost, the time between rounds) is the game's.
+
+**The look.** The same 90s horror as the station - dark, grain, hard pools of light, nothing clean
+- with Christmas as the only colour in it. Warm strings of bulbs over grey snow; the tree lit over
+a square of wrecked stalls; shop windows with their displays still turning; presents nobody will
+open. The decorations are what is wrong with the place, so nothing festive is ever damaged for
+effect: it is all still on, and that is the point. Sound does the rest: wind between the towers, a
+siren a long way off that never gets nearer, a music box in the grotto and the diner's jukebox
+playing carols old enough to belong to nobody, a little slow and a little flat (as note lists, like
+every other tune).
+
+**The skyline** is never walked. Towers of thirty and forty storeys ring the map, their lit
+windows fading up into fog and a sodium glow where the station has mountains and an aurora; the
+buildings players do go into are the low old ones at the towers' feet.
+
 ---
 
 ## 5. Multiplayer architecture
@@ -328,7 +590,11 @@ aurora for the outdoor zone.
 aim.** This is co-op with friends, so we optimise for feel and simplicity over cheat-proofing.
 
 - **Rooms:** client opens `ws://host/ws`, sends `create` or `join {code}` (4-letter code) with a
-  name. Lobby shows players + ready state; host starts. Late join allowed — spawns next round
+  name. Lobby shows players + ready state; host starts. A room is on one map (`room.map`): the
+  host may change it in the lobby (`map {id}`) to any the server offers (`room.maps`: the maps
+  people play, plus the proving grounds on a debug server), which asks everyone to ready up
+  again. A client builds its world once, for one map, so when its room is on another it loads
+  the page again with `?map=` and takes its seat back by its token. Late join allowed — spawns next round
   (at once during an intermission). After a game over the room shows the results until any
   player sends `again`, which returns everyone to the lobby.
   Disconnect: slot held 60 s for reconnect (token in `sessionStorage`), then dropped. A tab that
@@ -352,7 +618,8 @@ aim.** This is co-op with friends, so we optimise for feel and simplicity over c
   - *Hit detection ("favour the shooter").* Client raycasts against the zombies it is rendering
     and sends `fire {weapon, seq, hits:[{zombieId, zone, dist}]}`. Server validates fire rate and
     ammo (which it tracks), zombie alive, distance within range + slack, and coarse line of sight
-    on the nav grid, then applies damage and awards points. Projectiles (grenades, Thumper,
+    on the nav grid (chest to chest, or from the shooter's eye to the body's chest: a shot leaves
+    the eye, and over a roof's parapet only the eye sees), then applies damage and awards points. Projectiles (grenades, Thumper,
     Gravewell, Siren) are fully server-simulated.
 - **Client presentation:** other players and zombies are interpolated ~120 ms in the past from a
   snapshot buffer; own firing/reload/recoil play immediately and reconcile ammo from snapshots.
@@ -403,9 +670,23 @@ surface style: floors, ceilings and wall quads wherever a cell's open height int
 its neighbour (this one rule yields walls, door lintels, window sills and jambs), with all
 lighting baked into vertex colours (zone ambient + light pools with grid line of sight + fake AO).
 
+**Where a map is** is data too (`MapDef.scene`): the kind of sky and its colours (`sky`: 'ridge' or
+'city'), what the solid looks like from outside (`built`: 'station' or 'city'), what stands beyond
+the map (`beyond`: pines, towers), the light on what belongs to no zone (`outside`), what the pockets
+behind windows are paved and walled in (`pocket`), whether it snows, the air of a zone that names
+none, where the menu's camera stands; a zone's `air` names the drone it hums (`audio/ambience.ts`). `MapDef.rules` holds the
+numbers a map needs to differ in (`rulesOf(def)`: the pause between rounds, the Forge's price).
+`map/maps.ts` is the list (`MAPS`, `mapChoices`, `compiledMap(id)`); a `hidden` map is a proving
+ground no lobby offers.
+
 **Windows** carve a walled, roofless pocket (3 m deep by default) behind them; zombies spawn at
 the back of the pocket, so `spawns` is generated, not authored. Pockets need solid ground behind
-the wall — the validator rejects pockets that overlap rooms or each other.
+the wall — the validator rejects pockets that overlap rooms or each other. `Opening.behind` names
+the two other kinds a city needs. `'air'`: a ledge in the open air, planks with nothing round them,
+which may hang over a street or over a lower roof (outside an upstairs window; over a parapet, and
+then the window itself is a gap in the parapet with nothing above it). `'tunnel'`: roofed and
+dark, floored and walled like the room it opens on, so it can lie under a street or under the
+floor above (a track tunnel, a cellar, a stock room).
 
 **Props** (`data/props.ts`: footprint, height, solid, tall) are placed per zone in
 `map/dressing/*.ts`. Solid props turn in quarter turns, sit on the 0.5 m grid and take their cells
@@ -431,7 +712,12 @@ risers, one a cell, meeting the floors at both ends). Openings, props, interacta
 player spawns take a `level` too. The compiled grid is a stack of layers, one per storey
 (`idx(cx, cz, layer)`; without a layer, the ground), and rooms on different levels may lie over
 each other as long as what is open in one column never overlaps (the compiler checks this, a
-slab's thickness between, and 2 m of headroom everywhere). A storey is only where a cell is
+slab's thickness between, and 2 m of headroom everywhere). A floor that is itself under the sky may
+hang over another that is (a bridge over a street, a ledge over a pavement; never a roofed room):
+`CompiledMap.deck` marks it, and the air of the cell below then ends at its underside
+(`CompiledMap.cap`: for every cell where its air stops - its ceiling, or under the sky nowhere,
+or the bottom of the `DECK`, a quarter of a metre, of whatever hangs over it). The world builder
+draws such a floor's underside and its edges. A storey is only where a cell is
 *stored*. What joins two cells is their floors lying within `STEP_HEIGHT` (0.3 m) of each other:
 `CompiledMap.links` holds, for every cell, the cell reached by a step to each of its eight
 neighbours, whatever layer that is on. So a staircase is a run of cells each a riser above the
@@ -446,7 +732,79 @@ map machinery and a full-horde soak on it. Harrow Ridge uses all of it (4.11). A
 stand on a ramp or stairs (the compiler refuses it); a `railing` prop (dressing helpers `rail`,
 `stairRail`) marks the top of a ledge and stops nothing.
 
-`validate.ts` runs in tests and fails the build if: a prop blocks the floor inside a window; any zone is unreachable with all doors open;
+**The outside of a city** (`scene.built: 'city'`; `map/massing.ts`, `render/city.ts`). To whoever
+walks, solid is a wall of no particular height. Seen from outside it is a building, so on a city map
+the solid has one: `MapDef.blocks` are rectangles `{x, z, w, d, h, face, tint, parapet, lit, roof}`
+saying "what stands here is `h` metres tall, faced in this wall style" (later blocks have the ground
+where they overlap; solid no block covers is 14 m of brick). `massing(map)` gives every column of the
+grid its top: under the sky (a street, a walked roof, a pocket) the floor that lies open; anywhere
+else the block's height, or as much more as the rooms inside need (a stair head stands through the
+roof as a hut, its walls with it), plus a parapet wherever something lower lies beside it. Three
+things read it. The world builder stops a wall where the building behind it stops, and draws none
+against open sky (a roof's edge over a street or over a lower roof is a drop: rail it). `city.ts`
+carries every building on from where the street's own walls end (`Room.ceil` of the outdoor room,
+4 m by habit) to its top, in the block's wall style and lit as part of the same cell, so the seam
+does not show: a string course, a row of sash windows to each 4 m storey (one in five lit, by a
+hash of where it is), a cornice, a snowed roof on whatever anyone could look down on, and a water
+tank, a stair hut or vents on it. And the snow falls on the roofs. A street's ground storey is still
+the half-metre strip rooms along its edge: a shop front below, the block's brick above. Beyond the
+map, `beyond: 'towers'` (`render/towers.ts`) rings it with two rows of towers 48-165 m tall (one
+unlit mesh, the fog reaching it a quarter as much, colours fading into the sky's glow with height),
+across a cross street's width of bare ground; the 'city' sky is low cloud lit from underneath with
+a painted far skyline. The Corner (`map/corner.ts`, hidden; `npm run map -- corner`,
+`npm run tour -- --corner`) is the proving ground: a street with kerbs between buildings of six
+heights, a shop, a flat, a walked roof and an underpass.
+Sight and shots know the heights too (`CompiledMap.skyline`, which is `massing().top`; null on a
+map whose solid has none, where solid is endlessly tall as it always was): a point above the top of
+its column and in no cell is in the open air (`aloft`), so `seeThrough`, `rayWorld` and thrown
+things pass over a roof or a parapet lower than they are and stop at one that is not. On such a
+map tall furniture under the sky has a top as well (`shutAt(i, y)`): a look or a shot from a roof
+passes over a kiosk, a bus or a market stall, and the tree stops it for fourteen metres. To the
+buildings, what hangs in the air is not there: a column is open from its *lowest* floor under the
+sky, so the lane under a bridge is still street, a ledge over a lower roof leaves that roof as it
+was (the validator refuses one sunk into it), and a gap in a parapet is part of the parapet.
+
+**What is drawn** (`map/visibility.ts`, M9). The renderer leaves out what is outside the view; on
+a map this size most of the world is inside the view from anywhere, and behind a wall. So every
+open cell belongs to a region - its zone, or for the roofed cells no zone owns (a doorway, the
+dark behind a window) the zone it is reached from; yards and ledges under the sky are "the
+outside", with whatever stands beyond the walls - and each mesh of the world is one region's
+(`...|zone`; a city's façades go with the street they stand over). Two things say which regions
+are drawn. Once a map, a table of which pairs can see each other at all: a line from one region
+into another leaves through the first's boundary and comes in through the second's, so the
+boundaries are sampled (every half metre along and up; under the sky, up the air over each lower
+roof beside it as well) and a pair see each other if any two samples have a clear line between
+them - doors open, furniture not there. Regions under the sky are taken to see each other. And as
+the eye moves (every 20 cm) it is asked again from where the eye is (`seenFrom`): for each
+*roofed* region the table allows, is any sample of its doorways and windows in sight from
+outside it? and for an eye indoors, is any way out - a sample where a roofed region it sees
+meets a street, a roof or a yard - in sight from inside? If none is, nothing under the sky is
+drawn. The eye is taken to be anywhere within 35 cm of where it is, and the samples sit hard by
+every jamb, sill and lintel, because a room seen through a slit is still seen. A free camera in
+the air draws everything. `visibility.test.ts` marches rays from eyes all over each
+map and fails if one ever enters a cell whose region would not have been drawn
+(`VIS_DENSE=1` looks four times as hard: run it after touching the sampling or a map's doors);
+`__zh.cull(false)` draws everything, `__zh.meshes()` lists what a frame is made of and
+`npm run tour -- --night --perf` measures every view.
+
+Three smaller things keep the count of draw calls down (M10; the budget is 150 in a frame with
+four players in). A big mesh is cut into tiles of at most 40 m laid over *its own* extent, as
+few and as equal as will do, so a shop that fits in one tile is one mesh wherever it stands (on
+a grid fixed to the map it was four whenever a grid line crossed it); and into no more tiles
+than leaves each about 6,000 triangles, so what is spread thin (a city's far faces: 16,000
+triangles over the whole map) is two meshes and not twelve. A shut door - its slab, its stencilled price, a lamp if it waits for the power: up to three
+calls, and a city has seventeen - is drawn only while a line from the eye (or from 35 cm to any
+side of it) reaches one of the points just clear of its two faces (`doorSights`: every half
+metre along from two centimetres inside each jamb, at four heights; `doorInSight`); a door within
+two metres is always drawn, and so is one that is opening. And each turning part (a fan, the
+carousel, the projector's reels) goes with the zone its pivot stands in. What decides whether a
+thing is drawn looks along `clearLine`, which knows walls, floors and - when told which are
+open - shut doors, and nothing of furniture: to `rayWorld` and `lineOfSight` a tall prop blocks
+at any height (on a map whose solid has no top), and from higher ground it is seen over. The
+test for doors is the test for zones: wherever a marched line from an eye ends on a shut door,
+`doorInSight` must have said so, with every door shut and with each half of them open.
+
+`validate.ts` runs in tests and fails the build if: a block is off the grid or off the map; a prop blocks the floor inside a window; any zone is unreachable with all doors open;
 any window/spawn can't path to the player spawn; a prop seals a lane (<1.5 m); interactables are
 not adjacent to floor; rooms overlap. `npm run map` validates and writes an ASCII top-down dump to
 `docs/MAP.txt` (a sheet per storey when there are several; `^ v < >` mark ramps and stairs, pointing
@@ -460,15 +818,18 @@ than a step from that height as a wall, and follows the floor up and down as the
 treads. Nobody jumps or falls. Bodies whose feet are more than `FLOOR_GAP` (1.5 m) apart in height
 are on different floors and do not touch (attacks, separation, revives, pick-ups, purchases).
 Hitscan: client rays against zombie hit boxes (head/torso/limb boxes on the rig) and `rayWorld`
-(every storey's floors, ceilings, sills and props); server LOS is a grid DDA (`los.ts`) run chest
-to chest in 3D, so the floors between storeys hide and shield. Closed doors and unbroken windows
+(every storey's floors, ceilings, sills and props; in a city the roofs, with the air over them
+open); server LOS is a grid DDA (`los.ts`) run chest
+to chest in 3D, so the floors between storeys hide and shield, and so does a parapet to whoever is below it. Closed doors and unbroken windows
 are solid cells. The server accepts a reported move only onto a floor that exists and is no
 further up or down than stairs could have taken the player over that distance.
 
 ### 6.3 Navigation
 `flowfield.ts`: Dijkstra over walkable cells, along `CompiledMap.links` (so across storeys by their
 stairs), from each living player's cell (cells touching a wall or a ledge
-cost more, so paths keep to the middle of lanes), recomputed every 250 ms (staggered across ticks)
+cost more, so paths keep to the middle of lanes; a step costs a small whole number, so the queue is
+a ring of buckets, one a distance, and a field costs what the map has of floor, not the size of its
+grid: about 0.5 ms on the station, 1.3 ms on The Longest Night), recomputed every 250 ms (staggered across ticks)
 and, when a door opens, one field a tick over the next few ticks. Each zombie samples the field of its target player a few cells
 ahead, adds separation from neighbours (a plain pair loop — 32 bodies need no spatial hash) and a
 little per-zombie lateral noise so hordes don't single-file. Within 3 m and in sight it runs
@@ -498,7 +859,8 @@ wall buys, tonics, Cache, Forge, power switch, barricade rebuild and revive.
   `rounds(bool)` (stop/resume the round loop), `spawnZombies(n, opts)` (`opts.kind: 'howler'`), `killZombies()`, `god(bool)`, `freeCam()`, `openAllDoors()`, `powerOn()`, `dummy(x,z)` (target
   dummy), `lookAt(x,y,z)`, `press(code)` (mouse buttons are `Mouse0`/`Mouse2`), `audio` (`play(name)`,
   `names()`, `render(name)` offline, `record(on)`, `setVolume`), `pick()` (the name of whatever mesh is
-  under the crosshair, for finding what a stray surface belongs to). Matching server-side
+  under the crosshair, for finding what a stray surface belongs to), `fly(x, y, z, yaw, pitch)` (the
+  free camera at a point in the air, for pictures from where nobody can stand). Matching server-side
   `debug` messages, enabled only when `ZH_DEBUG=1`.
 - URL flags: `?name=X`, `?room=CODE` (join; with `autostart` the room is created if missing —
   debug servers only), `?autostart=1` (skip menu and lobby), `?debug=1` (stats overlay).
@@ -1052,6 +1414,463 @@ floor. Four steps.
   Not done: the Forge still lies at the end of a long dead end and bots still die there (it is the
   site's one deathtrap by design, 4.11); damage arcs point in plan only; nobody has played it on
   real hardware, so whether 20 s and 4,000 suit people as they suit bots is unknown.
+
+### The second map: "The Longest Night"
+Asked for by the owner: a second map chosen in the lobby, a winter city at Christmas, full size
+(4.12 is the design). Ten sessions, each ending green like the first fourteen.
+- [x] M1 A game can be on any map - done. A room has a map; its host changes it in the lobby
+  (a picker; protocol 10: `map {id}`, and `room` carries `map` and `maps`), the game starts on
+  it, and the pages of everyone in the room load it and keep their seats (section 5). A server
+  offers the maps people play, and the Stacks as well when it is a debug server; `ZH_MAP` now
+  only says which map a new room starts on. The WebSocket bots learn the map from `sync`;
+  `campaign --map=id`, `npm run map -- <id>` and the soak take one. The station's look is data
+  (`MapDef.scene`: sky kind and colours, the pines, the snow, the default fog, the menu's
+  vista; `ZoneDef.air` for the ambience, which was keyed by the station's zone ids), and
+  `MapDef.rules` can change the pause between rounds and the Forge's price for one map (nothing
+  sets them yet: the station's numbers are the game's defaults). `npm run maps` is the browser
+  check: two players and a bot, the host picks the Stacks, both pages and both seats follow,
+  the bot (started knowing only the station) fights there; a server without debug offers one
+  map and cannot be talked onto another.
+  Harrow Ridge is as it was: a seeded ten-round campaign gives the same rounds, downs, points
+  and purchases to the shot, and 84 tour views differ from the last commit's only by what moves
+  (80 under 2% of pixels - the snow; the lab's two views with the power on by its failing tube).
+  Found on the way: the Stacks' menu camera stood outside its own map (it had the station's
+  spot); a client sent to a map it did not know would have reloaded for ever; the fuzz test's
+  count of hostile clients inside the game depends on how often they get back in, and a map
+  change spends the same allowance as a join (the mix was rebalanced and the bar set from ten
+  runs).
+  Not done: the roofs and cladding in `exterior.ts` still go by the station's wall styles (M2
+  writes the city's and makes that a kind of `scene`); changing map reloads the page rather than
+  rebuilding the world in place, so a guest sees the lobby blink; the README says nothing of
+  maps while there is one to choose.
+- [x] M2 The city outside - done (6.1, "The outside of a city", describes it). The solid has a
+  height: a map's `blocks` say how tall each building stands and what it is faced in, and
+  `massing()` (shared) turns them and the rooms into a top for every column. From that the client
+  draws each building on up from where the street's walls stop - the same brick under the same
+  lamps, string course, sash windows a storey apart with one in five lit, cornice, parapet, a
+  snowed roof with a tank, a hut or vents - stops a wall where the building behind it stops, and
+  leaves a roof's edge open over a street or a lower roof. Beyond the map a ring of towers with
+  their lights on fades up into the glow of a 'city' sky (cloud lit from below, a painted far
+  skyline). `MapScene` gained `built`, `outside` and `pocket`, `sky: 'city'` and
+  `beyond: 'towers'`; six surfaces are new (floors `asphalt`, `pavement`, `felt`; walls `brick`,
+  `shopfront`, `subway`). The snow lies on roofs and comes up with a viewer who stands on one.
+  Proved on the Corner (`map/corner.ts`, a hidden map: 48 x 40 m, four storeys, ten blocks from
+  3.5 to 30 m): `npm run tour -- --corner` takes twenty pictures of it (street, kerb, barricade,
+  shop, flat, roof in eight directions, underpass); 21,000-33,000 triangles and 18-33 draw calls
+  from anywhere on it. A six-round god-mode campaign runs on it (no stuck zombie, no
+  corrections).
+  Harrow Ridge is as it was: a seeded ten-round campaign is the same to the shot, and of 100 tour
+  views (84 of the station, 16 of the Stacks) 98 differ from the last commit's by under 2% of
+  pixels; the other two are the lab's and the cold store's failing tubes, which differ as much
+  from one run to the next.
+  New tool: `__zh.fly(x, y, z, yaw, pitch)`.
+  Not done: sight and shots across a roof lower than the eye (to `seeThrough` and `rayWorld` solid
+  is still endlessly tall: M4, with the roofs, where `massing` has the heights ready); a pocket
+  below ground is open to the sky through whatever stands over it (M4: "air or track"); every
+  façade is brick with one kind of window (stone, a church, a cinema's blind wall are M5-M6's);
+  the whole city's façades are one mesh a wall style, never culled (M9 measures); the Corner has
+  no browser walk of its own beyond the tour.
+- [x] M3 Blockout I: street and subway - done (4.12, "As blocked out", says where everything is).
+  `map/longestNight.ts`, hidden until M10: 150 x 120 m, three storeys so far (street, mezzanine
+  -4, platform -8), eleven zones, 13 doors at the plan's prices (two of them heaps of wreckage, two
+  waiting for the power), 24 windows, 27 blocks from 3.5 to 30 m, about 6,000 m2 of floor (the
+  station has 1,900). Undressed: lamps enough to see by, no props, nothing to buy.
+  The engine, measured on it first:
+  - *Flow field.* The grid is 216,000 cells (the station's 58,800; five storeys will make it
+    360,000) with 24,000 of them floor. The old field kept a heap of sixteen numbers for every cell
+    of the grid and asked every cell whether it was walkable on each recompute: 14.7 MB a field and
+    2.75 ms a recompute here (4 MB and 0.89 ms on the station), against a 5 ms tick. Now the queue
+    is a ring of buckets and the unchanging part (floor, wall costs, which cells are doorways) is
+    worked out once a map: 2.8 MB and 1.3 ms here, 0.8 MB and 0.45 ms on the station. The
+    distances are the same number for number (checked against the old field from 1,083 goals over
+    the four maps, and in a test against a search with no queue at all), so Harrow Ridge is as it
+    was: a seeded ten-round campaign is the same to the shot, in 4 s of real time instead of 7.
+  - *Bake.* The world builds and bakes in 0.78 s in headless Chromium (the station, dressed, 0.50 s;
+    the Corner 0.22 s): 163,000 triangles. Nothing to do yet; dressing will add to it (M9).
+  - *The camera's reach, the fog.* The far plane is 400 m and stays. The map's fog runs 10-110 m
+    (the Corner's 8-85): from one end of the avenue the other end is there, as a dark shape under
+    the towers; each subway zone has thicker air of its own.
+  - *Frame.* 27-55 draw calls, but 135,000-160,000 triangles from anywhere outdoors: the city's
+    façades are one mesh a wall style and none of it is culled (M2 said so; M9 measures and cuts).
+  The game on it: `server/src/game/night.test.ts` sends a zombie from the far end of the map to a
+  player in the signal room, the chapel, the platform and the avenue's end, and soaks four roaming
+  bots and a full horde for four minutes with every door open (ten zones walked, zombies on all
+  three storeys, worst idle 2.1 s, tick 0.8 ms on average); `shared/src/map/longestNight.test.ts`
+  holds the layout to the plan (prices, the circuit through the train, the power at both ends of the
+  service tunnel, every flight walked). `npm run tour -- --night` takes 39 pictures
+  (`tour-night-*.png`; a view named `air-*` is the free camera).
+  Found on the way: a door cut through solid that no block covers stands under 14 m of default
+  brick, so the wreckage in the cut had a tower's worth of wall over it (the two walls have blocks
+  of their own now, 4 m, the sky over them).
+  Not done: nothing is sold, so the campaign's bots never leave the diner (`campaign --god
+  --map=longest_night` runs clean, eight rounds, but proves only the diner: the soak above is what
+  covers the map until M8); the subway has no windows (M4: a pocket there needs something other
+  than sky over it), so whoever is down there is come for from the street; the tenement is a hall
+  with no stairs; the walls round a barricade are the building behind it with boards at its foot
+  (M5's street kit).
+- [x] M4 Blockout II: upstairs and roofs - done (4.12, "Upstairs and the roofs", says where
+  everything is). Five storeys now, fourteen zones, 17 doors, 36 windows, about 8,100 m2 of floor;
+  the grid is 360,000 cells.
+  The engine (6.1):
+  - *Pockets of three kinds.* `Opening.behind`: a yard (as always), `'air'` (a ledge of planks in
+    the open, which may hang over a street or a lower roof; in a parapet the window is a gap, open
+    above), `'tunnel'` (roofed and dark, so it lies under a street or under the next floor). The
+    subway has four of its own, both roofs two each, and no zone is left with no way in.
+  - *Floors over open street.* A floor under the sky may hang over another (the plank bridge, the
+    walk over the passage, the ledges): `deck` marks it, `cap` is where the air below it ends, and
+    every lookup that took "under the sky" to mean "no top" asks `cap` instead. A roofed room over
+    open sky is still refused. Drawn with an underside and edges.
+  - *Solid has a top to sight and shots.* `skyline` (the massing's tops) and `aloft`: lines of
+    sight, `rayWorld` and thrown things pass over whatever is lower than they are. Maps without
+    blocks are untouched: a seeded ten-round campaign on Harrow Ridge is the same to the shot.
+  - *Massing.* A column is open from its lowest floor under the sky, so what hangs changes nothing
+    below it; the walls a ledge hangs against are the building's own, drawn from the street up.
+  The game on it: `night.test.ts` sends zombies out of the track tunnel up to Abelard's roof, over
+  Abelard's parapet to the Lyric's balcony and from the chapel to the middle of the bridge; checks
+  that someone on the platform is come for out of the tunnels and someone on a roof over the
+  parapet; and soaks four bots and a full horde for four minutes (13 zones walked, zombies on all
+  five storeys, worst idle 3.0 s, tick 0.9 ms on average). `campaign --god --map=longest_night`
+  runs ten rounds clean (no stuck zombie, no correction). `deadends` is tested on the new graph:
+  with every door open the roofs, the store and the subway are round trips and the balcony, the
+  chapel, the signal room and the nook behind the tenement's hut are dead ends; a roof whose
+  bridge is unbought is one too. `npm run tour -- --night` takes 62 pictures (23 new: the flat,
+  the fire escape, both roofs, the bridge from above and below, the walk, the atrium, the gallery,
+  the balcony, a tunnel's boards).
+  Found on the way: a window raised every wall beside it to its own lintel (the massing's "a wall
+  is as tall as the room beside it" took a window for a room), which put a ledge on the diner's
+  roof inside a wall 7 m tall; someone standing right under the bridge could see whoever stood on
+  it (the two ends of a sight line in one column were only asked whether each was in air).
+  Not done: a ledge is bare planks on nothing and the fire escape a solid stoop of brick (M7's
+  kit: iron, brackets, scaffold); the posts of the bridge's gate stand nearly 4 m (a door in a
+  parapet is a door frame with the parapet's rim on top); the diner's block came down from 4.5 m
+  to 3.75 so the flat's ledge clears it; from the street nobody on a roof is seen unless they
+  stand at the parapet, and then only from well back - right, but untried in play; nothing is
+  sold yet, so the campaign's bots still never leave the diner and the soak is what covers the
+  map; outdoors a frame is now up to 200,000 triangles and the world takes 1.06 s to build and
+  bake in headless Chromium (M9 measures and cuts); no browser walk of the heights beyond the
+  tour (M10).
+- [x] M5 Dressing I: the square and the streets - done (4.12, "The streets dressed", says where
+  everything is). 25 new props in two kits, each a builder in code like the station's.
+  *The Christmas kit* (`models/props/festive.ts`): the tree, cut firs, strings of bulbs, wreaths,
+  garlands, presents, market stalls, the rink's boards and ice, the bandstand, benches, a
+  snowman; whatever glows in it is always on, mains or no mains. *The street kit*
+  (`models/props/street.ts`): cars (saloons, an estate, a cab, a patrol car; two with their lamps
+  on), the bus with its inside lights failing, a van, a kiosk, a telephone box, police trestles,
+  concrete barriers, hydrants, a mailbox, dumpsters, gratings and manholes, washing lines. A
+  street lamp is a new fixture (`'post'`: an iron post, a lantern, a wreath). 212 props and 32
+  lights placed over the three streets, the cut and the passage.
+  The engine:
+  - *Strung things.* `PropInst.y2` is the far end's height; `strung(type, x0, z0, y0, x1, z1, y1)`
+    places a string of bulbs or a clothes line by its two ends.
+  - *Steam.* A builder marks a vent with `k.steam(...)`; `render/ambient.ts` draws every plume in
+    one mesh (two crossed sheets of the mist's wisps, climbing, lit by whatever lamp is near).
+  - *Tall furniture has a top* where solid has one (6.1): `CompiledMap.shutAt`. Without it the tree,
+    the bus and every stall would have been walls into the sky to anyone on a roof. Maps without
+    blocks are untouched.
+  The game on it: the layout test holds the tree, the rink's four gates, the bus and the way past
+  it, and that every door and window is still reached; `night.test.ts` (four bots, a full horde,
+  four minutes, every door open) and `campaign --god --map=longest_night` (ten rounds, worst idle
+  3.0 s, no correction) run clean round the new obstacles. `npm run tour -- --night` takes 77
+  pictures (15 new: the tree from the ground and the air, the rink, the market, the bandstand,
+  Abelard's front, the bus, the traffic, the police line, the kiosk, the steam, the lane's van
+  and brazier).
+  Found on the way: three firs at the end of a stall boxed in a cell of floor; the lane's lamps
+  were masts standing in the middle of it.
+  Not done: the boards across a side street got wire along the top and barriers inside, but the
+  wall round a barricade is still the building behind it; the stalls sell presents and nothing
+  else, and nothing has a name on it (signs are M8); the bus and the patrol car's lights waver as
+  flames do rather than blink; the manhole is not a way in; no sound for any of it (M8). A frame
+  outdoors is now up to 233,000 triangles (it was 200,000) and the world takes 1.25-1.4 s to
+  build and bake in headless Chromium (1.06): M9 measures and cuts - the bulbs are five faces
+  each and there are about 800 of them. Untried in play: whether the rink's boards and the bus
+  make the square and the avenue better to fight in or only slower to cross (M9, with things to
+  buy).
+- [x] M6 Dressing II: Abelard's, the Lyric, the chapel - done (4.12, "The halls dressed", says
+  where everything is). 28 new props, each a builder in code. *The store kit*
+  (`models/props/store.ts`): shelves of toys, tables of bears and boxes, glass counters, shop
+  dummies, rails of coats, the gift-wrap counter, the model railway, a carousel, the grotto's
+  cabin and chair, rope barriers, an escalator's sides. *The halls kit* (`models/props/halls.ts`):
+  tip-up seats, the screen, the projector, the booth, the popcorn stand, poster cases, the
+  marquee; pews, the altar, the organ, the nativity, candle stands, coloured glass, the porch.
+  The other two are in the Christmas kit (a small indoor tree, things hung from a ceiling). 184 props and
+  19 lights placed (`dressing/nightHalls.ts`); the auditorium's own lamp is nearly out and the
+  chapel's two are halved, so the screen and the candles do the work. Four things move: the
+  train (on the mains), the carousel, the projector's two reels.
+  The game on it: the layout test holds the aisles (straight down the Lyric's to the window
+  under the screen, straight up the nave to the altar), that seats and pews hide nobody and a
+  gondola does, the railway in the atrium, both escalators still climbed, and every door and
+  window still reached; `night.test.ts` (four bots, a full horde, four minutes) and `campaign
+  --god --map=longest_night` (ten rounds, worst idle 3.0 s, no correction) run clean through
+  the furniture. `npm run tour -- --night` takes 95 pictures (18 new).
+  Found on the way: a line of sight whose far end stood exactly on the corner of a cell, reached
+  from the side the cell is not on, never arrived - the trace ran on past it and reported
+  whatever wall came next (`nav/los.ts`; it now stops at the end of its line). It showed from
+  the Lyric's balcony, but it is the station's bug too: a seeded campaign on Harrow Ridge is no
+  longer the same to the shot (it parts from the old one in round 8), and over 32 seeds the
+  team clears 9.7 rounds for 10.0 (median 9 for 10) - inside what 32 seeds can tell apart, but
+  M9 should take its Harrow Ridge baseline from after this commit.
+  Not done: above the street the Lyric and the chapel are still blank brick blocks (M2 left
+  stone and a cinema's blind wall to this session; the porch, the glass and the marquee are
+  props on that brick); Abelard's shop windows are the `shopfront` wall with nothing turning in
+  them, and the only display that turns is the carousel inside; the escalators' treads are the
+  stairs every flight has; the projector throws no beam (the glow material is not see-through);
+  the booth, the cabin and the posters have no names on them (M8); no sound (M8). The world is
+  now 267,000 triangles (it was 234,000) and takes 1.5 s to build and bake in headless Chromium
+  (1.3-1.4): M9 measures and cuts.
+- [x] M7 Dressing III: the diner, the tenement, the roofs, the subway and its train - done (4.12,
+  "The rest dressed", says where everything is). 45 new props in four kits, each a builder in
+  code: *the diner's* (`models/props/diner.ts`: booths, the counter and its stools, the jukebox,
+  a refrigerator, the sign), *the home's* (`home.ts`: letter boxes, a radiator, pictures, a
+  bicycle; the dinner table, television, armchair, sofa, bed, wardrobe, sideboard, a rug), *the
+  roofs'* (`roofs.ts`: water tank, chimneys, coop, aerials, the reindeer; plant room, condensers,
+  vent stacks, the lantern, the back of the sign; the iron of a ledge and of a fire escape) and
+  *the subway's* (`subway.ts`: token booth, turnstiles, fence, pillars, benches, posters,
+  telephones, clocks; the train's side, seats, poles and carriage ends; relay cabinets, the lever
+  frame, the diagram); paper chains are in the Christmas kit. 236 props and 14 lights placed.
+  Four more things move (the condensers' fans, on the mains).
+  The engine: one new wall style, `iron` (flat bars and stays over the dark), which is how the
+  fire escape stopped being a stoop of brick - its flight is still solid, but the lane sees iron
+  (a strip room along its foot, as every street's wall is) and its floor is tread plate. M4's
+  other leftover, the bare ledges, is a prop (`ledge_iron`) made from each `behind: 'air'`
+  window in `longestNight.ts`. A railing has an iron variant. Nothing else in the engine changed.
+  The game on it: the layout test holds the diner (booths, the way round the counter, nobody
+  starting in the furniture), the flat, the iron, the eight ledges, the roofs (what hides and
+  what does not), the turnstiles' two lanes, the train (23 benches, in sight from end to end,
+  every door clear) and the Forge's wall; `night.test.ts` (four bots, a full horde, four
+  minutes; worst idle 3.0 s) and `campaign --god --map=longest_night` (ten rounds, worst idle
+  3.0 s, no correction) run clean through all of it. `npm run tour -- --night` takes 121
+  pictures (26 new). Harrow Ridge is as it was: a seeded ten-round campaign is the same to the
+  shot.
+  Found on the way: the soak's count of zones its four bots wander into goes by the seed more
+  than by the map (9 to 13 over eight seeds with the dressing, three of them under the bar of
+  ten; one of six was under it before): adding a room moved the seed it ran on to the wrong
+  side, and it has another now. The roof tests stood on what is now the lantern.
+  Not done: the train's side is on the platform's wall and its carriages inside do not line up
+  with the windows outside; the turnstiles' arms are for show (nobody is stopped or slowed by
+  one); the fire escape is still solid under its treads, and the lower ledges still hang on
+  brackets with no ladder between them; the diner's sign and the store's have tubes and cans
+  but no letters, and nothing else is named (M8); nothing sold, no sound (M8). A mortal campaign
+  (`--runs=4`) clears 3, 3, 5 and 3 rounds with up to four corrections in a run (the last
+  commit's had them too, and its seed 4 was stopped after ten minutes without finishing; not
+  looked into: M8 gives the bots something to buy and M9 measures). The world is now 296,000
+  triangles (it was 267,000) and takes 1.85 s to build and bake in headless Chromium (1.5): M9
+  measures and cuts.
+- [x] M8 Things to buy, bots, sound, signs - done (4.12, "What is sold, heard and written", says
+  where everything is and what it sounds like). Twenty things to press F at: seven boards for
+  the six wall guns (the Stitch twice), the six tonics, five places for the Cache, the master
+  switch (a new prop, `breaker_box`, on the plant room on Abelard's roof) and the Forge in the
+  signal room (which was rearranged round it). 35 signs on the walls; the Starlight, Abelard's
+  and the Lyric have their names; booths, the kiosk, the grotto and the posters are lettered.
+  The engine:
+  - *Mounts are a kit.* `mountKit()` (`dressing/mounts.ts`) makes a map's list a line at a time,
+    on any storey; the station's list is built with it and is the same to the byte.
+  - *A gun on two walls.* A second board has a tag (`wb_stitch_platform`). Nothing looked a
+    board up by `wb_<gun>` but the bots: `wallFor` (`bot/wants.ts`) now gives them the nearer
+    (a storey counts as a long way), for the gun, its ammunition and the wall they go home to.
+    That is all the bots needed to be told about a map this size: doors, the power, tonics, the
+    Cache and the Forge they already found by zone and by route.
+  - *Airs.* Ten new ones (`AIR` in `audio/ambience.ts`), none shared with the station; an air
+    can say what note its mains hum at and whether it is open to the city (the far siren).
+    `Ambience` plays the carols from whatever prop plays them, a phrase at a time so each phrase
+    is placed and muffled from where the listener is now, and moves on through the tune while
+    nobody is near.
+  - *`LightDef.silent`* for a light that wavers and is no flame.
+  - *Lettering.* `textTile` has an `ink` style (dark, nothing round it, for a lit board);
+    `letterTile` is one big letter, for a name spelt a letter to a box.
+  The game on it: the layout test holds every mount to the zone and the storey the plan gives
+  it, floor to stand on in front of each and a way to it from the diner; that the first guns
+  need no door, the switch is three doors from the diner by either roof and not two, and the
+  Forge is shut in until the power. `night.test.ts` buys on four storeys (a board is out of
+  reach from the floor above it), throws the switch and sees both ends of the service tunnel
+  open, forges two storeys under the square, opens the Cache, and plays a mortal six-round
+  campaign in which the team leaves the diner, turns the power on and drinks. A client test
+  holds every zone of every map to an air there is. `npm run audio` has a fourth part: on a
+  second server it stands in the diner (the jukebox heard over the room), the square, the
+  chapel, the platform (no tube crackles now) and by the grotto (the music box), measures each
+  and records it; 120 sounds in the catalogue (9 new: the siren and each carol on each player).
+  `npm run tour -- --night` takes 158 pictures (37 new: every mount, the switch and the Forge
+  off and on, every name and a sign in every zone). In a browser every prompt reads right and
+  every purchase goes through, on all five storeys, with nothing in the console.
+  How the bots do, which is M9's to judge: `campaign --map=longest_night --runs=32`, four
+  mortal bots, clears 5 to 15 rounds, 10.9 on average, median 11 (the station's last figure,
+  in M6, was 9.7 and 9; M9 measures both the same way); over eight of those runs they buy 9 to
+  13 of the fifteen doors that are sold, the power every time, 10 to 23 tonics, and use the
+  Forge in every run and the Cache in half. A lone bot clears 5 to 8. God mode: ten rounds, no stuck zombie
+  (worst idle 3.0 s), no correction, tick 0.5 ms. Harrow Ridge is as it was: a seeded ten-round
+  campaign is the same to the shot.
+  Found on the way: on this map every flickering lamp that did not wait for the mains was
+  taken for a fire by the ambience, so the platform's tubes, the cinema screen and the
+  television all spat embers; a drift of snow lay on the roof's Cache site.
+  Not done: the master switch's lever does not move when thrown (nor does the station's);
+  nothing shows a newcomer where the Forge is but STAFF ONLY and SIGNAL ROOM in yellow; the
+  marquee's name is on its long face only; the transit posters and the store's shop windows
+  still say nothing; the carols are heard only near their two players, and there is no music
+  out in the square; the air's level outdoors (rms 0.033) is twice the station's mess hall's
+  and untried by ear; README says nothing of the map (M10). The world is 299,500 triangles (it
+  was 296,000) and builds and bakes in 1.4-1.7 s.
+- [x] M9 Balance and performance - done. Measured first, then cut; what is below is against the
+  last commit on the same machine with nothing else running.
+  **Performance.** `npm run tour -- --night --perf` stands at every one of the tour's 158 views
+  and reports triangles, draw calls and frame rate. Before: 245,000-299,000 triangles from 150 of
+  the 151 walked views, whichever way they looked - the frustum takes in most of a city from
+  anywhere, and the renderer knew nothing of walls. In headless software rendering a frame is
+  about 30 ms plus 0.2 ms for each thousand triangles, so that is what was cut:
+  - *Zones behind walls are not drawn* (6.1, "What is drawn"; `shared/src/map/visibility.ts`). A
+    table, once a map, of which zones can see each other at all (0.4 s for the city, 0.05 s for
+    the station), and as the eye moves a look from where it is: at each roofed zone's doorways
+    and windows, and from indoors at the ways out. The world's meshes are by region: window
+    pockets that are roofed go with their room, a city's façades with the street they stand
+    over, lamps' glow is per zone (it was one mesh a map). From the square the store is drawn
+    only while its door or a window is in sight; from the platform the streets are drawn only
+    from the foot of a flight that climbs to one.
+  - *Façades are joined up* (`render/city.ts`). Above the storey next to the street a wall was a
+    quad every half metre to each storey; a run of them that is one colour from end to end
+    (nothing a lamp reaches) is one quad now: 24,000 triangles fewer in the world, 275,800 for
+    299,500.
+  - *Big meshes are in 40 m tiles* (over 6,000 triangles), so the half of a street behind the
+    eye goes.
+  After, over the same 151 walked views: triangles 84,000 at the median (it was 198,000) and
+  195,000 at the worst (299,000: the Lyric's lobby, looking out at the square); frame rate 35 at
+  the median (19), 19 at the tenth (12) and 16 at the worst (10); draw calls 52 at the median and
+  127 at the worst (47 and 94; the budget is 150). The plan's worst view, Abelard's roof across
+  the square: 297,000 triangles at 11 fps became 147,000 at 19. The platform: 246,000 at 12 fps
+  became 34,000 at 52. The free camera in the air draws everything, by design: 264,000-274,000
+  triangles in up to 166 calls. The world takes about 1.9 s to build and bake (1.5-1.9 as M8
+  measured it; 0.3 s of it is the table).
+  That it hides nothing that is seen: `visibility.test.ts` marches rays every way from eyes all
+  over each of the four maps and fails if one enters a cell that would not have been drawn (and
+  holds the table to what walls plainly hide: the subway from the street, the vault from the
+  mess); and of the tour's 242 pictures of both maps, taken before and after, the only ones
+  that differ by more than snow and the frame counter are of things that move (failing tubes,
+  the carousel, a plume of steam).
+  Harrow Ridge gains by it too: over its 84 views 33,000 triangles at the median (53,000) and
+  54,500 at the worst (86,000), 60 draw calls at the worst (75), 35 fps at the slowest (22).
+  **Server.** Thirty-two mortal games on the city: tick 0.11-0.56 ms on average (budget 5), 331
+  of 1,128,817 ticks over the budget (the bar is one in a hundred), largest snapshot 1,550 bytes
+  with the full 32 of them alive (budget 4,096), events 2.6 kB/s, worst idle 3.0 s, no bot
+  message refused. In god mode ten rounds run clean (no stuck zombie, worst idle 3.0 s, no
+  correction, tick 0.52 ms, 13 of 31,931 over the budget).
+  **Balance.** `campaign --runs=32`, four mortal bots, both maps the same way. The station
+  (after M6's sight fix): 7 to 13 rounds, 9.7 on average, median 9, a round every 1.63 minutes.
+  The city as M8 left it: 5 to 15, 10.9, median 11, a round every 2.16 minutes - a round kinder
+  and a third slower. Rounds 1 to 7 last the same on both maps to within a tenth; from round 8
+  the city's are half as long again (156 s for 97 at round 10). Two things were looked at:
+  - *Where the dead come in.* Far away (4.12, "Its own numbers"): a third of them more than 40 m
+    of walking from anybody, where the station cannot do that. `MapRules.spawnReach` is new and
+    the city has it at 40 m. With it: 5 to 15 rounds, 9.6 on average, median 9 - the station's
+    numbers - and fewer bots go down with nothing left in any gun (57 of 240 downs, from 71 of
+    266; on Abelard's roof, where the switch is and no gun hangs, 23 from 35). It does *not*
+    make rounds shorter (2.04 minutes): see the next.
+  - *Why late rounds are long.* The bots' errands, not the dead's walk: in rounds 8 to 11 a
+    bot is on its way to ammunition a quarter of the time, to a gun or a tonic another quarter,
+    and a quarter of the time five or fewer of the dead are up. That is the size of the map
+    doing what 4.12 asked of it ("a team splits up without meaning to"), and no number was
+    changed for it: round tables, prices and the Forge are the game's on both maps.
+  Nobody goes down for the furniture: of 240 downs 11 are in the square and 2 on the avenue, and
+  no zombie idled over 3 s round the rink, the stalls or the bus in any of 64 games - which
+  answers M5's question as far as bots can (they cross the square; they do not fight in it).
+  Harrow Ridge is as it was: all 32 of its games are the same to the shot (it has no reach and
+  the spawner asks for none), and its pictures do not change.
+  New tools: `tour --perf`, `__zh.meshes()`, `__zh.cull(false)`.
+  Found on the way: the six-round city campaign in `night.test.ts` held seed 1 to four doors and
+  a tonic, which goes by the seed (3 to 7 doors over six of them); it runs seed 4 now. `npm run
+  horde` and `e2e` each failed once (a body shot scored as a limb; nine of ten remote shots
+  seen) while two campaigns and a tour were running beside them, and pass alone, as they do on
+  the last commit.
+  Not done: outdoors is still everything outdoors - streets and roofs are taken to see each
+  other, so the square draws the lane and both roofs' floors, and half the frame there is
+  floor and furniture at half a metre a quad (37,000 and 46,000 triangles); floors could be
+  joined as the façades were, at the price of seams where a joined quad meets cut ones. The
+  look from the eye is by sample: a room seen only through a slit under 25 cm wide that touches
+  no jamb, from every one of five eye positions 35 cm apart, would be left out (the test has
+  not found one). The strings of bulbs are still five faces a bulb. Nothing was judged by ear
+  or by hand: how the city plays for people, the air's level outdoors (M8) and whether rounds
+  of three minutes are too long are M10's, with players. README says nothing of the map (M10).
+- [x] M10 Acceptance - done. The Longest Night is no longer hidden: every lobby offers the two
+  maps, the station first (`ZH_MAP=longest_night` starts rooms on the city). What was run, and
+  what running it found:
+  **The walk.** `npm run city` (`scripts/city.cjs`), as `site` is for the station: one browser
+  player over every change of height there is - the kerb, the tenement's two flights, its roof
+  and parapet, the plank bridge and the walk to Abelard's roof, the hut and its stairs, down one
+  dead escalator and up the other, the gallery's rail, the Lyric's stairs and balcony, the fire
+  escape and the flat's door, the subway from the square to the mezzanine, a turnstile, the
+  platform, through the train, the head house's two flights to the avenue, the service tunnel
+  and its two flights to the hatch. Twenty-seven walks, the view never moving faster than a climb
+  does, and not one correction from the server. Then by floor: the master switch is offered on
+  the roof and not under it, Hair Trigger upstairs and not on the shop floor, Packmule on the
+  balcony and not in the stalls, the second Stitch on the platform and not on the pavement over
+  it; a shot from the balcony stops at its floor and one from the shop floor does not reach the
+  roof; a zombie is shot in the lane from the bridge, on the shop floor from the gallery, and in
+  the square over the roof's parapet. Three zombies follow: from the platform to the tenement's
+  roof (27 s), from Abelard's roof to the signal room (30 s), from the balcony to the chapel.
+  **The scripts that are about the place** take `-- --night` and do on the city what they do on
+  the station, from a table of places at the top of each: `economy` (the Farrow and its
+  ammunition in the diner, the door to the square, Second Wind, the switch on the roof and
+  nothing under it, Quickhands in the lane, the Forge in the signal room, 225 to a dummy, down
+  and up again), `horde` (the diner's three windows torn, vaulted and mended; the full 32 and
+  three bots in the square: 71 draw calls) and `wonders` (the Cache under the square's south
+  wall, the Jinx, every gun, six drops, the Arclight's 8 and 14, the Gravewell's 24 of 24, the
+  Siren, a howler round). `maps` now finds two maps on a server without debug and plays the
+  city there; `ship -- --map=longest_night` has the host pick it in the lobby as a person would.
+  The tour's 158 pictures of the city were taken and looked at.
+  **Found: a shot over a parapet did not count.** The server asked for a line of sight chest
+  to chest (1.2 m) and the client shoots from the eye (1.6 m): on a roof with a metre of
+  parapet the eye sees the square, the client draws the blood, and the server threw the hit
+  away. It now accepts either line (5, "Hit detection"); `night.test.ts` shoots the square from
+  Abelard's roof, and is still refused what stands under the wall and what is two floors up.
+  Bots aim chest to chest, as before, so no campaign changes.
+  **Found: the frame was over its budget.** M9 measured the tour's views - alone, standing
+  still, doors open - and found 127 draw calls at worst. Four players in a real game were 185
+  (`ship` on the city cleared its ten rounds in 14:33 with nothing in any console, and failed on
+  that alone). Four cuts (6.1, "What is drawn"; 3, "Characters"), measured between each:
+  - *Tiles over a mesh's own extent, and no more than it has triangles for.* Abelard's floor
+    was four meshes because the map's 40 m grid crossed it; the city's far faces were twelve
+    for 16,000 triangles.
+  - *A shut door is drawn only in sight.* Seventeen doors of up to three calls each were always
+    drawn. (The first version looked along `rayWorld` and was wrong: on the station tall
+    furniture stops a shot at any height, and from the bluff the bunker's door is seen over the
+    shelter in the low yard. The pictures caught it; the test, which made the same assumption,
+    had not. Both look along `clearLine` now. The denser run then found a door seen as a sliver
+    three centimetres wide past its jamb from ten metres: the samples start two centimetres in.)
+  - *A turning part goes with its zone.*
+  - *A teammate is one mesh.* Eleven parts were eleven draw calls, three teammates 42 with
+    their guns: more than a quarter of the budget, on both maps. The joints are still a
+    hierarchy; the boxes' vertices are put where the joints say each frame.
+  After, over the tour's 151 walked views of the city: 88 draw calls at worst (127) and 43 at
+  the median (52); triangles 95,700 at the median (84,500) and 204,000 at worst (195,600) -
+  bigger tiles hide less - and the frame rate as M9 left it (33 at the median, 19 at the tenth,
+  15 at worst). The free camera in the air: 117 calls (166). A round fought with three bots and
+  32 of the dead: 102 calls at worst where it was 135 before the last cut. Harrow Ridge: 43
+  calls at worst (60), 34,900 triangles at the median, 36 fps at the slowest. That nothing
+  seen is left out: `visibility.test.ts` marches lines from eyes all over both maps and wherever
+  one ends on a shut door `doorInSight` must have said so (every door shut, then each half
+  open; clean at eight times the density it runs at); every one of the tour's 203 walked views
+  of both maps was drawn with every door shut, culled and unculled, and the pairs differ only
+  in what moves (the carousel, fans, swinging lamps, steam); and the 278 pictures of both tours
+  before and after differ only in those and in lights still stuttering up.
+  **Also.** The menu names the map it stands in front of, and "How to play" no longer says
+  "station". README has the two maps, `ZH_MAP` and the new scripts.
+  **`ship` on each**, from a fresh clone of this session's commit (`npm ci`, build, `npm start`,
+  no debug, four browser players on the autopilot). The city, picked by the host in the lobby:
+  ten rounds cleared in 15:44, one down and one revive, the power on, tonics, the Forge used;
+  nothing in four consoles or the server's log; 112 draw calls in the busiest frame. The
+  station: ten rounds in 15:46, nobody down, nothing logged, 80 draw calls at most (it was 119
+  in session 14). Before them, on this checkout: typecheck, lint, 312 tests, and all fourteen
+  browser scripts on the maps they run on (`smoke`, `rounds`, `economy` and `horde` and
+  `wonders` on both, `site`, `city`, `heights`, `maps`, `ux`, `e2e`). `audio` was not run again:
+  nothing it listens to was touched.
+  Not done: nobody but bots and the autopilot has played the city - how it plays for people,
+  the air's level outdoors (M8) and whether rounds of two to three minutes are too long are
+  still unjudged, and are now for players to say. `rounds`, `ux`, `e2e`, `smoke` and `audio`'s
+  first half are about the game and not the place and run on the station only. A remote
+  player's gun is still one to three draw calls of its own. Outdoors is still everything
+  outdoors (M9). The autopilot's frame rate in four headless browsers on four cores is 5 to 15
+  on the city (it is 20 to 40 alone): software rendering, and no measure of a real machine.
+
+M2 was the session thought most likely to become two (the engine had only ever hidden the
+outside); it took one. Next most likely was
+M9 (the station's rebuild took a whole step to balance, and errands here are longer still); it
+took one as well, most of it on what is drawn and little on balance.
 
 ## 10. Risks to watch
 - **Map authoring by hand in code** is the biggest schedule risk → mitigated by the carved-rect

@@ -1,6 +1,6 @@
 // Every tunable number in the game lives here or in shared/src/data. See docs/PLAN.md section 4.
 
-export const PROTOCOL_VERSION = 9;
+export const PROTOCOL_VERSION = 10;
 
 // --- Networking ---
 export const TICK_RATE = 30; // server sim Hz
@@ -26,7 +26,7 @@ export const HEARTBEAT_MS = 15_000; // the server pings every socket this often;
 export const RATE_ALL: readonly [number, number] = [120, 240];
 export const RATE_CHAT: readonly [number, number] = [1, 4];
 export const RATE_MARK: readonly [number, number] = [1, 3];
-export const RATE_ROOM: readonly [number, number] = [2, 10]; // create, join, leave, ready, start, again
+export const RATE_ROOM: readonly [number, number] = [2, 10]; // create, join, leave, ready, map, start, again
 export const RATE_PING: readonly [number, number] = [2, 10];
 export const RATE_STRIKES = 300;
 export const MARK_SECONDS = 6; // a ping marker stays up this long

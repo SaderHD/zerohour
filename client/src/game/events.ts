@@ -30,6 +30,8 @@ export interface EventDeps {
   net: Net;
   match: Match;
   map: CompiledMap;
+  /** Load the page again on this map if it is not the one built; true when it is doing so. */
+  followMap: (id: string) => boolean;
   world: World;
   player: LocalPlayer;
   remotes: RemotePlayers;
@@ -96,13 +98,8 @@ export function wireEvents(d: EventDeps): void {
   }
 
   s.on('sync', (msg) => {
-    if (msg.map !== map.def.id) {
-      // The server is on another map than the one we built: load that one.
-      const url = new URL(location.href);
-      url.searchParams.set('map', msg.map);
-      location.replace(url);
-      return;
-    }
+    // The game is on another map than the one we built (the room message should have said so already).
+    if (d.followMap(msg.map)) return;
     player.teleport(msg.self.x, msg.self.z, msg.self.yaw, msg.self.y);
     player.pitch = 0;
     m.setDoors(msg.openDoors);

@@ -105,12 +105,13 @@ export function catwalk(k: Kit): void {
   }
 }
 
-/** A handrail along a drop: steel tube indoors, posts and a pole (variant 1) in the yard. */
+/** A handrail along a drop: steel tube indoors, posts and a pole (variant 1) in the yard, black iron (2) on a fire escape. */
 export function railing(k: Kit): void {
   const len = k.inst.s ?? 2;
   const timber = k.variant === 1;
-  const post = timber ? k.tone(C.woodDark, 0.1) : k.tone(C.steelDark, 0.05);
-  const bar = timber ? k.tone(C.wood, 0.1) : C.hazard;
+  const iron = k.variant === 2;
+  const post = timber ? k.tone(C.woodDark, 0.1) : iron ? C.iron : k.tone(C.steelDark, 0.05);
+  const bar = timber ? k.tone(C.wood, 0.1) : iron ? C.iron : C.hazard;
   const t = timber ? 0.05 : 0.025;
   k.box(-len / 2, 0.96, -t, len / 2, 0.96 + t * 2, t, bar, { bottom: true });
   k.box(-len / 2, 0.5, -t * 0.6, len / 2, 0.5 + t * 1.2, t * 0.6, post, { bottom: true });

@@ -16,4 +16,4 @@ export * from './data/cache';
 export * from './data/powerups';
 export * from './data/props';
 export * from './bot/mind';
-export { listWants } from './bot/wants';
+export { listWants, wallFor } from './bot/wants';
